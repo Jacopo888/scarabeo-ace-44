@@ -1,4 +1,4 @@
-import { Tile, PlacedTile, TILE_DISTRIBUTION } from '@/types/game'
+import { GameState, Tile, PlacedTile, TILE_DISTRIBUTION } from '@/types/game'
 import { Puzzle, PuzzleMove } from '@/types/puzzle'
 import { ScrabbleBot } from '@/ai/ScrabbleBot'
 
@@ -256,6 +256,7 @@ export class ProgressivePuzzleBuilder {
   private rack: Tile[] = []
   private isValidWord: (word: string) => boolean
   private isDictionaryLoaded: boolean
+  private bestMove?: PuzzleMove
   
   constructor(isValidWord: (word: string) => boolean, isDictionaryLoaded: boolean) {
     this.isValidWord = isValidWord
@@ -346,50 +347,89 @@ export class ProgressivePuzzleBuilder {
   
   async findBestPlayerMove(): Promise<PuzzleConstructionStep> {
     console.log('Finding best player move with rack:', this.rack.map(t => t.letter))
-    
-    // Simplified move generation without heavy bot usage
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          type: 'FINDING_BEST_MOVE'
-        })
-      }, 500)
-    })
+
+    if (!this.isDictionaryLoaded) {
+      this.bestMove = undefined
+      return { type: 'FINDING_BEST_MOVE' }
+    }
+
+    const bot = new ScrabbleBot(this.isValidWord, this.isDictionaryLoaded)
+    const gameState: GameState = {
+      board: this.board,
+      players: [],
+      currentPlayerIndex: 0,
+      tileBag: [],
+      gameStatus: 'playing'
+    }
+
+    const moves = bot.generateAllPossibleMoves(gameState, this.rack)
+    const best = bot.selectBestMove(moves, 'hard')
+
+    if (best) {
+      const isHorizontal = best.tiles.every(t => t.row === best.tiles[0].row)
+      const startTile = isHorizontal
+        ? best.tiles.reduce((min, t) => (t.col < min.col ? t : min), best.tiles[0])
+        : best.tiles.reduce((min, t) => (t.row < min.row ? t : min), best.tiles[0])
+
+      this.bestMove = {
+        tiles: best.tiles.map(t => ({ ...t, isPlaced: false })),
+        words: best.words,
+        score: best.score,
+        startCell: { row: startTile.row, col: startTile.col },
+        mainWordLength: best.words.length > 0 ? Math.max(...best.words.map(w => w.length)) : undefined,
+        lettersUsed: best.tiles.map(t => t.letter).sort()
+      }
+    } else {
+      this.bestMove = undefined
+    }
+
+    return { type: 'FINDING_BEST_MOVE' }
   }
-  
+
   getCurrentState(): ProgressivePuzzleState {
     return {
       board: new Map(this.board),
       rack: [...this.rack],
       wordsGenerated: [...this.wordsGenerated],
       currentStep: { type: 'INITIAL_WORD' },
-      isComplete: false
+      isComplete: false,
+      bestMove: this.bestMove
     }
   }
   
   async buildCompletePuzzle(): Promise<Puzzle> {
     console.log('Building complete puzzle with board size:', this.board.size)
-    
-    // Create a simple puzzle with at least one move for the user to find
-    const simpleMoves = [{
-      tiles: this.rack.slice(0, 3).map((tile, i) => ({
-        ...tile,
-        row: 8,
-        col: 7 + i,
-        isPlaced: false
-      })),
-      words: ['SAMPLE'],
-      score: 25,
-      startCell: { row: 8, col: 7 },
-      mainWordLength: 6,
-      lettersUsed: this.rack.slice(0, 3).map(t => t.letter).sort()
-    }]
-    
+
+    if (!this.bestMove) {
+      await this.findBestPlayerMove()
+    }
+
+    let topMoves: PuzzleMove[]
+
+    if (this.bestMove) {
+      topMoves = [this.bestMove]
+    } else {
+      // Fallback simple move if bot fails
+      topMoves = [{
+        tiles: this.rack.slice(0, 3).map((tile, i) => ({
+          ...tile,
+          row: 8,
+          col: 7 + i,
+          isPlaced: false
+        })),
+        words: ['SAMPLE'],
+        score: 25,
+        startCell: { row: 8, col: 7 },
+        mainWordLength: 6,
+        lettersUsed: this.rack.slice(0, 3).map(t => t.letter).sort()
+      }]
+    }
+
     return {
       id: `progressive-puzzle-${Date.now()}`,
       board: Array.from(this.board.values()),
       rack: shuffleArray([...this.rack]),
-      topMoves: simpleMoves
+      topMoves
     }
   }
 }
