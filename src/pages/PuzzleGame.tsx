@@ -16,12 +16,12 @@ import { BlankTileDialog } from '@/components/BlankTileDialog'
 import { usePuzzlePuzzle } from '@/hooks/usePuzzle'
 import { submitPuzzleScore } from '@/api/puzzle'
 import { generateLocal15x15Puzzle, getTopMovesForBoard } from '@/utils/puzzleGenerator15x15'
-import { ProgressivePuzzleBuilder, PuzzleConstructionStep, ProgressivePuzzleState } from '@/utils/progressivePuzzleBuilder'
+import { BotBasedPuzzleBuilder, BotPuzzleProgress } from '@/utils/BotBasedPuzzleBuilder'
 import { validateMoveLogic } from '@/utils/moveValidation'
 import { findNewWordsFormed } from '@/utils/newWordFinder'
 import { calculateNewMoveScore } from '@/utils/newScoring'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { Tile, PlacedTile } from '@/types/game'
+import { Tile, PlacedTile, TILE_DISTRIBUTION } from '@/types/game'
 import { Tile as StoreTile } from '@/store/game'
 import { Puzzle, PuzzleMove, PuzzleGameState } from '@/types/puzzle'
 import { DailyPuzzle } from '@/types/daily'
@@ -52,9 +52,7 @@ const PuzzleGame = () => {
   const location = useLocation()
   const [isDailyMode, setIsDailyMode] = useState(false)
   const [is90sMode, setIs90sMode] = useState(false)
-  const [puzzlePhase, setPuzzlePhase] = useState<'GIVING_TILES' | 'BUILDING_PUZZLE' | 'PLAYING'>('GIVING_TILES')
-  const [progressiveBuilder, setProgressiveBuilder] = useState<ProgressivePuzzleBuilder | null>(null)
-  const [constructionStep, setConstructionStep] = useState<PuzzleConstructionStep | null>(null)
+  const [puzzlePhase, setPuzzlePhase] = useState<'GIVING_TILES' | 'BUILDING_PUZZLE' | 'PLAYING'>('PLAYING')
   const [gameState, setGameState] = useState<PuzzleGameState>({
     puzzle: null,
     foundMoves: new Set(),
@@ -77,6 +75,9 @@ const PuzzleGame = () => {
   const [submissionError, setSubmissionError] = useState<string>('')
   const [isRefetching, setIsRefetching] = useState(false)
   const [is90sPuzzleGenerating, setIs90sPuzzleGenerating] = useState(false)
+  const [puzzleProgress, setPuzzleProgress] = useState<BotPuzzleProgress | null>(null)
+  const [loadingNewPuzzle, setLoadingNewPuzzle] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
   const { timeLeft, isRunning, start, stop, formatTime } = useCountdown()
   const { isValidWord, isLoaded: isDictionaryLoaded } = useDictionary()
@@ -191,84 +192,98 @@ const PuzzleGame = () => {
         initializePuzzle(puzzleData)
       }
     } else if (is90s && isDictionaryLoaded && !is90sPuzzleGenerating) {
-      start90sPuzzle()
+      // Call start90sPuzzle in a separate effect
     }
   }, [location, isDictionaryLoaded, initializePuzzle])
 
-  const start90sPuzzle = async () => {
-    if (!isDictionaryLoaded || is90sPuzzleGenerating) return
-    
-    console.log('Starting 90s puzzle generation...')
-    setIs90sPuzzleGenerating(true)
-    
-    try {
-      const builder = new ProgressivePuzzleBuilder(isValidWord, isDictionaryLoaded)
-      setProgressiveBuilder(builder)
-      setPuzzlePhase('GIVING_TILES')
-      
-      // Show rack for 2 seconds
-      const state = builder.getCurrentState()
-      console.log('Generated rack:', state.rack.map(t => t.letter))
-      setGameState(prev => ({
-        ...prev,
-        remainingRack: state.rack
-      }))
-      
-      setTimeout(() => {
-        setPuzzlePhase('BUILDING_PUZZLE')
-        buildPuzzleProgressively(builder)
-      }, 2000)
-      
-    } catch (error) {
-      console.error('Failed to start 90s puzzle:', error)
-      setIs90sPuzzleGenerating(false)
-      toast({
-        title: "Error",
-        description: "Failed to start progressive puzzle",
-        variant: "destructive"
-      })
+  const start90sPuzzle = useCallback(async () => {
+    if (!isDictionaryLoaded || is90sPuzzleGenerating) {
+      return
     }
-  }
 
-  const buildPuzzleProgressively = async (builder: ProgressivePuzzleBuilder) => {
+    console.log('Starting bot-based 90s puzzle generation...')
+    setIs90sPuzzleGenerating(true)
+    setLoadingNewPuzzle(true)
+    setError(null)
+    setPuzzleProgress(null)
+    
     try {
-      console.log('Building puzzle progressively...')
-      // Step 1: Place initial word
-      setConstructionStep({ type: 'INITIAL_WORD' })
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Generate initial rack for the user
+      const initialRack = createPuzzleRack()
       
-      const initialStep = await builder.placeInitialWord()
-      console.log('Initial word placed:', initialStep.wordAdded)
-      setConstructionStep(initialStep)
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      console.log('User rack generated:', initialRack.map(t => t.letter))
       
-      // Step 2-7: Add connected words
-      for (let i = 1; i <= 6; i++) {
-        console.log(`Adding connected word ${i}/6...`)
-        setConstructionStep({ 
-          type: 'CONNECTED_WORD', 
-          stepNumber: i, 
-          totalSteps: 6 
-        })
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        const connectedStep = await builder.addConnectedWord(i)
-        console.log(`Connected word ${i} placed:`, connectedStep.wordAdded)
-        setConstructionStep(connectedStep)
-        await new Promise(resolve => setTimeout(resolve, 2000))
+      // Create bot-based puzzle builder
+      const builder = new BotBasedPuzzleBuilder(
+        isValidWord, 
+        isDictionaryLoaded, 
+        initialRack,
+        (progress) => {
+          setPuzzleProgress(progress)
+          console.log(`Progress: ${progress.currentAction} (${progress.currentStep}/${progress.totalSteps})`)
+        }
+      )
+      
+      // Build the puzzle using bot moves
+      const completePuzzle = await builder.buildPuzzle()
+      
+      if (!completePuzzle) {
+        throw new Error('Failed to build bot-based puzzle')
       }
       
-      // Step 8: Find best move
-      setConstructionStep({ type: 'FINDING_BEST_MOVE' })
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      console.log('Bot-based 90s puzzle generation completed successfully!')
       
-      await builder.findBestPlayerMove()
+      // Initialize with the generated puzzle
+      initializePuzzle(completePuzzle)
       
-      // Complete the puzzle
-      const finalPuzzle = await builder.buildCompletePuzzle()
-      initializePuzzle(finalPuzzle)
-      setPuzzlePhase('PLAYING')
-      console.log('90s puzzle generation completed successfully!')
+    } catch (error) {
+      console.error('Failed to build puzzle. Falling back to regular mode.', error)
+      setError('Failed to generate 90s puzzle. Loading regular puzzle instead...')
+      // Fallback to regular puzzle
+      const localPuzzle = generateLocal15x15Puzzle(isValidWord, isDictionaryLoaded, true, 1)
+      initializePuzzle(localPuzzle)
+    } finally {
+      setIs90sPuzzleGenerating(false)
+      setLoadingNewPuzzle(false)
+      setPuzzleProgress(null)
+    }
+  }, [isDictionaryLoaded, is90sPuzzleGenerating, isValidWord, initializePuzzle])
+
+  // Separate effect for starting 90s puzzle to avoid dependency issues
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search)
+    const is90s = searchParams.get('90s') === 'true'
+    
+    if (is90s && isDictionaryLoaded && !is90sPuzzleGenerating) {
+      start90sPuzzle()
+    }
+  }, [isDictionaryLoaded, is90sPuzzleGenerating, start90sPuzzle, location])
+
+  // Helper function to create puzzle rack
+  const createPuzzleRack = (): Tile[] => {
+    const rack: Tile[] = []
+    const tileCounts = new Map<string, number>()
+    
+    // Count tiles from distribution
+    for (const tile of TILE_DISTRIBUTION) {
+      tileCounts.set(tile.letter, (tileCounts.get(tile.letter) || 0) + 1)
+    }
+    
+    // Draw 7 random tiles
+    const availableTiles = [...TILE_DISTRIBUTION]
+    for (let i = 0; i < 7 && availableTiles.length > 0; i++) {
+      const randomIndex = Math.floor(Math.random() * availableTiles.length)
+      rack.push(availableTiles.splice(randomIndex, 1)[0])
+    }
+    
+    return rack
+  }
+
+  const buildPuzzleProgressively = async (builder: any) => {
+    try {
+      console.log('Building puzzle progressively...')
+      // This function is no longer used in the bot-based approach
+      console.log('buildPuzzleProgressively called but not implemented for bot-based builder')
       
     } catch (error) {
       console.error('Failed to build puzzle progressively:', error)
@@ -685,6 +700,34 @@ const PuzzleGame = () => {
     )
   }
 
+  // Loading state for 90s puzzle generation
+  if (loadingNewPuzzle && is90sMode) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <h2 className="text-xl font-semibold">Building your 90s puzzle...</h2>
+          <p className="text-muted-foreground">
+            {puzzleProgress ? puzzleProgress.currentAction : 'Initializing...'}
+          </p>
+          {puzzleProgress && (
+            <div className="w-64 mx-auto">
+              <div className="bg-secondary rounded-full h-2">
+                <div 
+                  className="bg-primary h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(puzzleProgress.currentStep / puzzleProgress.totalSteps) * 100}%` }}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Step {puzzleProgress.currentStep} of {puzzleProgress.totalSteps}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   // Show loading screens for 90s mode
   if (is90sMode && puzzlePhase !== 'PLAYING') {
     return (
@@ -706,76 +749,11 @@ const PuzzleGame = () => {
           <Card className="w-full max-w-md">
             <CardContent className="p-8">
               <div className="text-center space-y-6">
-                {puzzlePhase === 'GIVING_TILES' && (
-                  <>
-                    <Zap className="h-16 w-16 mx-auto text-primary animate-pulse" />
-                    <div>
-                      <h2 className="text-2xl font-bold mb-2">Your Letters</h2>
-                      <p className="text-muted-foreground mb-4">These are your tiles for this puzzle</p>
-                      {gameState.remainingRack.length > 0 && (
-                        <div className="flex justify-center gap-2 flex-wrap">
-                          {gameState.remainingRack.map((tile, index) => (
-                            <div
-                              key={index}
-                              className="w-12 h-12 bg-primary text-primary-foreground rounded-lg flex items-center justify-center font-bold text-lg shadow-lg"
-                            >
-                              {tile.letter || '?'}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {puzzlePhase === 'BUILDING_PUZZLE' && (
-                  <>
-                    <div className="relative">
-                      <Zap className="h-16 w-16 mx-auto text-primary animate-spin" />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-bold mb-2">Building Puzzle</h2>
-                      {constructionStep?.type === 'INITIAL_WORD' && (
-                        <div className="space-y-2">
-                          <p className="text-muted-foreground">Placing initial word...</p>
-                          {constructionStep.wordAdded && (
-                            <p className="text-lg font-semibold text-primary">
-                              ✓ Placed: {constructionStep.wordAdded}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      {constructionStep?.type === 'CONNECTED_WORD' && (
-                        <div className="space-y-2">
-                          <p className="text-muted-foreground">
-                            Adding connected word {constructionStep.stepNumber}/{constructionStep.totalSteps}...
-                          </p>
-                          {constructionStep.wordAdded && (
-                            <p className="text-lg font-semibold text-primary">
-                              ✓ Added: {constructionStep.wordAdded}
-                            </p>
-                          )}
-                          <div className="w-full bg-secondary rounded-full h-2">
-                            <div 
-                              className="bg-primary h-2 rounded-full transition-all duration-500"
-                              style={{ 
-                                width: `${((constructionStep.stepNumber || 0) / (constructionStep.totalSteps || 6)) * 100}%` 
-                              }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {constructionStep?.type === 'FINDING_BEST_MOVE' && (
-                        <div className="space-y-2">
-                          <p className="text-muted-foreground">Finding best moves with your tiles...</p>
-                          <div className="animate-pulse text-primary">
-                            Analyzing possibilities...
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
+                <Zap className="h-16 w-16 mx-auto text-primary animate-pulse" />
+                <div>
+                  <h2 className="text-2xl font-bold mb-2">90s Puzzle Ready!</h2>
+                  <p className="text-muted-foreground">The puzzle has been generated and is ready to play</p>
+                </div>
               </div>
             </CardContent>
           </Card>
