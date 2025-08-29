@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 interface UseCountdownReturn {
   timeLeft: number
@@ -14,23 +14,23 @@ export function useCountdown(): UseCountdownReturn {
   const [isRunning, setIsRunning] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  const start = (duration: number) => {
+  const start = useCallback((duration: number) => {
     setTimeLeft(duration)
     setIsRunning(true)
-  }
+  }, [])
 
-  const stop = () => {
+  const stop = useCallback(() => {
     setIsRunning(false)
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
       intervalRef.current = null
     }
-  }
+  }, [])
 
-  const reset = () => {
+  const reset = useCallback(() => {
     stop()
     setTimeLeft(0)
-  }
+  }, [stop])
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60)
