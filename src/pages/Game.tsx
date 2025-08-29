@@ -8,6 +8,8 @@ import { DictionaryLoader } from "@/components/DictionaryLoader"
 import { AnalysisPanel } from "@/components/AnalysisPanel"
 import { useGameAnalysis } from "@/hooks/useGameAnalysis"
 import { BlankTileDialog } from "@/components/BlankTileDialog"
+import { QuackleProvider } from "@/contexts/QuackleContext"
+import { QuackleHealthCheck } from "@/components/QuackleHealthCheck"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Trophy, BarChart3 } from "lucide-react"
@@ -298,9 +300,15 @@ const GameContent = () => {
 
 const Game = () => {
   return (
-    <GameProvider>
-      <GameContent />
-    </GameProvider>
+    <QuackleProvider>
+      <GameProvider>
+        <div className="min-h-screen bg-background">
+          <DictionaryLoader />
+          <QuackleHealthCheck />
+          <GameContent />
+        </div>
+      </GameProvider>
+    </QuackleProvider>
   )
 }
 

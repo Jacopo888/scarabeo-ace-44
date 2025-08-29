@@ -339,3 +339,6 @@ export function getTopMovesForBoard(
 ): PuzzleMove[] {
   return generateTopMovesWithBot(boardMap, rack, isValidWord, isDictionaryLoaded)
 }
+
+// Export the fallback function for external use
+export { createPlaceableFallbackMove }
