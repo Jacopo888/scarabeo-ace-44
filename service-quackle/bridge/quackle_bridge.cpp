@@ -7,7 +7,7 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
-// Header Quackle: includi i file principali senza il prefisso 'libquackle/'
+// Header Quackle: includi i file principali senza prefissi come 'libquackle/' o 'quackle/'
 #include "game.h"
 #include "board.h"
 #include "rack.h"
