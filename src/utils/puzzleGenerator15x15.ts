@@ -327,6 +327,19 @@ export function generateLocal15x15Puzzle(
   useLight = false,
   simulationTurns = 2
 ): Puzzle {
+  // Importa il generatore legale solo quando necessario
+  const { generateLegalPuzzle } = require('@/utils/legalPuzzleGenerator')
+  
+  // Se il dizionario è caricato, usa il generatore legale
+  if (isDictionaryLoaded && !useLight) {
+    try {
+      return generateLegalPuzzle(isValidWord, isDictionaryLoaded)
+    } catch (error) {
+      console.warn('Fallback al generatore classico:', error)
+    }
+  }
+  
+  // Fallback al sistema esistente
   let attempts = 0
   const maxAttempts = useLight ? 1 : 5
   
@@ -349,12 +362,10 @@ export function generateLocal15x15Puzzle(
     attempts++
   }
   
-  // Fallback - always succeeds
+  // Fallback finale
   const tileBag = shuffleArray([...TILE_DISTRIBUTION])
-  const board = generateConnectedBoard(tileBag, true, 1, isValidWord, isDictionaryLoaded) // Force light mode for fallback with minimal turns
+  const board = generateConnectedBoard(tileBag, true, 1, isValidWord, isDictionaryLoaded)
   const rack = tileBag.splice(0, 7)
-  
-  // Generate fallback moves using only rack tiles
   const fallbackMoves = [createPlaceableFallbackMove(board, rack)]
   
   return {
