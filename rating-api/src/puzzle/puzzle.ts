@@ -4,6 +4,40 @@ import { findNewWordsFormed } from '../../../src/utils/newWordFinder'
 import { calculateNewMoveScore } from '../../../src/utils/newScoring'
 import { randomUUID } from 'crypto'
 
+// Enhanced word list for legal puzzle generation
+const ENHANCED_WORD_LIST = new Set([
+  // Original basic words
+  'THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR', 'HAD', 'DAY', 'GET', 'HAS', 'HIM', 'HIS', 'HOW', 'ITS', 'NEW', 'NOW', 'OLD', 'SEE', 'TWO', 'WHO', 'BOY', 'DID', 'HAS', 'LET', 'PUT', 'SAY', 'SHE', 'TOO', 'USE',
+  'QUIZ', 'FIZZ', 'BUZZ', 'JAZZ', 'FOXY', 'COZY', 'WAXY', 'ZEST', 'APEX', 'JINX', 'QUAY', 'OXIDE', 'PROXY', 'BLITZ', 'WALTZ', 'ZEBRA', 'DOZEN', 'FUZZY', 'JAZZY', 'DIZZY', 'PIZZA', 'PRIZE', 'FROZE', 'MAIZE', 'BRONZE', 'ENZYME', 'QUARTZ', 'WIZARD', 'OXYGEN', 'ZEPHYR',
+  'ACE', 'ACT', 'ADD', 'AGE', 'AID', 'AIM', 'AIR', 'ART', 'ASK', 'ATE', 'BIG', 'BIT', 'BOX', 'BUY', 'CAR', 'CUT', 'DOG', 'EAR', 'EAT', 'EGG', 'END', 'EYE', 'FAR', 'FEW', 'FIT', 'FLY', 'GOT', 'GUN', 'HAT', 'HIT', 'HOT', 'ICE', 'JOB', 'KEY', 'LAY', 'LEG', 'LIE', 'LOT', 'LOW', 'MAN', 'MAP', 'MAY', 'MEN', 'MET', 'MIX', 'OIL', 'PAY', 'PEN', 'PET', 'PIG', 'PIT', 'RAN', 'RAT', 'RED', 'RUN', 'SAT', 'SET', 'SIX', 'SKY', 'SUN', 'TEN', 'TOP', 'TRY', 'WAR', 'WAY', 'WET', 'WIN', 'YES', 'YET', 'ZOO',
+  // Long words for initial placement (>5 letters)
+  'PLAYER', 'POINTS', 'BOARDS', 'LETTER', 'CHANCE', 'DOUBLE', 'TRIPLE', 'SCORED', 'WINNER', 'PLACED', 'MASTER', 'EXPERT', 'PUZZLE', 'CHALLENGE', 'STRATEGY', 'COMPUTER', 'VOCABULARY', 'ALPHABET', 'SENTENCE', 'CROSSWORD', 'SPELLING',
+  'AMAZING', 'ARTIST', 'ANSWER', 'ALWAYS', 'AROUND', 'ALMOST', 'BETTER', 'BEFORE', 'BRINGS', 'BEYOND', 'BRIDGE', 'BRIGHT', 'CREATES', 'CLASSIC', 'CENTRAL', 'CHANGE', 'CHOICE', 'CIRCLE', 'GOLDEN', 'GLOBAL', 'GROUND', 'GARDEN', 'GATHER', 'GIVING', 'HELPER', 'HAPPEN', 'HIGHER', 'HANDLE', 'HEARTS', 'HOSTED'
+])
+
+// Words organized by starting letter for connection logic
+const WORDS_BY_LETTER: Record<string, string[]> = {
+  'A': ['AMAZING', 'ARTIST', 'ANSWER', 'ALWAYS', 'AROUND', 'ALMOST', 'ABLE', 'ACE', 'ACT', 'ADD', 'AGE', 'AID', 'AIM', 'AIR', 'ART', 'ASK', 'ATE'],
+  'B': ['BETTER', 'BEFORE', 'BRINGS', 'BEYOND', 'BRIDGE', 'BRIGHT', 'BIG', 'BIT', 'BOX', 'BUY', 'BOY', 'BUZZ', 'BLITZ', 'BRONZE'],
+  'C': ['CREATES', 'CLASSIC', 'CENTRAL', 'CHANGE', 'CHOICE', 'CIRCLE', 'CAR', 'CUT', 'CAN', 'COZY'],
+  'D': ['DOUBLE', 'DURING', 'DIRECT', 'DECIDE', 'DESIGN', 'DETAIL', 'DOG', 'DAY', 'DID', 'DOZEN', 'DIZZY'],
+  'E': ['EXPERT', 'ENABLE', 'ENERGY', 'ENOUGH', 'EASILY', 'ENTER', 'EAR', 'EAT', 'EGG', 'END', 'EYE', 'ENZYME'],
+  'F': ['FUTURE', 'FRIEND', 'FOLLOW', 'FAMOUS', 'FIGURE', 'FINISH', 'FAR', 'FEW', 'FIT', 'FLY', 'FIZZ', 'FOXY', 'FUZZY', 'FROZE'],
+  'G': ['GOLDEN', 'GLOBAL', 'GROUND', 'GARDEN', 'GATHER', 'GIVING', 'GOT', 'GUN', 'GET'],
+  'H': ['HELPER', 'HAPPEN', 'HIGHER', 'HANDLE', 'HEARTS', 'HOSTED', 'HAT', 'HIT', 'HOT', 'HAS', 'HIM', 'HIS', 'HOW'],
+  'I': ['INSIDE', 'INDEED', 'ISLAND', 'IMPACT', 'INVITE', 'INFORM', 'ICE', 'ITS'],
+  'J': ['JOINED', 'JUNGLE', 'JUMPED', 'JUNIOR', 'JOYFUL', 'JACKET', 'JOB', 'JAZZ', 'JAZZY', 'JINX'],
+  'L': ['LONGER', 'LOVELY', 'LISTEN', 'LEADER', 'LITTLE', 'LETTER', 'LAY', 'LEG', 'LIE', 'LOT', 'LOW'],
+  'M': ['MASTER', 'MAKING', 'MOMENT', 'MODERN', 'MOBILE', 'MENTAL', 'MAN', 'MAP', 'MAY', 'MEN', 'MET', 'MIX', 'MAIZE'],
+  'P': ['PLAYER', 'POINTS', 'PUZZLE', 'PRETTY', 'PLACED', 'PERSON', 'PAY', 'PEN', 'PET', 'PIG', 'PIT', 'PUT', 'PIZZA', 'PRIZE', 'PROXY'],
+  'Q': ['QUALITY', 'QUICKLY', 'QUESTION', 'QUIETLY', 'QUARTER', 'QUEEN', 'QUIZ', 'QUAY', 'QUARTZ'],
+  'R': ['REALLY', 'RETURN', 'RESULT', 'RECORD', 'REASON', 'RECENT', 'RAN', 'RAT', 'RED', 'RUN'],
+  'S': ['SIMPLE', 'STRONG', 'SECOND', 'SYSTEM', 'SINGLE', 'SOUNDS', 'SAT', 'SET', 'SIX', 'SKY', 'SUN', 'SAY', 'SHE', 'SEE', 'SPELLING', 'STRATEGY', 'SCORED'],
+  'T': ['TRYING', 'TURTLE', 'TRAVEL', 'TALENT', 'THANKS', 'TISSUE', 'TEN', 'TOP', 'TRY', 'TWO', 'TOO', 'THE', 'TRIPLE'],
+  'W': ['WINNER', 'WONDER', 'WINDOW', 'WORKED', 'WRITER', 'WEEKLY', 'WAR', 'WAY', 'WET', 'WIN', 'WAS', 'WHO', 'WIZARD', 'WALTZ'],
+  'Z': ['ZEBRA', 'ZONAL', 'ZOO', 'ZEST', 'ZEPHYR']
+}
+
 interface Tile {
   letter: string
   points: number
@@ -31,16 +65,8 @@ interface Puzzle {
   topMoves: PuzzleMove[]
 }
 
-// TWL06 basic word list for server-side validation
-const BASIC_WORD_LIST = new Set([
-  'THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR', 'HAD', 'DAY', 'GET', 'HAS', 'HIM', 'HIS', 'HOW', 'ITS', 'NEW', 'NOW', 'OLD', 'SEE', 'TWO', 'WHO', 'BOY', 'DID', 'HAS', 'LET', 'PUT', 'SAY', 'SHE', 'TOO', 'USE',
-  'QUIZ', 'FIZZ', 'BUZZ', 'JAZZ', 'FOXY', 'COZY', 'WAXY', 'ZEST', 'APEX', 'JINX', 'QUAY', 'OXIDE', 'PROXY', 'BLITZ', 'WALTZ', 'ZEBRA', 'DOZEN', 'FUZZY', 'JAZZY', 'DIZZY', 'PIZZA', 'PRIZE', 'FROZE', 'MAIZE', 'BRONZE', 'ENZYME', 'QUARTZ', 'WIZARD', 'OXYGEN', 'ZEPHYR',
-  'ACE', 'ACT', 'ADD', 'AGE', 'AID', 'AIM', 'AIR', 'ART', 'ASK', 'ATE', 'BIG', 'BIT', 'BOX', 'BUY', 'CAR', 'CUT', 'DOG', 'EAR', 'EAT', 'EGG', 'END', 'EYE', 'FAR', 'FEW', 'FIT', 'FLY', 'GOT', 'GUN', 'HAT', 'HIT', 'HOT', 'ICE', 'JOB', 'KEY', 'LAY', 'LEG', 'LIE', 'LOT', 'LOW', 'MAN', 'MAP', 'MAY', 'MEN', 'MET', 'MIX', 'OIL', 'PAY', 'PEN', 'PET', 'PIG', 'PIT', 'RAN', 'RAT', 'RED', 'RUN', 'SAT', 'SET', 'SIX', 'SKY', 'SUN', 'TEN', 'TOP', 'TRY', 'WAR', 'WAY', 'WET', 'WIN', 'YES', 'YET', 'ZOO',
-  'ABLE', 'BACK', 'BALL', 'BANK', 'BASE', 'BEAR', 'BEAT', 'BEEN', 'BELL', 'BEST', 'BIRD', 'BLOW', 'BLUE', 'BOAT', 'BODY', 'BOOK', 'BORN', 'BOTH', 'BOYS', 'CAME', 'CALL', 'CARE', 'CASE', 'CITY', 'CLUB', 'COLD', 'COME', 'COOL', 'CORN', 'COST', 'CREW', 'DARK', 'DATA', 'DAYS', 'DEAL', 'DESK', 'DOOR', 'DOWN', 'DREW', 'EACH', 'EAST', 'EASY', 'EVEN', 'EVER', 'FACE', 'FACT', 'FAIR', 'FALL', 'FARM', 'FAST', 'FEAR', 'FEEL', 'FEET', 'FELL', 'FELT', 'FILE', 'FILL', 'FIND', 'FINE', 'FIRE', 'FISH', 'FIVE', 'FLAT', 'FLEW', 'FOOD', 'FOOT', 'FORM', 'FOUR', 'FREE', 'FROM', 'FULL', 'GAME', 'GAVE', 'GIRL', 'GIVE', 'GOES', 'GOLD', 'GONE', 'GOOD', 'GREW', 'HAIR', 'HALF', 'HALL', 'HAND', 'HARD', 'HEAD', 'HEAR', 'HEAT', 'HELD', 'HELP', 'HERE', 'HIGH', 'HOLD', 'HOME', 'HOPE', 'HOUR', 'HUGE', 'IDEA', 'INTO', 'ITEM', 'JOIN', 'JUST', 'KEEP', 'KEPT', 'KIND', 'KNEW', 'KNOW', 'LAND', 'LAST', 'LATE', 'LEAD', 'LEFT', 'LESS', 'LIFE', 'LINE', 'LIVE', 'LOAN', 'LONG', 'LOOK', 'LORD', 'LOSE', 'LOST', 'LOVE', 'MADE', 'MAIL', 'MAIN', 'MAKE', 'MANY', 'MARK', 'MASS', 'MEAL', 'MEAN', 'MEET', 'MIND', 'MISS', 'MODE', 'MOON', 'MORE', 'MOST', 'MOVE', 'NAME', 'NEAR', 'NEED', 'NEXT', 'NICE', 'NOON', 'NOTE', 'ONCE', 'ONLY', 'OPEN', 'OVER', 'PACE', 'PAGE', 'PAID', 'PAIR', 'PARK', 'PART', 'PASS', 'PAST', 'PATH', 'PICK', 'PLAN', 'PLAY', 'POOL', 'POOR', 'PULL', 'PUSH', 'RACE', 'RAIN', 'RATE', 'READ', 'REAL', 'ROLE', 'ROOM', 'RULE', 'SAFE', 'SAID', 'SALE', 'SAME', 'SAVE', 'SEAT', 'SEEM', 'SELF', 'SELL', 'SEND', 'SENT', 'SHIP', 'SHOP', 'SHOW', 'SHUT', 'SICK', 'SIDE', 'SIGN', 'SIZE', 'SLOW', 'SNOW', 'SOFT', 'SOIL', 'SOLD', 'SOME', 'SONG', 'SOON', 'SORT', 'SPOT', 'STAR', 'STAY', 'STEP', 'STOP', 'SUCH', 'SURE', 'TAKE', 'TALK', 'TALL', 'TAPE', 'TASK', 'TEAM', 'TELL', 'TERM', 'TEST', 'TEXT', 'THAN', 'THAT', 'THEM', 'THEN', 'THEY', 'THIN', 'THIS', 'TIME', 'TOLD', 'TONE', 'TOOK', 'TOOL', 'TOWN', 'TREE', 'TRUE', 'TURN', 'TYPE', 'UNIT', 'USED', 'USER', 'VARY', 'VERY', 'VIEW', 'VOTE', 'WAIT', 'WALK', 'WALL', 'WANT', 'WARM', 'WASH', 'WAVE', 'WAYS', 'WEAR', 'WEEK', 'WELL', 'WENT', 'WERE', 'WEST', 'WHAT', 'WHEN', 'WIDE', 'WIFE', 'WILD', 'WILL', 'WIND', 'WISE', 'WISH', 'WITH', 'WORD', 'WORK', 'YARD', 'YEAR', 'YOUR'
-])
-
 function isValidWord(word: string): boolean {
-  return BASIC_WORD_LIST.has(word.toUpperCase())
+  return ENHANCED_WORD_LIST.has(word.toUpperCase())
 }
 
 function shuffleArray<T>(array: T[]): T[] {
@@ -52,92 +78,163 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled
 }
 
-function generateConnectedBoard(tileBag: Tile[]): { board: Map<string, PlacedTile>, usedTiles: number } {
-  const board = new Map<string, PlacedTile>()
-  let usedTiles = 0
-
-  // Start with a word at center (horizontally)
-  const centerWords = ['GAME', 'PLAY', 'WORD', 'QUIZ', 'STAR', 'TEAM']
-  const word = centerWords[Math.floor(Math.random() * centerWords.length)]
-  const startCol = 7 - Math.floor(word.length / 2)
+function getRandomWordByLength(minLength: number): string | null {
+  const longWords = Object.values(WORDS_BY_LETTER)
+    .flat()
+    .filter(word => word.length >= minLength)
   
+  return longWords.length > 0 
+    ? longWords[Math.floor(Math.random() * longWords.length)]
+    : null
+}
+
+function findWordsStartingWith(letter: string): string[] {
+  return WORDS_BY_LETTER[letter] || []
+}
+
+function placeWordOnBoard(
+  board: Map<string, PlacedTile>,
+  word: string,
+  startRow: number,
+  startCol: number,
+  direction: 'horizontal' | 'vertical',
+  tileBag: Tile[]
+): boolean {
+  const positions: Array<{row: number, col: number, letter: string}> = []
+  
+  // Calculate all positions
   for (let i = 0; i < word.length; i++) {
-    const letter = word[i]
-    const tileIndex = tileBag.findIndex(t => t.letter === letter)
-    if (tileIndex >= 0) {
-      const tile = tileBag.splice(tileIndex, 1)[0]
-      board.set(`7,${startCol + i}`, {
-        ...tile,
-        letter,
-        row: 7,
-        col: startCol + i
-      })
-      usedTiles++
+    const row = direction === 'vertical' ? startRow + i : startRow
+    const col = direction === 'horizontal' ? startCol + i : startCol
+    
+    if (row < 0 || row >= 15 || col < 0 || col >= 15) {
+      return false // Out of bounds
+    }
+    
+    positions.push({ row, col, letter: word[i] })
+  }
+  
+  // Check conflicts and find connections
+  let hasConnection = false
+  for (const pos of positions) {
+    const existing = board.get(`${pos.row},${pos.col}`)
+    if (existing) {
+      if (existing.letter !== pos.letter) {
+        return false // Conflict
+      }
+      hasConnection = true
     }
   }
+  
+  // If not the first word, must connect
+  if (board.size > 0 && !hasConnection) {
+    return false
+  }
+  
+  // Place new letters
+  for (const pos of positions) {
+    const key = `${pos.row},${pos.col}`
+    if (!board.has(key)) {
+      const tileIndex = tileBag.findIndex(t => t.letter === pos.letter)
+      if (tileIndex >= 0) {
+        const tile = tileBag.splice(tileIndex, 1)[0]
+        board.set(key, {
+          ...tile,
+          letter: pos.letter,
+          row: pos.row,
+          col: pos.col
+        })
+      } else {
+        return false // Don't have the letter in bag
+      }
+    }
+  }
+  
+  return true
+}
 
-  // Add crossing words that connect properly
-  const crossWords = [
-    { word: 'CAT', row: 5, col: 7, direction: 'vertical' },
-    { word: 'DOG', row: 8, col: 7, direction: 'vertical' },
-    { word: 'TOP', row: 7, col: 4, direction: 'horizontal' },
-    { word: 'SUN', row: 6, col: 8, direction: 'vertical' },
-    { word: 'RUN', row: 7, col: 10, direction: 'horizontal' }
-  ]
+function generateLegalBoard(tileBag: Tile[]): { board: Map<string, PlacedTile>, wordsGenerated: string[] } {
+  const board = new Map<string, PlacedTile>()
+  const wordsGenerated: string[] = []
   
-  // Place 2-3 crossing words that actually connect
-  const selectedCrossWords = shuffleArray(crossWords).slice(0, Math.random() > 0.5 ? 3 : 2)
+  // 1. Choose a long initial word (>5 letters) and place it in center
+  const firstWord = getRandomWordByLength(6)
+  if (!firstWord) {
+    throw new Error('Unable to find valid initial word')
+  }
   
-  for (const cross of selectedCrossWords) {
-    let canPlace = true
-    const newPositions: Array<{row: number, col: number, letter: string}> = []
+  const startCol = 7 - Math.floor(firstWord.length / 2)
+  if (!placeWordOnBoard(board, firstWord, 7, startCol, 'horizontal', tileBag)) {
+    throw new Error('Unable to place initial word')
+  }
+  wordsGenerated.push(firstWord)
+  
+  // 2. Generate 6 additional words by connecting them
+  for (let wordCount = 1; wordCount < 7; wordCount++) {
+    // Choose a random letter from already placed words
+    const placedTiles = Array.from(board.values())
+    const randomTile = placedTiles[Math.floor(Math.random() * placedTiles.length)]
+    const connectingLetter = randomTile.letter
     
-    for (let i = 0; i < cross.word.length; i++) {
-      const row = cross.direction === 'vertical' ? cross.row + i : cross.row
-      const col = cross.direction === 'horizontal' ? cross.col + i : cross.col
+    // Find words that start with that letter
+    const possibleWords = findWordsStartingWith(connectingLetter)
+    if (possibleWords.length === 0) continue
+    
+    const newWord = possibleWords[Math.floor(Math.random() * possibleWords.length)]
+    
+    // Try to place the word in different positions
+    let placed = false
+    const attempts = [
+      // Above
+      { row: randomTile.row - 1, col: randomTile.col, direction: 'vertical' as const },
+      // Below  
+      { row: randomTile.row + 1, col: randomTile.col, direction: 'vertical' as const },
+      // Left
+      { row: randomTile.row, col: randomTile.col - 1, direction: 'horizontal' as const },
+      // Right
+      { row: randomTile.row, col: randomTile.col + 1, direction: 'horizontal' as const },
+    ]
+    
+    for (const attempt of attempts) {
+      const boardCopy = new Map(board)
+      const tileBagCopy = [...tileBag]
       
-      if (row < 0 || row >= 15 || col < 0 || col >= 15) {
-        canPlace = false
+      if (placeWordOnBoard(boardCopy, newWord, attempt.row, attempt.col, attempt.direction, tileBagCopy)) {
+        // Success - update the real board
+        board.clear()
+        boardCopy.forEach((tile, key) => board.set(key, tile))
+        tileBag.splice(0, tileBag.length, ...tileBagCopy)
+        wordsGenerated.push(newWord)
+        placed = true
         break
       }
-      
-      const existing = board.get(`${row},${col}`)
-      if (existing) {
-        // Must match for crossing
-        if (existing.letter !== cross.word[i]) {
-          canPlace = false
-          break
-        }
-      } else {
-        newPositions.push({ row, col, letter: cross.word[i] })
-      }
     }
     
-    // Ensure at least one connection
-    const hasConnection = cross.word.split('').some((letter, i) => {
-      const row = cross.direction === 'vertical' ? cross.row + i : cross.row
-      const col = cross.direction === 'horizontal' ? cross.col + i : cross.col
-      return board.has(`${row},${col}`)
-    })
-    
-    if (canPlace && hasConnection) {
-      for (const pos of newPositions) {
-        const tileIndex = tileBag.findIndex(t => t.letter === pos.letter)
-        if (tileIndex >= 0) {
-          const tile = tileBag.splice(tileIndex, 1)[0]
-          board.set(`${pos.row},${pos.col}`, {
-            ...tile,
-            letter: pos.letter,
-            row: pos.row,
-            col: pos.col
-          })
-          usedTiles++
+    if (!placed) {
+      // Try with shorter words if we can't place
+      const shorterWords = findWordsStartingWith(connectingLetter)
+        .filter(w => w.length <= 4)
+      
+      for (const shortWord of shorterWords) {
+        for (const attempt of attempts) {
+          const boardCopy = new Map(board)
+          const tileBagCopy = [...tileBag]
+          
+          if (placeWordOnBoard(boardCopy, shortWord, attempt.row, attempt.col, attempt.direction, tileBagCopy)) {
+            board.clear()
+            boardCopy.forEach((tile, key) => board.set(key, tile))
+            tileBag.splice(0, tileBag.length, ...tileBagCopy)
+            wordsGenerated.push(shortWord)
+            placed = true
+            break
+          }
         }
+        if (placed) break
       }
     }
   }
-
-  return { board, usedTiles }
+  
+  return { board, wordsGenerated }
 }
 
 function generateTopMoves(board: Map<string, PlacedTile>, rack: Tile[]): PuzzleMove[] {
@@ -266,49 +363,89 @@ function generatePermutations(rack: Tile[], length: number): Array<{ tiles: Tile
 export function generatePuzzle(): Puzzle {
   const id = randomUUID()
   let attempts = 0
-  const maxAttempts = 10
+  const maxAttempts = 5
   
   while (attempts < maxAttempts) {
-    const tileBag = shuffleArray([...TILE_DISTRIBUTION])
-    const { board, usedTiles } = generateConnectedBoard(tileBag)
-    
-    // Generate rack from remaining tiles
-    const rack = tileBag.splice(0, 7)
-    
-    // Calculate top moves
-    const topMoves = generateTopMoves(board, rack)
-
-    if (topMoves.length >= 3 && topMoves[0].score >= 30) {
-      // Convert board to array format for API response
-      const boardArray: PlacedTile[] = Array.from(board.values())
+    try {
+      const tileBag = shuffleArray([...TILE_DISTRIBUTION])
+      const { board, wordsGenerated } = generateLegalBoard(tileBag)
       
-      return {
-        id,
-        board: boardArray,
-        rack: shuffleArray(rack),
-        topMoves
+      // Create player rack
+      const rack = tileBag.splice(0, 7)
+      
+      // Use basic bot logic to find best moves
+      const allMoves = generateTopMoves(board, rack)
+      const bestMoves = allMoves
+        .filter(move => move.score >= 20)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5)
+      
+      if (bestMoves.length > 0) {
+        const topMoves: PuzzleMove[] = bestMoves.map(move => {
+          const isHorizontal = move.tiles.every(t => t.row === move.tiles[0].row)
+          const startTile = isHorizontal
+            ? move.tiles.reduce((min, t) => (t.col < min.col ? t : min), move.tiles[0])
+            : move.tiles.reduce((min, t) => (t.row < min.row ? t : min), move.tiles[0])
+          
+          return {
+            tiles: move.tiles,
+            words: move.words,
+            score: move.score,
+            startCell: { row: startTile.row, col: startTile.col },
+            mainWordLength: move.words.length > 0 ? Math.max(...move.words.map(w => w.length)) : undefined,
+            lettersUsed: move.tiles.map(t => t.letter).sort()
+          }
+        })
+        
+        return {
+          id,
+          board: Array.from(board.values()),
+          rack: shuffleArray(rack),
+          topMoves
+        }
       }
+    } catch (error) {
+      console.warn(`Legal puzzle generation attempt ${attempts + 1} failed:`, error)
     }
     
     attempts++
   }
   
-  // Fallback: generate basic puzzle
+  // Fallback to simple generation if legal method fails
+  console.warn('Using fallback puzzle generation')
   const tileBag = shuffleArray([...TILE_DISTRIBUTION])
-  const { board } = generateConnectedBoard(tileBag)
-  const rack = tileBag.splice(0, 7)
+  const board = new Map<string, PlacedTile>()
   
-  const fallbackTiles = Array.from(board.values()).slice(0, 2)
-  const startTile = fallbackTiles[0] ?? { row: 7, col: 7 }
+  // Simple center word
+  const word = 'PUZZLE'
+  const startCol = 7 - Math.floor(word.length / 2)
+  
+  for (let i = 0; i < word.length; i++) {
+    const letter = word[i]
+    const tileIndex = tileBag.findIndex(t => t.letter === letter)
+    if (tileIndex >= 0) {
+      const tile = tileBag.splice(tileIndex, 1)[0]
+      board.set(`7,${startCol + i}`, {
+        ...tile,
+        letter,
+        row: 7,
+        col: startCol + i
+      })
+    }
+  }
+  
+  const rack = tileBag.splice(0, 7)
+  const boardArray = Array.from(board.values())
+  
   return {
     id: randomUUID(),
-    board: Array.from(board.values()),
+    board: boardArray,
     rack: shuffleArray(rack),
     topMoves: [{
-      tiles: fallbackTiles,
+      tiles: boardArray.slice(0, 2),
       words: ['WORD'],
-      score: 50,
-      startCell: { row: startTile.row, col: startTile.col },
+      score: 40,
+      startCell: { row: 7, col: 7 },
       mainWordLength: 4,
       lettersUsed: rack.slice(0, 2).map(t => t.letter).sort()
     }]

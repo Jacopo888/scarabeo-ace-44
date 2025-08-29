@@ -5,6 +5,7 @@ import { ScrabbleBot } from '@/ai/ScrabbleBot'
 import { validateMoveLogic } from '@/utils/moveValidation'
 import { findNewWordsFormed } from '@/utils/newWordFinder'
 import { calculateNewMoveScore } from '@/utils/newScoring'
+import { generateLegalPuzzle } from '@/utils/legalPuzzleGenerator'
 
 const BASIC_WORDS = ['GAME', 'PLAY', 'WORD', 'QUIZ', 'STAR', 'TEAM', 'CODE', 'DATA', 'TEST']
 
@@ -327,19 +328,16 @@ export function generateLocal15x15Puzzle(
   useLight = false,
   simulationTurns = 2
 ): Puzzle {
-  // Importa il generatore legale solo quando necessario
-  const { generateLegalPuzzle } = require('@/utils/legalPuzzleGenerator')
-  
-  // Se il dizionario è caricato, usa il generatore legale
+  // Use legal puzzle generator when dictionary is loaded
   if (isDictionaryLoaded && !useLight) {
     try {
       return generateLegalPuzzle(isValidWord, isDictionaryLoaded)
     } catch (error) {
-      console.warn('Fallback al generatore classico:', error)
+      console.warn('Legal puzzle generation failed, using fallback:', error)
     }
   }
   
-  // Fallback al sistema esistente
+  // Fallback to existing system
   let attempts = 0
   const maxAttempts = useLight ? 1 : 5
   
@@ -362,7 +360,7 @@ export function generateLocal15x15Puzzle(
     attempts++
   }
   
-  // Fallback finale
+  // Final fallback
   const tileBag = shuffleArray([...TILE_DISTRIBUTION])
   const board = generateConnectedBoard(tileBag, true, 1, isValidWord, isDictionaryLoaded)
   const rack = tileBag.splice(0, 7)

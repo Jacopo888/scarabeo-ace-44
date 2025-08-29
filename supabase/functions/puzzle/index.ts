@@ -39,37 +39,139 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
-function generatePuzzle() {
-  // Generate board with some pre-placed tiles
-  const board: PlacedTile[] = [];
-  const targetWord = HIGH_SCORING_WORDS[Math.floor(Math.random() * HIGH_SCORING_WORDS.length)];
+// Enhanced word list for legal puzzle generation
+const ENHANCED_WORD_LIST = new Set([
+  'THE', 'AND', 'FOR', 'ARE', 'BUT', 'NOT', 'YOU', 'ALL', 'CAN', 'HER', 'WAS', 'ONE', 'OUR', 'HAD', 'DAY', 'GET', 'HAS', 'HIM', 'HIS', 'HOW', 'ITS', 'NEW', 'NOW', 'OLD', 'SEE', 'TWO', 'WHO', 'BOY', 'DID', 'HAS', 'LET', 'PUT', 'SAY', 'SHE', 'TOO', 'USE',
+  'QUIZ', 'FIZZ', 'BUZZ', 'JAZZ', 'FOXY', 'COZY', 'WAXY', 'ZEST', 'APEX', 'JINX', 'QUAY', 'OXIDE', 'PROXY', 'BLITZ', 'WALTZ', 'ZEBRA', 'DOZEN', 'FUZZY', 'JAZZY', 'DIZZY', 'PIZZA', 'PRIZE', 'FROZE', 'MAIZE', 'BRONZE', 'ENZYME', 'QUARTZ', 'WIZARD', 'OXYGEN', 'ZEPHYR',
+  'PLAYER', 'POINTS', 'BOARDS', 'LETTER', 'CHANCE', 'DOUBLE', 'TRIPLE', 'SCORED', 'WINNER', 'PLACED', 'MASTER', 'EXPERT', 'PUZZLE', 'CHALLENGE', 'STRATEGY', 'COMPUTER', 'VOCABULARY', 'ALPHABET', 'SENTENCE', 'CROSSWORD', 'SPELLING',
+  'AMAZING', 'ARTIST', 'ANSWER', 'ALWAYS', 'AROUND', 'ALMOST', 'BETTER', 'BEFORE', 'BRINGS', 'BEYOND', 'BRIDGE', 'BRIGHT', 'CREATES', 'CLASSIC', 'CENTRAL', 'CHANGE', 'CHOICE', 'CIRCLE'
+]);
+
+// Words organized by starting letter
+const WORDS_BY_LETTER: Record<string, string[]> = {
+  'A': ['AMAZING', 'ARTIST', 'ANSWER', 'ALWAYS', 'AROUND', 'ALMOST'],
+  'B': ['BETTER', 'BEFORE', 'BRINGS', 'BEYOND', 'BRIDGE', 'BRIGHT'],
+  'C': ['CREATES', 'CLASSIC', 'CENTRAL', 'CHANGE', 'CHOICE', 'CIRCLE'],
+  'P': ['PLAYER', 'POINTS', 'PUZZLE', 'PLACED'],
+  'M': ['MASTER', 'MAKING'],
+  'S': ['STRATEGY', 'SCORED', 'SPELLING'],
+  'W': ['WINNER', 'WIZARD'],
+  'Q': ['QUIZ', 'QUARTZ']
+};
+
+function isValidWord(word: string): boolean {
+  return ENHANCED_WORD_LIST.has(word.toUpperCase());
+}
+
+function getRandomWordByLength(minLength: number): string | null {
+  const longWords = Object.values(WORDS_BY_LETTER)
+    .flat()
+    .filter(word => word.length >= minLength);
   
-  // Place some letters from target word on board
-  const startRow = Math.floor(Math.random() * 12) + 2; // Keep away from edges
-  const startCol = Math.floor(Math.random() * (15 - targetWord.length));
+  return longWords.length > 0 
+    ? longWords[Math.floor(Math.random() * longWords.length)]
+    : null;
+}
+
+function findWordsStartingWith(letter: string): string[] {
+  return WORDS_BY_LETTER[letter] || [];
+}
+
+function placeWordOnBoard(
+  board: Map<string, PlacedTile>,
+  word: string,
+  startRow: number,
+  startCol: number,
+  direction: 'horizontal' | 'vertical',
+  tileBag: Tile[]
+): boolean {
+  const positions: Array<{row: number, col: number, letter: string}> = [];
   
-  for (let i = 0; i < Math.min(3, targetWord.length); i++) {
-    board.push({
-      letter: targetWord[i],
-      row: startRow,
-      col: startCol + i
-    });
+  for (let i = 0; i < word.length; i++) {
+    const row = direction === 'vertical' ? startRow + i : startRow;
+    const col = direction === 'horizontal' ? startCol + i : startCol;
+    
+    if (row < 0 || row >= 15 || col < 0 || col >= 15) {
+      return false;
+    }
+    
+    positions.push({ row, col, letter: word[i] });
   }
   
-  // Add a few random letters
-  for (let i = 0; i < Math.floor(Math.random() * 5) + 2; i++) {
-    let row, col;
-    do {
-      row = Math.floor(Math.random() * 15);
-      col = Math.floor(Math.random() * 15);
-    } while (board.some(tile => tile.row === row && tile.col === col));
+  let hasConnection = false;
+  for (const pos of positions) {
+    const existing = board.get(`${pos.row},${pos.col}`);
+    if (existing) {
+      if (existing.letter !== pos.letter) {
+        return false;
+      }
+      hasConnection = true;
+    }
+  }
+  
+  if (board.size > 0 && !hasConnection) {
+    return false;
+  }
+  
+  for (const pos of positions) {
+    const key = `${pos.row},${pos.col}`;
+    if (!board.has(key)) {
+      const tile = {
+        letter: pos.letter,
+        points: LETTER_VALUES[pos.letter] || 1,
+        row: pos.row,
+        col: pos.col
+      };
+      board.set(key, tile);
+    }
+  }
+  
+  return true;
+}
+
+function generateLegalPuzzle() {
+  const board = new Map<string, PlacedTile>();
+  const wordsGenerated: string[] = [];
+  
+  // 1. Choose a long initial word and place it in center
+  const firstWord = getRandomWordByLength(6) || 'PUZZLE';
+  const startCol = 7 - Math.floor(firstWord.length / 2);
+  
+  if (!placeWordOnBoard(board, firstWord, 7, startCol, 'horizontal', [])) {
+    throw new Error('Unable to place initial word');
+  }
+  wordsGenerated.push(firstWord);
+  
+  // 2. Generate 6 additional words by connecting them
+  for (let wordCount = 1; wordCount < 7; wordCount++) {
+    const placedTiles = Array.from(board.values());
+    const randomTile = placedTiles[Math.floor(Math.random() * placedTiles.length)];
+    const connectingLetter = randomTile.letter;
     
-    const randomLetter = Object.keys(LETTER_VALUES)[Math.floor(Math.random() * Object.keys(LETTER_VALUES).length)];
-    board.push({
-      letter: randomLetter,
-      row,
-      col
-    });
+    const possibleWords = findWordsStartingWith(connectingLetter);
+    if (possibleWords.length === 0) continue;
+    
+    const newWord = possibleWords[Math.floor(Math.random() * possibleWords.length)];
+    
+    const attempts = [
+      { row: randomTile.row - 1, col: randomTile.col, direction: 'vertical' as const },
+      { row: randomTile.row + 1, col: randomTile.col, direction: 'vertical' as const },
+      { row: randomTile.row, col: randomTile.col - 1, direction: 'horizontal' as const },
+      { row: randomTile.row, col: randomTile.col + 1, direction: 'horizontal' as const },
+    ];
+    
+    let placed = false;
+    for (const attempt of attempts) {
+      const boardCopy = new Map(board);
+      
+      if (placeWordOnBoard(boardCopy, newWord, attempt.row, attempt.col, attempt.direction, [])) {
+        board.clear();
+        boardCopy.forEach((tile, key) => board.set(key, tile));
+        wordsGenerated.push(newWord);
+        placed = true;
+        break;
+      }
+    }
   }
   
   // Generate player rack
@@ -94,10 +196,10 @@ function generatePuzzle() {
     rack.push({ letter: randomLetter, points: LETTER_VALUES[randomLetter] });
   }
   
-  const bestScore = 45 + Math.floor(Math.random() * 25); // 45-70 points
+  const bestScore = 50 + Math.floor(Math.random() * 30); // 50-80 points
   
   return {
-    board: shuffleArray(board),
+    board: Array.from(board.values()),
     rack: shuffleArray(rack),
     bestScore
   };
@@ -122,7 +224,7 @@ Deno.serve(async (req) => {
 
     // GET /puzzle/new - Generate new puzzle
     if (req.method === 'GET' && path.endsWith('/new')) {
-      const puzzleData = generatePuzzle();
+      const puzzleData = generateLegalPuzzle();
       
       // Store puzzle in database
       const { data: puzzle, error: insertError } = await supabase
