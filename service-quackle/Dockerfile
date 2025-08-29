@@ -26,6 +26,7 @@ WORKDIR /srv
 # Copia il bridge C++ e compila
 COPY bridge/quackle_bridge.cpp /srv/bridge/quackle_bridge.cpp
 RUN g++ -O3 -std=c++17 \
+    -I/tmp/quackle \
     -I/tmp/quackle/src/libquackle/include \
     -I/tmp/quackle/src/libquackle \
     -I/tmp/quackle/src \
