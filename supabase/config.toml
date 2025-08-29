@@ -1,0 +1,4 @@
+project_id = "qjpvhhijujqblazdlfeg"
+
+[functions.puzzle]
+verify_jwt = false
