@@ -7,13 +7,13 @@
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
-// Header Quackle (adatta i path se serve)
-#include "libquackle/game.h"
-#include "libquackle/board.h"
-#include "libquackle/rack.h"
-#include "libquackle/move.h"
-#include "libquackle/generator.h"
-#include "libquackle/evaluator.h"
+// Header Quackle: includi i file principali senza il prefisso 'libquackle/'
+#include "game.h"
+#include "board.h"
+#include "rack.h"
+#include "move.h"
+#include "generator.h"
+#include "evaluator.h"
 
 static std::string arg(int argc, char** argv, const std::string& k, const std::string& d) {
   for (int i=1;i<argc-1;++i) if (std::string(argv[i])==k) return std::string(argv[i+1]);
@@ -88,3 +88,4 @@ int main(int argc, char** argv){
     std::cout<<out.dump(); return 0;
   }
 }
+
