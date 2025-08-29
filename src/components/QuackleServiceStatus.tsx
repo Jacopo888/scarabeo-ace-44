@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { checkQuackleHealth } from '@/api/quackle'
+import { quackleHealth } from '@/services/quackleClient'
 import { AlertTriangle, CheckCircle, Loader2 } from 'lucide-react'
 
 export const QuackleServiceStatus = () => {
@@ -9,7 +9,7 @@ export const QuackleServiceStatus = () => {
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const isHealthy = await checkQuackleHealth()
+        const isHealthy = await quackleHealth()
         setStatus(isHealthy ? 'healthy' : 'unhealthy')
       } catch (error) {
         setStatus('unhealthy')

@@ -41,7 +41,7 @@ services:
       timeout: 5s
       retries: 5
   quackle-service:
-    build: ./quackle-service
+    build: ./service-quackle
     ports:
       - "5000:5000"
     healthcheck:

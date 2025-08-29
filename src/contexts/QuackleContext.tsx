@@ -2,7 +2,7 @@ import { createContext, useContext, ReactNode } from 'react'
 import { useQuackle } from '@/hooks/useQuackle'
 import { Difficulty } from '@/components/DifficultyModal'
 import { GameState, Tile } from '@/types/game'
-import { QuackleMove } from '@/api/quackle'
+import type { QuackleMove } from '@/services/quackleClient'
 
 interface QuackleContextType {
   difficulty: Difficulty | null
