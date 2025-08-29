@@ -1,6 +1,6 @@
 import { Tile, PlacedTile, TILE_DISTRIBUTION } from '@/types/game'
 import { Puzzle, PuzzleMove } from '@/types/puzzle'
-import { ScrabbleBot } from '@/ai/ScrabbleBot'
+// ScrabbleBot removed - using simple move generation
 
 interface GeneratedBoard {
   placedTiles: Map<string, PlacedTile>

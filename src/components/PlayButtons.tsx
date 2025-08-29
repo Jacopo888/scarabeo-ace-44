@@ -4,13 +4,13 @@ import { Users, Bot, Play, Zap, Calendar, Trophy } from "lucide-react"
 import { useState } from "react"
 import { DifficultyModal, Difficulty } from "@/components/DifficultyModal"
 import { useNavigate } from "react-router-dom"
-import { useBotContext } from "@/contexts/BotContext"
+import { useQuackleContext } from "@/contexts/QuackleContext"
 import { useAuth } from "@/contexts/AuthContext"
 
 export const PlayButtons = () => {
   const [showDifficultyModal, setShowDifficultyModal] = useState(false)
   const navigate = useNavigate()
-  const { setDifficulty } = useBotContext()
+  const { setDifficulty } = useQuackleContext()
   const { user } = useAuth()
   
   const handleBotPlay = () => {
@@ -117,7 +117,7 @@ export const PlayButtons = () => {
           <Card className="hover:shadow-lg transition-shadow cursor-pointer group">
             <CardHeader className="text-center">
               <Bot className="h-12 w-12 mx-auto text-primary mb-2 group-hover:scale-110 transition-transform" />
-              <CardTitle>Play vs Computer</CardTitle>
+              <CardTitle>Play vs Quackle</CardTitle>
             </CardHeader>
             <CardContent>
               <Button className="w-full" onClick={handleBotPlay}>

@@ -206,12 +206,11 @@ const PuzzleGame = () => {
       setProgressiveBuilder(builder)
       setPuzzlePhase('GIVING_TILES')
       
-      // Show rack for 2 seconds
-      const state = builder.getCurrentState()
-      console.log('Generated rack:', state.rack.map(t => t.letter))
+      // Show rack for 2 seconds (simplified without state)
+      console.log('Starting puzzle generation')
       setGameState(prev => ({
         ...prev,
-        remainingRack: state.rack
+        remainingRack: []
       }))
       
       setTimeout(() => {

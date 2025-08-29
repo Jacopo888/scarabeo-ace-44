@@ -6,8 +6,8 @@ vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() })
 }))
 
-vi.mock('@/contexts/BotContext', () => ({
-  useBotContext: () => ({ difficulty: null, makeBotMove: vi.fn() })
+vi.mock('@/contexts/QuackleContext', () => ({
+  useQuackleContext: () => ({ difficulty: null, makeMove: vi.fn() })
 }))
 
 vi.mock('@/contexts/DictionaryContext', () => ({

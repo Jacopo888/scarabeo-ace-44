@@ -5,7 +5,7 @@ import { findNewWordsFormed } from '@/utils/newWordFinder'
 import { calculateNewMoveScore } from '@/utils/newScoring'
 import { canEndGame, calculateEndGamePenalty } from '@/utils/gameRules'
 import { useToast } from '@/hooks/use-toast'
-import { useBotContext } from '@/contexts/BotContext'
+import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
 import type { GameMove } from './useGameAnalysis'
 
@@ -26,7 +26,7 @@ const drawTiles = (bag: Tile[], count: number): { drawn: Tile[], remaining: Tile
 
 export const useGame = () => {
   const { toast } = useToast()
-  const { difficulty, makeBotMove: botMakeBotMove } = useBotContext()
+  const { difficulty, makeMove: quackleMakeMove } = useQuackleContext()
   const { isValidWord } = useDictionary()
   const [pendingTiles, setPendingTiles] = useState<PlacedTile[]>([])
   const [isBotTurn, setIsBotTurn] = useState(false)
@@ -38,7 +38,7 @@ export const useGame = () => {
     const player1Tiles = drawTiles(shuffledBag, 7)
     const player2Tiles = drawTiles(player1Tiles.remaining, 7)
 
-    const gameMode = difficulty ? 'bot' : 'human'
+    const gameMode = difficulty ? 'quackle' : 'human'
     const startingPlayerIndex = Math.floor(Math.random() * 2)
 
     return {
@@ -53,7 +53,7 @@ export const useGame = () => {
         },
         {
           id: 'player2', 
-          name: difficulty ? `Bot (${difficulty})` : 'Player 2',
+          name: difficulty ? `Quackle (${difficulty})` : 'Player 2',
           score: 0,
           rack: player2Tiles.drawn,
           isBot: !!difficulty
@@ -438,7 +438,7 @@ export const useGame = () => {
     const player1Tiles = drawTiles(shuffledBag, 7)
     const player2Tiles = drawTiles(player1Tiles.remaining, 7)
 
-    const gameMode = difficulty ? 'bot' : 'human'
+    const gameMode = difficulty ? 'quackle' : 'human'
     const startingPlayerIndex = Math.floor(Math.random() * 2)
 
     setGameState({
@@ -453,7 +453,7 @@ export const useGame = () => {
         },
         {
           id: 'player2',
-          name: difficulty ? `Bot (${difficulty})` : 'Player 2',
+          name: difficulty ? `Quackle (${difficulty})` : 'Player 2',
           score: 0,
           rack: player2Tiles.drawn,
           isBot: !!difficulty
@@ -471,9 +471,9 @@ export const useGame = () => {
     gameIdRef.current = crypto.randomUUID()
   }, [difficulty])
 
-  // Bot move logic
-  const makeBotMove = useCallback(async () => {
-    if (!difficulty || !botMakeBotMove) return
+  // Quackle move logic
+  const makeQuackleMove = useCallback(async () => {
+    if (!difficulty || !quackleMakeMove) return
     
     setIsBotTurn(true)
     
@@ -481,10 +481,10 @@ export const useGame = () => {
       const currentPlayer = prev.players[prev.currentPlayerIndex]
       if (!currentPlayer.isBot) return prev
       
-      // Start async bot move generation
-      botMakeBotMove(prev, currentPlayer.rack).then(bestMove => {
+      // Start async Quackle move generation
+      quackleMakeMove(prev, currentPlayer.rack).then(bestMove => {
         if (!bestMove || bestMove.tiles.length === 0) {
-          // Bot passes if no valid moves
+          // Quackle passes if no valid moves
           setIsBotTurn(false)
           setGameState(prevState => {
             const newPassCounts = [...(prevState.passCounts || Array(prevState.players.length).fill(0))]
@@ -530,7 +530,7 @@ export const useGame = () => {
             newBoard.set(key, tile)
           })
           
-          // Update bot's rack (remove used tiles)
+          // Update Quackle's rack (remove used tiles)
           const currentPlayer = prevState.players[prevState.currentPlayerIndex]
           const newRack = [...currentPlayer.rack]
           bestMove.tiles.forEach(usedTile => {
@@ -543,7 +543,7 @@ export const useGame = () => {
             }
           })
           
-          // Draw new tiles for bot
+          // Draw new tiles for Quackle
           const tilesNeeded = 7 - newRack.length
           const { drawn, remaining } = tilesNeeded > 0 && prevState.tileBag.length > 0
             ? drawTiles(prevState.tileBag, Math.min(tilesNeeded, prevState.tileBag.length))
@@ -557,8 +557,8 @@ export const useGame = () => {
           }
           
           toast({
-            title: "Bot played!",
-            description: `Bot scored ${bestMove.score} points with: ${bestMove.words.join(', ')}`,
+            title: "Quackle played!",
+            description: `Quackle scored ${bestMove.score} points with: ${bestMove.words.join(', ')}`,
           })
           
           setIsBotTurn(false)
@@ -624,9 +624,9 @@ export const useGame = () => {
           }
         })
       }).catch(error => {
-        console.error('Bot move error:', error)
+        console.error('Quackle move error:', error)
         setIsBotTurn(false)
-        // Bot passes on error
+        // Quackle passes on error
         setGameState(prevState => {
           const newPassCounts = [...(prevState.passCounts || Array(prevState.players.length).fill(0))]
           newPassCounts[prevState.currentPlayerIndex] += 1
@@ -664,16 +664,16 @@ export const useGame = () => {
       
       return prev // Return current state while bot is thinking
     })
-  }, [difficulty, botMakeBotMove, toast])
+  }, [difficulty, quackleMakeMove, toast])
 
-  // Effect to handle bot turns
+  // Effect to handle Quackle turns
   useEffect(() => {
     const currentPlayer = gameState.players[gameState.currentPlayerIndex]
 
     if (currentPlayer?.isBot && gameState.gameStatus === 'playing' && !isBotTurn) {
-      makeBotMove()
+      makeQuackleMove()
     }
-  }, [gameState.currentPlayerIndex, gameState.gameStatus, makeBotMove, isBotTurn, difficulty])
+  }, [gameState.currentPlayerIndex, gameState.gameStatus, makeQuackleMove, isBotTurn, difficulty])
 
   // Effect to reset game when difficulty changes
   const isFirstRender = useRef(true)
@@ -700,7 +700,7 @@ export const useGame = () => {
     exchangeTiles,
     passTurn,
     surrenderGame,
-    makeBotMove,
+    makeQuackleMove,
     isBotTurn,
     isSurrendered,
     currentPlayer: gameState.players[gameState.currentPlayerIndex],

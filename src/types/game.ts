@@ -24,7 +24,7 @@ export interface GameState {
   tileBag: Tile[]
   gameStatus: 'waiting' | 'playing' | 'finished'
   lastMove?: PlacedTile[]
-  gameMode?: 'human' | 'bot'
+  gameMode?: 'human' | 'quackle'
   passCounts?: number[]
 }
 

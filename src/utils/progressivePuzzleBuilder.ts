@@ -1,6 +1,6 @@
 import { GameState, Tile, PlacedTile, TILE_DISTRIBUTION } from '@/types/game'
 import { Puzzle, PuzzleMove } from '@/types/puzzle'
-import { ScrabbleBot } from '@/ai/ScrabbleBot'
+// ScrabbleBot removed - using simple move generation
 
 export interface PuzzleConstructionStep {
   type: 'INITIAL_WORD' | 'CONNECTED_WORD' | 'FINDING_BEST_MOVE'
@@ -353,17 +353,9 @@ export class ProgressivePuzzleBuilder {
       return { type: 'FINDING_BEST_MOVE' }
     }
 
-    const bot = new ScrabbleBot(this.isValidWord, this.isDictionaryLoaded)
-    const gameState: GameState = {
-      board: this.board,
-      players: [],
-      currentPlayerIndex: 0,
-      tileBag: [],
-      gameStatus: 'playing'
-    }
-
-    const moves = bot.generateAllPossibleMoves(gameState, this.rack)
-    const best = bot.selectBestMove(moves, 'hard')
+    // Simple fallback move generation without ScrabbleBot
+    const moves = this.generateSimpleMoves()
+    const best = moves.length > 0 ? moves[0] : null
 
     if (best) {
       const isHorizontal = best.tiles.every(t => t.row === best.tiles[0].row)
@@ -386,15 +378,49 @@ export class ProgressivePuzzleBuilder {
     return { type: 'FINDING_BEST_MOVE' }
   }
 
-  getCurrentState(): ProgressivePuzzleState {
-    return {
-      board: new Map(this.board),
-      rack: [...this.rack],
-      wordsGenerated: [...this.wordsGenerated],
-      currentStep: { type: 'INITIAL_WORD' },
-      isComplete: false,
-      bestMove: this.bestMove
+  private generateSimpleMoves(): Array<{tiles: PlacedTile[], words: string[], score: number}> {
+    // Generate simple moves by placing rack tiles adjacent to existing tiles
+    const moves: Array<{tiles: PlacedTile[], words: string[], score: number}> = []
+    const adjacentPositions: Array<{row: number, col: number}> = []
+    
+    // Find adjacent positions
+    for (const tile of this.board.values()) {
+      const neighbors = [
+        { row: tile.row - 1, col: tile.col },
+        { row: tile.row + 1, col: tile.col },
+        { row: tile.row, col: tile.col - 1 },
+        { row: tile.row, col: tile.col + 1 }
+      ]
+      
+      for (const neighbor of neighbors) {
+        if (neighbor.row >= 0 && neighbor.row < 15 && neighbor.col >= 0 && neighbor.col < 15) {
+          const key = `${neighbor.row},${neighbor.col}`
+          if (!this.board.has(key) && !adjacentPositions.some(p => p.row === neighbor.row && p.col === neighbor.col)) {
+            adjacentPositions.push(neighbor)
+          }
+        }
+      }
     }
+    
+    // Create simple moves using rack tiles
+    for (let i = 0; i < Math.min(3, this.rack.length, adjacentPositions.length); i++) {
+      const position = adjacentPositions[i]
+      const tile = this.rack[i]
+      
+      const placedTile: PlacedTile = {
+        ...tile,
+        row: position.row,
+        col: position.col
+      }
+      
+      moves.push({
+        tiles: [placedTile],
+        words: [tile.letter],
+        score: tile.points + 15
+      })
+    }
+    
+    return moves
   }
   
   async buildCompletePuzzle(): Promise<Puzzle> {

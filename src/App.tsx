@@ -17,7 +17,7 @@ import PuzzleGame from "./pages/PuzzleGame";
 import NotFound from "./pages/NotFound";
 import Daily from "./pages/Daily";
 import DailyChallengePage from "./pages/DailyChallenge";
-import { BotProvider } from "./contexts/BotContext";
+import { QuackleProvider } from "./contexts/QuackleContext";
 import { DictionaryProvider } from "./contexts/DictionaryContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ThemeToggle } from "./components/ThemeToggle";
@@ -98,9 +98,9 @@ const App = () => {
         <BrowserRouter>
           <AuthProvider>
             <DictionaryProvider>
-              <BotProvider>
+              <QuackleProvider>
                 <AppContent />
-              </BotProvider>
+              </QuackleProvider>
             </DictionaryProvider>
           </AuthProvider>
         </BrowserRouter>

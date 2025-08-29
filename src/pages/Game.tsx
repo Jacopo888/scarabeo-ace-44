@@ -42,7 +42,7 @@ const GameContent = () => {
   const { moves, analysis, analyzeGame, loading: analysisLoading, error: analysisError } = useGameAnalysis(gameId, moveHistory)
 
   const humanPlayer = gameState.players.find(p => !p.isBot) || currentPlayer
-  const rackToShow = gameState.gameMode === 'bot' ? humanPlayer.rack : currentPlayer.rack
+  const rackToShow = gameState.gameMode === 'quackle' ? humanPlayer.rack : currentPlayer.rack
 
   const selectedTile = selectedTileIndex !== null && !isBotTurn
     ? {

@@ -44,7 +44,7 @@ export const DifficultyModal = ({ open, onOpenChange, onSelectDifficulty }: Diff
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5" />
-            Choose Bot Difficulty
+            Choose Quackle Difficulty
           </DialogTitle>
         </DialogHeader>
         

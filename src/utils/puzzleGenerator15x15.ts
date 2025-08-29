@@ -1,7 +1,7 @@
 // Local fallback puzzle generator for 15x15 Puzzle mode
 import { Tile, PlacedTile, TILE_DISTRIBUTION } from '@/types/game'
 import { Puzzle, PuzzleMove } from '@/types/puzzle'
-import { ScrabbleBot } from '@/ai/ScrabbleBot'
+// ScrabbleBot removed - using simple move generation
 import { validateMoveLogic } from '@/utils/moveValidation'
 import { findNewWordsFormed } from '@/utils/newWordFinder'
 import { calculateNewMoveScore } from '@/utils/newScoring'
@@ -123,43 +123,8 @@ function simulateAdditionalMoves(
     return board
   }
   
-  const bot = new ScrabbleBot(isValidWord, isDictionaryLoaded)
-  
-  for (let moveCount = 0; moveCount < simulationTurns; moveCount++) {
-    const currentRack = tileBag.splice(0, 7)
-    if (currentRack.length < 3) break
-    
-    const gameState = {
-      board,
-      players: [],
-      currentPlayerIndex: 0,
-      tileBag: [],
-      gameStatus: 'playing' as const
-    }
-    
-    const moves = bot.generateAllPossibleMoves(gameState, currentRack)
-    const validMoves = moves.filter(move => move.score >= 15 && move.tiles.length >= 2).slice(0, 20)
-    
-    if (validMoves.length > 0) {
-      const selectedMove = validMoves[Math.floor(Math.random() * Math.min(3, validMoves.length))]
-      
-      // Place the move on the board
-      for (const tile of selectedMove.tiles) {
-        board.set(`${tile.row},${tile.col}`, tile)
-      }
-      
-      // Remove used tiles from rack
-      for (const usedTile of selectedMove.tiles) {
-        const rackIndex = currentRack.findIndex(t => t.letter === usedTile.letter && t.points === usedTile.points)
-        if (rackIndex >= 0) {
-          currentRack.splice(rackIndex, 1)
-        }
-      }
-    }
-    
-    // Return unused tiles to bag
-    tileBag.unshift(...currentRack)
-  }
+  // Simple simulation without ScrabbleBot - just return the board as-is
+  // Return board as-is since we removed the bot simulation
   
   return board
 }
@@ -233,27 +198,18 @@ function generateTopMovesWithBot(
   isValidWord: (word: string) => boolean,
   isDictionaryLoaded: boolean
 ): PuzzleMove[] {
-  const bot = new ScrabbleBot(isValidWord, isDictionaryLoaded)
+  // Generate simple moves without ScrabbleBot
   
   if (!isDictionaryLoaded) {
     // Use rack-based fallback instead of board tiles
     return [createPlaceableFallbackMove(board, rack)]
   }
   
-  const gameState = {
-    board,
-    players: [],
-    currentPlayerIndex: 0,
-    tileBag: [],
-    gameStatus: 'playing' as const
-  }
+  // Generate simple fallback moves instead of using bot
+  const allMoves = [createPlaceableFallbackMove(board, rack)]
   
-  const allMoves = bot.generateAllPossibleMoves(gameState, rack).slice(0, 200)
-  
-  // Filter for high-scoring moves, then select a mixed set (directions/anchors)
-  const filtered = allMoves
-    .filter(move => move.score >= 30)
-    .sort((a, b) => b.score - a.score)
+  // Use all generated moves (they're already simple)
+  const filtered = allMoves.sort((a, b) => b.score - a.score)
 
   const picked: typeof allMoves = []
   const seenAnchors = new Set<string>()
