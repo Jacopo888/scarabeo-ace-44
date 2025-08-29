@@ -18,12 +18,14 @@ RUN git clone --depth=1 https://github.com/quackle/quackle.git /tmp/quackle && \
     cd /tmp/quackle && mkdir -p build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     make -j"$(nproc)" && \
-    cp -r /tmp/quackle/lexica/* /usr/share/quackle/lexica/ 2>/dev/null || true
+    cp -r /tmp/quackle/lexica/* /usr/share/quackle/lexica/ 2>/dev/null || true && \
+    find /tmp/quackle -name game.h
 
 # Compila il bridge C++
 WORKDIR /srv
 COPY bridge/quackle_bridge.cpp /srv/bridge/quackle_bridge.cpp
 RUN g++ -O3 -std=c++17 \
+    -I/tmp/quackle/src/libquackle/include \
     -I/tmp/quackle/src/libquackle \
     /srv/bridge/quackle_bridge.cpp \
     /tmp/quackle/build/liblibquackle.a \
