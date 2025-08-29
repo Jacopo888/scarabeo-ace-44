@@ -16,6 +16,7 @@ import { BlankTileDialog } from '@/components/BlankTileDialog'
 import { usePuzzlePuzzle } from '@/hooks/usePuzzle'
 import { submitPuzzleScore } from '@/api/puzzle'
 import { generateLocal15x15Puzzle, getTopMovesForBoard } from '@/utils/puzzleGenerator15x15'
+import { ProgressivePuzzleBuilder, PuzzleConstructionStep, ProgressivePuzzleState } from '@/utils/progressivePuzzleBuilder'
 import { validateMoveLogic } from '@/utils/moveValidation'
 import { findNewWordsFormed } from '@/utils/newWordFinder'
 import { calculateNewMoveScore } from '@/utils/newScoring'
@@ -50,6 +51,10 @@ function createMovesFromTiles(tiles: PlacedTile[]): PuzzleMove {
 const PuzzleGame = () => {
   const location = useLocation()
   const [isDailyMode, setIsDailyMode] = useState(false)
+  const [is90sMode, setIs90sMode] = useState(false)
+  const [puzzlePhase, setPuzzlePhase] = useState<'GIVING_TILES' | 'BUILDING_PUZZLE' | 'PLAYING'>('GIVING_TILES')
+  const [progressiveBuilder, setProgressiveBuilder] = useState<ProgressivePuzzleBuilder | null>(null)
+  const [constructionStep, setConstructionStep] = useState<PuzzleConstructionStep | null>(null)
   const [gameState, setGameState] = useState<PuzzleGameState>({
     puzzle: null,
     foundMoves: new Set(),
@@ -163,11 +168,14 @@ const PuzzleGame = () => {
     }
   }, [gameState, isDailyMode, user, currentPuzzleId, toast, submitDailyScore])
 
-  // Check for daily mode
+  // Check for puzzle modes
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search)
     const isDaily = searchParams.get('daily') === 'true'
+    const is90s = searchParams.get('90s') === 'true'
+    
     setIsDailyMode(isDaily)
+    setIs90sMode(is90s)
 
     if (isDaily && isDictionaryLoaded) {
       const dailyPuzzleData = sessionStorage.getItem('daily-puzzle')
@@ -181,11 +189,93 @@ const PuzzleGame = () => {
         }
         initializePuzzle(puzzleData)
       }
+    } else if (is90s && isDictionaryLoaded) {
+      start90sPuzzle()
     }
   }, [location, isDictionaryLoaded, initializePuzzle])
 
+  const start90sPuzzle = async () => {
+    if (!isDictionaryLoaded) return
+    
+    try {
+      const builder = new ProgressivePuzzleBuilder(isValidWord, isDictionaryLoaded)
+      setProgressiveBuilder(builder)
+      setPuzzlePhase('GIVING_TILES')
+      
+      // Show rack for 2 seconds
+      const state = builder.getCurrentState()
+      setGameState(prev => ({
+        ...prev,
+        remainingRack: state.rack
+      }))
+      
+      setTimeout(() => {
+        setPuzzlePhase('BUILDING_PUZZLE')
+        buildPuzzleProgressively(builder)
+      }, 2000)
+      
+    } catch (error) {
+      console.error('Failed to start 90s puzzle:', error)
+      toast({
+        title: "Error",
+        description: "Failed to start progressive puzzle",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const buildPuzzleProgressively = async (builder: ProgressivePuzzleBuilder) => {
+    try {
+      // Step 1: Place initial word
+      setConstructionStep({ type: 'INITIAL_WORD' })
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      const initialStep = await builder.placeInitialWord()
+      setConstructionStep(initialStep)
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Step 2-7: Add connected words
+      for (let i = 1; i <= 6; i++) {
+        setConstructionStep({ 
+          type: 'CONNECTED_WORD', 
+          stepNumber: i, 
+          totalSteps: 6 
+        })
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        const connectedStep = await builder.addConnectedWord(i)
+        setConstructionStep(connectedStep)
+        await new Promise(resolve => setTimeout(resolve, 2000))
+      }
+      
+      // Step 8: Find best move
+      setConstructionStep({ type: 'FINDING_BEST_MOVE' })
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      await builder.findBestPlayerMove()
+      
+      // Complete the puzzle
+      const finalPuzzle = await builder.buildCompletePuzzle()
+      initializePuzzle(finalPuzzle)
+      setPuzzlePhase('PLAYING')
+      
+    } catch (error) {
+      console.error('Failed to build puzzle progressively:', error)
+      toast({
+        title: "Error",
+        description: "Failed to build puzzle. Falling back to regular mode.",
+        variant: "destructive"
+      })
+      
+      // Fallback to regular puzzle
+      const localPuzzle = generateLocal15x15Puzzle(isValidWord, isDictionaryLoaded, true, 1)
+      initializePuzzle(localPuzzle)
+      setPuzzlePhase('PLAYING')
+    }
+  }
+
   useEffect(() => {
-    if (isDailyMode) return
+    if (isDailyMode || is90sMode) return
 
     if (apiPuzzle) {
       const puzzle: Puzzle = {
@@ -210,7 +300,7 @@ const PuzzleGame = () => {
         variant: "default"
       })
     }
-  }, [apiPuzzle, puzzleError, isDictionaryLoaded, isDailyMode, initializePuzzle, isValidWord, toast])
+  }, [apiPuzzle, puzzleError, isDictionaryLoaded, isDailyMode, is90sMode, initializePuzzle, isValidWord, toast])
 
   useEffect(() => {
     // Cleanup timer on unmount to prevent zombie timers
@@ -577,6 +667,105 @@ const PuzzleGame = () => {
             <Zap className="h-12 w-12 mx-auto mb-4 animate-pulse text-primary" />
             <p className="text-lg">Loading new puzzle...</p>
           </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show loading screens for 90s mode
+  if (is90sMode && puzzlePhase !== 'PLAYING') {
+    return (
+      <div className="container mx-auto p-6 max-w-6xl">
+        <div className="mb-6 flex items-center gap-4">
+          <Link to="/">
+            <Button variant="outline" size="sm">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Home
+            </Button>
+          </Link>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <Zap className="h-8 w-8 text-primary" />
+            90s Puzzle - Building...
+          </h1>
+        </div>
+
+        <div className="flex items-center justify-center min-h-[500px]">
+          <Card className="w-full max-w-md">
+            <CardContent className="p-8">
+              <div className="text-center space-y-6">
+                {puzzlePhase === 'GIVING_TILES' && (
+                  <>
+                    <Zap className="h-16 w-16 mx-auto text-primary animate-pulse" />
+                    <div>
+                      <h2 className="text-2xl font-bold mb-2">Your Letters</h2>
+                      <p className="text-muted-foreground mb-4">These are your tiles for this puzzle</p>
+                      {gameState.remainingRack.length > 0 && (
+                        <div className="flex justify-center gap-2 flex-wrap">
+                          {gameState.remainingRack.map((tile, index) => (
+                            <div
+                              key={index}
+                              className="w-12 h-12 bg-primary text-primary-foreground rounded-lg flex items-center justify-center font-bold text-lg shadow-lg"
+                            >
+                              {tile.letter || '?'}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {puzzlePhase === 'BUILDING_PUZZLE' && (
+                  <>
+                    <div className="relative">
+                      <Zap className="h-16 w-16 mx-auto text-primary animate-spin" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold mb-2">Building Puzzle</h2>
+                      {constructionStep?.type === 'INITIAL_WORD' && (
+                        <div className="space-y-2">
+                          <p className="text-muted-foreground">Placing initial word...</p>
+                          {constructionStep.wordAdded && (
+                            <p className="text-lg font-semibold text-primary">
+                              ✓ Placed: {constructionStep.wordAdded}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {constructionStep?.type === 'CONNECTED_WORD' && (
+                        <div className="space-y-2">
+                          <p className="text-muted-foreground">
+                            Adding connected word {constructionStep.stepNumber}/{constructionStep.totalSteps}...
+                          </p>
+                          {constructionStep.wordAdded && (
+                            <p className="text-lg font-semibold text-primary">
+                              ✓ Added: {constructionStep.wordAdded}
+                            </p>
+                          )}
+                          <div className="w-full bg-secondary rounded-full h-2">
+                            <div 
+                              className="bg-primary h-2 rounded-full transition-all duration-500"
+                              style={{ 
+                                width: `${((constructionStep.stepNumber || 0) / (constructionStep.totalSteps || 6)) * 100}%` 
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {constructionStep?.type === 'FINDING_BEST_MOVE' && (
+                        <div className="space-y-2">
+                          <p className="text-muted-foreground">Finding best moves with your tiles...</p>
+                          <div className="animate-pulse text-primary">
+                            Analyzing possibilities...
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     )
