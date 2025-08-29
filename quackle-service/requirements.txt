@@ -1,4 +1,2 @@
-flask==3.0.0
-flask-cors==4.0.0
-quackle==0.98
-gunicorn==21.2.0
+fastapi
+uvicorn[standard]
