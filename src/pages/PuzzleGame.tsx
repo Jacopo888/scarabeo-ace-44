@@ -76,6 +76,7 @@ const PuzzleGame = () => {
   const [showSubmissionError, setShowSubmissionError] = useState(false)
   const [submissionError, setSubmissionError] = useState<string>('')
   const [isRefetching, setIsRefetching] = useState(false)
+  const [is90sPuzzleGenerating, setIs90sPuzzleGenerating] = useState(false)
   
   const { timeLeft, isRunning, start, stop, formatTime } = useCountdown()
   const { isValidWord, isLoaded: isDictionaryLoaded } = useDictionary()
@@ -189,13 +190,16 @@ const PuzzleGame = () => {
         }
         initializePuzzle(puzzleData)
       }
-    } else if (is90s && isDictionaryLoaded) {
+    } else if (is90s && isDictionaryLoaded && !is90sPuzzleGenerating) {
       start90sPuzzle()
     }
   }, [location, isDictionaryLoaded, initializePuzzle])
 
   const start90sPuzzle = async () => {
-    if (!isDictionaryLoaded) return
+    if (!isDictionaryLoaded || is90sPuzzleGenerating) return
+    
+    console.log('Starting 90s puzzle generation...')
+    setIs90sPuzzleGenerating(true)
     
     try {
       const builder = new ProgressivePuzzleBuilder(isValidWord, isDictionaryLoaded)
@@ -204,6 +208,7 @@ const PuzzleGame = () => {
       
       // Show rack for 2 seconds
       const state = builder.getCurrentState()
+      console.log('Generated rack:', state.rack.map(t => t.letter))
       setGameState(prev => ({
         ...prev,
         remainingRack: state.rack
@@ -216,6 +221,7 @@ const PuzzleGame = () => {
       
     } catch (error) {
       console.error('Failed to start 90s puzzle:', error)
+      setIs90sPuzzleGenerating(false)
       toast({
         title: "Error",
         description: "Failed to start progressive puzzle",
@@ -226,16 +232,19 @@ const PuzzleGame = () => {
 
   const buildPuzzleProgressively = async (builder: ProgressivePuzzleBuilder) => {
     try {
+      console.log('Building puzzle progressively...')
       // Step 1: Place initial word
       setConstructionStep({ type: 'INITIAL_WORD' })
       await new Promise(resolve => setTimeout(resolve, 1000))
       
       const initialStep = await builder.placeInitialWord()
+      console.log('Initial word placed:', initialStep.wordAdded)
       setConstructionStep(initialStep)
       await new Promise(resolve => setTimeout(resolve, 2000))
       
       // Step 2-7: Add connected words
       for (let i = 1; i <= 6; i++) {
+        console.log(`Adding connected word ${i}/6...`)
         setConstructionStep({ 
           type: 'CONNECTED_WORD', 
           stepNumber: i, 
@@ -244,6 +253,7 @@ const PuzzleGame = () => {
         await new Promise(resolve => setTimeout(resolve, 1000))
         
         const connectedStep = await builder.addConnectedWord(i)
+        console.log(`Connected word ${i} placed:`, connectedStep.wordAdded)
         setConstructionStep(connectedStep)
         await new Promise(resolve => setTimeout(resolve, 2000))
       }
@@ -258,6 +268,7 @@ const PuzzleGame = () => {
       const finalPuzzle = await builder.buildCompletePuzzle()
       initializePuzzle(finalPuzzle)
       setPuzzlePhase('PLAYING')
+      console.log('90s puzzle generation completed successfully!')
       
     } catch (error) {
       console.error('Failed to build puzzle progressively:', error)
@@ -271,6 +282,8 @@ const PuzzleGame = () => {
       const localPuzzle = generateLocal15x15Puzzle(isValidWord, isDictionaryLoaded, true, 1)
       initializePuzzle(localPuzzle)
       setPuzzlePhase('PLAYING')
+    } finally {
+      setIs90sPuzzleGenerating(false)
     }
   }
 
