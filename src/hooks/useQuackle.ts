@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Difficulty } from '@/components/DifficultyModal'
 import { GameState, Tile } from '@/types/game'
-import { getBestMove, QuackleMove } from '@/api/quackle'
+import { quackleBestMove, QuackleMove } from '@/services/quackleClient'
 
 export const useQuackle = () => {
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
@@ -17,11 +17,35 @@ export const useQuackle = () => {
     try {
       // Add artificial thinking time for better UX
       const thinkingTime = getThinkingTime(difficulty)
+      const boardObject: Record<string, any> = {}
+      gameState.board.forEach((tile, key) => {
+        boardObject[key] = {
+          letter: tile.letter,
+          points: tile.points,
+          row: tile.row,
+          col: tile.col,
+          isBlank: tile.isBlank || false
+        }
+      })
+
+      const payload = {
+        board: boardObject,
+        rack: playerRack.map(tile => ({
+          letter: tile.letter,
+          points: tile.points,
+          isBlank: tile.isBlank || false
+        })),
+        difficulty
+      }
+
       const [move] = await Promise.all([
-        getBestMove(gameState, playerRack, difficulty),
+        quackleBestMove(payload),
         new Promise(resolve => setTimeout(resolve, thinkingTime))
       ])
       
+      if (move?.engine_fallback) {
+        return { tiles: [], score: 0, words: [], move_type: 'pass', engine_fallback: true }
+      }
       return move
     } finally {
       setIsThinking(false)

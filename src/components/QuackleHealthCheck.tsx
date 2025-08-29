@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { checkQuackleHealth } from '@/api/quackle'
+import { quackleHealth } from '@/services/quackleClient'
 import { AlertTriangle, CheckCircle } from 'lucide-react'
 
 export const QuackleHealthCheck = () => {
@@ -11,7 +11,7 @@ export const QuackleHealthCheck = () => {
     const checkHealth = async () => {
       setIsChecking(true)
       try {
-        const healthy = await checkQuackleHealth()
+        const healthy = await quackleHealth()
         setIsHealthy(healthy)
       } catch (error) {
         setIsHealthy(false)
