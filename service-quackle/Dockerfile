@@ -19,19 +19,20 @@ RUN git clone --depth=1 https://github.com/quackle/quackle.git /tmp/quackle && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     make -j"$(nproc)" && \
     cp -r /tmp/quackle/lexica/* /usr/share/quackle/lexica/ 2>/dev/null || true && \
-    find /tmp/quackle -name game.h
-
+    
 # Compila il bridge C++
 WORKDIR /srv
 COPY bridge/quackle_bridge.cpp /srv/bridge/quackle_bridge.cpp
 RUN g++ -O3 -std=c++17 \
     -I/tmp/quackle/src/libquackle/include \
     -I/tmp/quackle/src/libquackle \
+    -I/tmp/quackle/src \
     /srv/bridge/quackle_bridge.cpp \
     /tmp/quackle/build/liblibquackle.a \
     -o /usr/local/bin/quackle_bridge \
     -lboost_system -lboost_filesystem -lboost_regex \
     -licuuc -licui18n -lpthread
+
 
 # Pulizia sorgenti
 RUN rm -rf /tmp/quackle
