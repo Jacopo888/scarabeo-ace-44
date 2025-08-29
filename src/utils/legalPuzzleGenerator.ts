@@ -227,63 +227,79 @@ export function generateLegalPuzzle(
     throw new Error('Dizionario non caricato - impossibile generare puzzle legale')
   }
   
-  let attempts = 0
-  const maxAttempts = 3 // Ridotto per evitare loop infiniti
+  // Prova una sola volta per evitare loop infiniti
+  try {
+    const tileBag = shuffleArray([...TILE_DISTRIBUTION])
+    const { placedTiles, wordsGenerated } = generateLegalBoard(isValidWord, tileBag)
+    
+    // Crea la rack del giocatore
+    const rack = tileBag.splice(0, 7)
+    
+    // Genera mosse semplici invece di usare il bot pesante
+    const simpleTopMoves = generateSimpleTopMoves(placedTiles, rack)
+    
+    return {
+      id: `legal-puzzle-${Date.now()}`,
+      board: Array.from(placedTiles.values()),
+      rack: shuffleArray(rack),
+      topMoves: simpleTopMoves
+    }
+  } catch (error) {
+    console.warn('Legal puzzle generation failed:', error)
+    throw new Error('Impossibile generare un puzzle legale')
+  }
+}
+
+// Genera mosse semplici senza usare il bot pesante
+function generateSimpleTopMoves(board: Map<string, PlacedTile>, rack: Tile[]): PuzzleMove[] {
+  // Trova posizioni libere adiacenti alle tessere esistenti
+  const adjacentPositions: Array<{row: number, col: number}> = []
   
-  while (attempts < maxAttempts) {
-    try {
-      const tileBag = shuffleArray([...TILE_DISTRIBUTION])
-      const { placedTiles, wordsGenerated } = generateLegalBoard(isValidWord, tileBag)
-      
-      // Crea la rack del giocatore
-      const rack = tileBag.splice(0, 7)
-      
-      // Usa il bot per trovare la mossa migliore
-      const bot = new ScrabbleBot(isValidWord, isDictionaryLoaded)
-      const gameState = {
-        board: placedTiles,
-        players: [],
-        currentPlayerIndex: 0,
-        tileBag: [],
-        gameStatus: 'playing' as const
-      }
-      
-      const allMoves = bot.generateAllPossibleMoves(gameState, rack)
-      const bestMoves = allMoves
-        .filter(move => move.score >= 20)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5)
-      
-      if (bestMoves.length > 0) {
-        const topMoves: PuzzleMove[] = bestMoves.map(move => {
-          const isHorizontal = move.tiles.every(t => t.row === move.tiles[0].row)
-          const startTile = isHorizontal
-            ? move.tiles.reduce((min, t) => (t.col < min.col ? t : min), move.tiles[0])
-            : move.tiles.reduce((min, t) => (t.row < min.row ? t : min), move.tiles[0])
-          
-          return {
-            tiles: move.tiles,
-            words: move.words,
-            score: move.score,
-            startCell: { row: startTile.row, col: startTile.col },
-            mainWordLength: move.words.length > 0 ? Math.max(...move.words.map(w => w.length)) : undefined,
-            lettersUsed: move.tiles.map(t => t.letter).sort()
-          }
-        })
-        
-        return {
-          id: `legal-puzzle-${Date.now()}`,
-          board: Array.from(placedTiles.values()),
-          rack: shuffleArray(rack),
-          topMoves
+  for (const tile of board.values()) {
+    const neighbors = [
+      { row: tile.row - 1, col: tile.col },
+      { row: tile.row + 1, col: tile.col },
+      { row: tile.row, col: tile.col - 1 },
+      { row: tile.row, col: tile.col + 1 }
+    ]
+    
+    for (const neighbor of neighbors) {
+      if (neighbor.row >= 0 && neighbor.row < 15 && neighbor.col >= 0 && neighbor.col < 15) {
+        const key = `${neighbor.row},${neighbor.col}`
+        if (!board.has(key) && !adjacentPositions.some(p => p.row === neighbor.row && p.col === neighbor.col)) {
+          adjacentPositions.push(neighbor)
         }
       }
-    } catch (error) {
-      console.warn(`Tentativo ${attempts + 1} fallito:`, error)
     }
-    
-    attempts++
   }
   
-  throw new Error('Impossibile generare un puzzle legale dopo ' + maxAttempts + ' tentativi')
+  // Crea 5 mosse semplici usando tiles dalla rack
+  const topMoves: PuzzleMove[] = []
+  const usedPositions = new Set<string>()
+  
+  for (let i = 0; i < Math.min(5, rack.length, adjacentPositions.length); i++) {
+    const position = adjacentPositions[i]
+    const posKey = `${position.row},${position.col}`
+    
+    if (usedPositions.has(posKey)) continue
+    usedPositions.add(posKey)
+    
+    const tile = rack[i]
+    const placedTile: PlacedTile = {
+      ...tile,
+      row: position.row,
+      col: position.col
+    }
+    
+    topMoves.push({
+      tiles: [placedTile],
+      words: [tile.letter], // Parola semplice di una lettera
+      score: tile.points + 15, // Punti base + bonus
+      startCell: { row: position.row, col: position.col },
+      mainWordLength: 1,
+      lettersUsed: [tile.letter]
+    })
+  }
+  
+  return topMoves
 }
