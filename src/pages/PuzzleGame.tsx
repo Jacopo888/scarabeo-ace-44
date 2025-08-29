@@ -225,31 +225,25 @@ const PuzzleGame = () => {
     }
   }, [timeLeft, isRunning, endGame])
 
-  // Defer top moves generation until after initial render to prevent blocking
+  // Generate top moves only once after puzzle initialization
   useEffect(() => {
     if (!gameState.puzzle) return
     if (gameState.puzzle.topMoves.length > 0) return
     if (!isDictionaryLoaded) return
 
-    // Generate in a microtask so the UI can paint
-    const id = setTimeout(() => {
-      const localTopMoves = getTopMovesForBoard(initialBoard, gameState.puzzle!.rack, isValidWord, isDictionaryLoaded)
-      setGameState(prev => {
-        if (!prev.puzzle) return prev
-        // If already filled, skip
-        if (prev.puzzle.topMoves.length > 0) return prev
-        const updated = {
-          ...prev,
-          puzzle: {
-            ...prev.puzzle,
-            topMoves: localTopMoves
-          }
+    // Generate top moves only if we don't have them yet
+    const localTopMoves = getTopMovesForBoard(initialBoard, gameState.puzzle.rack, isValidWord, isDictionaryLoaded)
+    setGameState(prev => {
+      if (!prev.puzzle || prev.puzzle.topMoves.length > 0) return prev
+      return {
+        ...prev,
+        puzzle: {
+          ...prev.puzzle,
+          topMoves: localTopMoves
         }
-        return updated
-      })
-    }, 0)
-    return () => clearTimeout(id)
-  }, [gameState.puzzle, isDictionaryLoaded, isValidWord, initialBoard])
+      }
+    })
+  }, [gameState.puzzle?.id, isDictionaryLoaded]) // Depend only on puzzle ID to avoid loops
 
   const resetAndRefetch = async () => {
     if (isRefetching) return

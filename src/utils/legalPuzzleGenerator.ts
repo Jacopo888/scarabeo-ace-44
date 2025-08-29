@@ -149,10 +149,12 @@ function generateLegalBoard(isValidWord: (word: string) => boolean, tileBag: Til
   }
   wordsGenerated.push(firstWord)
   
-  // 2. Genera 6 parole aggiuntive connettendole
-  for (let wordCount = 1; wordCount < 7; wordCount++) {
+  // 2. Genera max 4 parole aggiuntive connettendole (ridotto per evitare loop)
+  for (let wordCount = 1; wordCount < 5; wordCount++) {
     // Scegli una lettera casuale dalle parole già piazzate
     const placedTiles = Array.from(board.values())
+    if (placedTiles.length === 0) break
+    
     const randomTile = placedTiles[Math.floor(Math.random() * placedTiles.length)]
     const connectingLetter = randomTile.letter
     
@@ -226,7 +228,7 @@ export function generateLegalPuzzle(
   }
   
   let attempts = 0
-  const maxAttempts = 5
+  const maxAttempts = 3 // Ridotto per evitare loop infiniti
   
   while (attempts < maxAttempts) {
     try {
