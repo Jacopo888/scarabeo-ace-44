@@ -86,13 +86,88 @@ function findWordsStartingWith(letter: string, isValidWord: (word: string) => bo
   return candidates.filter(word => word.length >= minLength && isValidWord(word))
 }
 
+function findIntersectingWords(
+  board: Map<string, PlacedTile>,
+  word: string,
+  startRow: number,
+  startCol: number,
+  direction: 'horizontal' | 'vertical'
+): string[] {
+  const intersectingWords: string[] = []
+  
+  for (let i = 0; i < word.length; i++) {
+    const row = direction === 'vertical' ? startRow + i : startRow
+    const col = direction === 'horizontal' ? startCol + i : startCol
+    
+    // Check perpendicular direction for words formed
+    if (direction === 'horizontal') {
+      // Check vertical words formed by this letter
+      let verticalWord = ''
+      let startVertRow = row
+      
+      // Find start of vertical word
+      while (startVertRow > 0 && board.has(`${startVertRow - 1},${col}`)) {
+        startVertRow--
+      }
+      
+      // Build vertical word
+      let currentRow = startVertRow
+      while (currentRow < 15) {
+        const key = `${currentRow},${col}`
+        if (board.has(key)) {
+          verticalWord += board.get(key)!.letter
+        } else if (currentRow === row) {
+          verticalWord += word[i]
+        } else {
+          break
+        }
+        currentRow++
+      }
+      
+      if (verticalWord.length > 1) {
+        intersectingWords.push(verticalWord)
+      }
+    } else {
+      // Check horizontal words formed by this letter
+      let horizontalWord = ''
+      let startHorCol = col
+      
+      // Find start of horizontal word
+      while (startHorCol > 0 && board.has(`${row},${startHorCol - 1}`)) {
+        startHorCol--
+      }
+      
+      // Build horizontal word
+      let currentCol = startHorCol
+      while (currentCol < 15) {
+        const key = `${row},${currentCol}`
+        if (board.has(key)) {
+          horizontalWord += board.get(key)!.letter
+        } else if (currentCol === col) {
+          horizontalWord += word[i]
+        } else {
+          break
+        }
+        currentCol++
+      }
+      
+      if (horizontalWord.length > 1) {
+        intersectingWords.push(horizontalWord)
+      }
+    }
+  }
+  
+  return intersectingWords
+}
+
 function canPlaceWord(
   board: Map<string, PlacedTile>,
   word: string,
   startRow: number,
   startCol: number,
   direction: 'horizontal' | 'vertical',
-  tileBag: Tile[]
+  tileBag: Tile[],
+  isValidWord: (word: string) => boolean
 ): boolean {
   // Check if word fits on board
   for (let i = 0; i < word.length; i++) {
@@ -127,6 +202,15 @@ function canPlaceWord(
     }
   }
   
+  // Check that all intersecting words are valid
+  const intersectingWords = findIntersectingWords(board, word, startRow, startCol, direction)
+  for (const intersectingWord of intersectingWords) {
+    if (!isValidWord(intersectingWord)) {
+      console.log(`Invalid intersecting word: "${intersectingWord}"`)
+      return false
+    }
+  }
+  
   return true
 }
 
@@ -136,9 +220,10 @@ function placeWord(
   startRow: number,
   startCol: number,
   direction: 'horizontal' | 'vertical',
-  tileBag: Tile[]
+  tileBag: Tile[],
+  isValidWord: (word: string) => boolean
 ): boolean {
-  if (!canPlaceWord(board, word, startRow, startCol, direction, tileBag)) {
+  if (!canPlaceWord(board, word, startRow, startCol, direction, tileBag, isValidWord)) {
     return false
   }
   
@@ -188,7 +273,7 @@ export class ProgressivePuzzleBuilder {
     }
     
     const startCol = 7 - Math.floor(word.length / 2)
-    const success = placeWord(this.board, word, 7, startCol, 'horizontal', this.tileBag)
+    const success = placeWord(this.board, word, 7, startCol, 'horizontal', this.tileBag, this.isValidWord)
     
     if (!success) {
       throw new Error('Failed to place initial word')
@@ -239,8 +324,8 @@ export class ProgressivePuzzleBuilder {
         }
       }
       
-      if (canPlaceWord(this.board, word, startRow, startCol, direction, this.tileBag)) {
-        const success = placeWord(this.board, word, startRow, startCol, direction, this.tileBag)
+      if (canPlaceWord(this.board, word, startRow, startCol, direction, this.tileBag, this.isValidWord)) {
+        const success = placeWord(this.board, word, startRow, startCol, direction, this.tileBag, this.isValidWord)
         if (success) {
           this.wordsGenerated.push(word)
           
