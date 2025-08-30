@@ -1,5 +1,8 @@
 // Centralized API configuration
-const raw = import.meta.env.VITE_QUACKLE_SERVICE_URL ?? '';
+const raw = import.meta.env.VITE_QUACKLE_SERVICE_URL;
+if (!raw) {
+  throw new Error('VITE_QUACKLE_SERVICE_URL is not defined');
+}
 export const API_BASE = raw.replace(/\/+$/, ''); // Remove trailing slash
 
 export const api = (path: string) =>
