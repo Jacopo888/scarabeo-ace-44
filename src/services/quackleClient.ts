@@ -1,6 +1,5 @@
 import type { PlacedTile } from '@/types/game'
-
-const BASE = (import.meta as any).env.VITE_QUACKLE_SERVICE_URL?.replace(/\/+$/, '')
+import { API_BASE, api } from '@/config'
 
 export interface QuackleMove {
   tiles: PlacedTile[]
@@ -12,7 +11,7 @@ export interface QuackleMove {
 
 export async function quackleHealth(): Promise<boolean> {
   try {
-    const r = await fetch(`${BASE}/health`, { method: 'GET' })
+    const r = await fetch(api('/health'), { method: 'GET' })
     if (!r.ok) return false
     const j = await r.json()
     return j?.status === 'ok'
@@ -22,7 +21,7 @@ export async function quackleHealth(): Promise<boolean> {
 }
 
 export async function quackleBestMove(payload: any): Promise<QuackleMove> {
-  const r = await fetch(`${BASE}/best-move`, {
+  const r = await fetch(api('/best-move'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -32,5 +31,5 @@ export async function quackleBestMove(payload: any): Promise<QuackleMove> {
 }
 
 export function getQuackleBase() {
-  return BASE
+  return API_BASE
 }
