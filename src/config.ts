@@ -1,19 +1,25 @@
-// Centralized API configuration
+// Centralized API configuration + guards
 const raw = import.meta.env.VITE_QUACKLE_SERVICE_URL;
+
+// Fail fast in production; fallback comodo in dev
 if (!raw) {
-  throw new Error('VITE_QUACKLE_SERVICE_URL is not defined');
+  const isDev = import.meta.env.MODE === 'development';
+  if (isDev) {
+    console.warn('[Quackle] VITE_QUACKLE_SERVICE_URL non definita. Uso http://localhost:5000');
+  } else {
+    throw new Error('VITE_QUACKLE_SERVICE_URL non è definita. Impostala nelle env di build.');
+  }
 }
-export const API_BASE = raw.replace(/\/+$/, ''); // Remove trailing slash
 
-export const api = (path: string) =>
-  `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
+export const API_BASE = (raw || 'http://localhost:5000').replace(/\/+$/, '');
+export const api = (path: string) => `${API_BASE}${path.startsWith('/') ? '' : '/'}${path}`;
 
-// Health check function for debugging
 export async function checkHealth() {
   try {
-    const res = await fetch(api('/health'));
-    return { ok: res.ok, status: res.status, body: await res.text() };
+    const res = await fetch(api('/health'), { method: 'GET' });
+    const text = await res.text().catch(() => '');
+    return { ok: res.ok, status: res.status, body: text };
   } catch (error) {
-    return { ok: false, status: 0, body: `Error: ${error}` };
+    return { ok: false, status: 0, body: String(error) };
   }
 }

@@ -9,7 +9,11 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "prebuild:prod": "node ./scripts/check-env.ts --prod",
+    "build:prod": "npm run prebuild:prod && vite build",
+    "quackle:health": "node -e \"(async()=>{const b=process.env.QUACKLE_BASE||'http://localhost:5000';const r=await fetch(b+'/health');console.log(await r.text())})()\"",
+    "quackle:test": "node ./scripts/test-quackle.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
