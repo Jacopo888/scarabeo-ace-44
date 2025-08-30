@@ -52,7 +52,7 @@ int main(int argc, char** argv){
 
     // Build rack
     Quackle::Rack rr;
-    std::string rackString;
+    Quackle::LetterString rackString;
     for (const auto &tile : jrack) {
         char ch = std::toupper(tile.value("letter","?")[0]);
         if (tile.value("isBlank", false)) ch = '?';
@@ -65,7 +65,8 @@ int main(int argc, char** argv){
     players.push_back( Quackle::Player("A") );
     players.push_back( Quackle::Player("B") );
     Quackle::GamePosition pos(players);
-    pos.board().prepareEmptyBoard();
+    Quackle::Board &board = pos.underlyingBoardReference();
+    board.prepareEmptyBoard();
     pos.setCurrentPlayerRack(rr, false);
 
     // Place existing board tiles
@@ -74,8 +75,10 @@ int main(int argc, char** argv){
       std::istringstream sscoord(it.key()); sscoord>>r>>comma>>c;
       char ch = std::toupper(it->value("letter","?")[0]);
       if (it->value("isBlank", false)) ch = '?';
-      Quackle::Move m = Quackle::Move::createPlaceMove(r, c, false, std::string(1, ch));
-      pos.board().makeMove(m);
+      Quackle::LetterString single;
+      single.push_back(ch);
+      Quackle::Move m = Quackle::Move::createPlaceMove(r, c, false, single);
+      board.makeMove(m);
     }
 
     // Generate best move
@@ -89,7 +92,8 @@ int main(int argc, char** argv){
 
     // Extract tiles
     json tiles = json::array();
-    const std::string word = best.tiles();
+    const Quackle::LetterString ls = best.tiles();
+    const std::string word(ls.begin(), ls.end());
     int row = best.startrow;
     int col = best.startcol;
     for (size_t i=0;i<word.size();++i){
