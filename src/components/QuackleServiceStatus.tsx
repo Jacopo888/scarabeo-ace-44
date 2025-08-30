@@ -9,8 +9,8 @@ export const QuackleServiceStatus = () => {
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const isHealthy = await quackleHealth()
-        setStatus(isHealthy ? 'healthy' : 'unhealthy')
+        const healthResult = await quackleHealth()
+        setStatus(healthResult.ok ? 'healthy' : 'unhealthy')
       } catch (error) {
         setStatus('unhealthy')
       }

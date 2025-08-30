@@ -12,7 +12,7 @@ export const QuackleHealthCheck = () => {
       setIsChecking(true)
       try {
         const healthy = await quackleHealth()
-        setIsHealthy(healthy)
+        setIsHealthy(healthy.ok)
       } catch (error) {
         setIsHealthy(false)
       } finally {
