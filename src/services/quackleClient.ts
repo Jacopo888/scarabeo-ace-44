@@ -28,10 +28,34 @@ async function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = 10000)
   }
 }
 
-export async function quackleHealth(): Promise<{ ok: boolean; status: number; body: string; base: string; }> {
-  const r = await fetchWithTimeout(api('/health'), { method: 'GET' }, 5000);
-  const body = await r.text().catch(() => '');
-  return { ok: r.ok, status: r.status, body, base: API_BASE };
+export async function quackleHealth(): Promise<{ ok: boolean; status: number; body: string; base: string; error?: string; }> {
+  try {
+    console.log('[Quackle Debug] Attempting health check to:', api('/health'));
+    console.log('[Quackle Debug] API_BASE:', API_BASE);
+    
+    const r = await fetchWithTimeout(api('/health'), { method: 'GET' }, 5000);
+    const body = await r.text().catch(() => '');
+    
+    console.log('[Quackle Debug] Health response:', { ok: r.ok, status: r.status, body: body.slice(0, 100) });
+    
+    return { ok: r.ok, status: r.status, body, base: API_BASE };
+  } catch (error: any) {
+    const errorMsg = String(error?.message || error);
+    console.error('[Quackle Debug] Health check failed:', errorMsg);
+    console.error('[Quackle Debug] Error details:', error);
+    
+    // Detect specific error types
+    const isCORSError = /Failed to fetch|NetworkError|TypeError|CORS/i.test(errorMsg);
+    const isTimeoutError = /timeout|aborted/i.test(errorMsg);
+    
+    return { 
+      ok: false, 
+      status: 0, 
+      body: '', 
+      base: API_BASE, 
+      error: isCORSError ? 'CORS_ERROR' : isTimeoutError ? 'TIMEOUT_ERROR' : 'UNKNOWN_ERROR'
+    };
+  }
 }
 
 export async function quackleBestMove(payload: any): Promise<QuackleMove> {

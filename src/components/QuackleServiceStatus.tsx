@@ -10,8 +10,10 @@ export const QuackleServiceStatus = () => {
     const checkStatus = async () => {
       try {
         const healthResult = await quackleHealth()
+        console.log('[QuackleServiceStatus] Health result:', healthResult);
         setStatus(healthResult.ok ? 'healthy' : 'unhealthy')
       } catch (error) {
+        console.error('[QuackleServiceStatus] Error:', error);
         setStatus('unhealthy')
       }
     }

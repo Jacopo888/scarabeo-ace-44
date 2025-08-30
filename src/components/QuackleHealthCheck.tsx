@@ -34,7 +34,7 @@ export const QuackleHealthCheck = () => {
       <Alert variant="destructive" className="mb-4">
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          Quackle AI engine is not available. Bot moves will be limited.
+          Quackle AI engine is not available. Check browser console for details. Bot moves will be limited.
         </AlertDescription>
       </Alert>
     )
