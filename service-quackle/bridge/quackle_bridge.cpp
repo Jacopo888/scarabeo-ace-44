@@ -4,50 +4,27 @@
 #include <vector>
 #include <map>
 #include <cctype>
+#include <memory>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
-// Header Quackle: includi i file principali senza prefissi come 'libquackle/' o 'quackle/'
+// Quackle headers
 #include "game.h"
 #include "board.h"
 #include "rack.h"
 #include "move.h"
 #include "generator.h"
-#include "evaluator.h"
+#include "player.h"
+#include "playerlist.h"
+#include "datamanager.h"
+#include "alphabetparameters.h"
+#include "lexiconparameters.h"
 
 static std::string arg(int argc, char** argv, const std::string& k, const std::string& d) {
   for (int i=1;i<argc-1;++i) if (std::string(argv[i])==k) return std::string(argv[i+1]);
   return d;
 }
 static int simsFor(const std::string& d){ if(d=="easy")return 0; if(d=="hard")return 800; return 300; }
-
-static void jBoardToQ(const json& jb, Quackle::Board& b){
-  for (auto it = jb.begin(); it != jb.end(); ++it){
-    const std::string key = it.key(); int r=0,c=0; char comma;
-    std::istringstream ss(key); ss>>r>>comma>>c;
-    const auto& cell = it.value();
-    std::string letter = cell.value("letter", "");
-    bool isBlank = cell.value("isBlank", false);
-    if (!letter.empty()){
-      char L = std::toupper(letter[0]);
-      if (isBlank) L='?';
-      b.setTile(r,c,L);
-    }
-  }
-}
-static Quackle::Rack jRackToQ(const json& jr){
-  Quackle::Rack rr;
-  for (const auto& t: jr){
-    std::string L = t.value("letter","");
-    bool isBlank = t.value("isBlank",false);
-    if(!L.empty()){
-      char ch = std::toupper(L[0]);
-      if(isBlank) ch='?';
-      rr.add(ch);
-    }
-  }
-  return rr;
-}
 
 int main(int argc, char** argv){
   const std::string lexicon = arg(argc, argv, "--lexicon", "en-enable");
@@ -57,28 +34,89 @@ int main(int argc, char** argv){
   json req; try{ req = json::parse(input.empty()?"{}":input); }catch(...){
     std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true})"; return 0;
   }
-  const json jboard = req.value("board", json::object());
-  const json jrack  = req.value("rack",  json::array());
-  const std::string diff = req.value("difficulty", std::string("medium"));
-  const int sims = simsFor(diff);
 
   try{
-    Quackle::Game game;
-    game.setLayout("scrabble");
-    game.setLexicon(lexicon, lexdir);
+    const json jboard = req.value("board", json::object());
+    const json jrack  = req.value("rack",  json::array());
+    const std::string diff = req.value("difficulty", std::string("medium"));
+    (void)diff; // difficulty currently unused
 
-    Quackle::Board qb; jBoardToQ(jboard, qb); game.setBoard(qb);
-    Quackle::Rack rr = jRackToQ(jrack);      game.setRack(rr);
+    // Prepare data manager and lexicon
+    QUACKLE_DATAMANAGER->setAppDataDirectory(lexdir);
+    QUACKLE_DATAMANAGER->setBackupLexicon(lexicon);
+    auto *alphabet = new Quackle::EnglishAlphabetParameters();
+    QUACKLE_DATAMANAGER->setAlphabetParameters(alphabet);
+    auto *lexParams = new Quackle::LexiconParameters();
+    lexParams->loadGaddag(Quackle::LexiconParameters::findDictionaryFile(lexicon + ".gaddag"));
+    QUACKLE_DATAMANAGER->setLexiconParameters(lexParams);
 
-    Quackle::Move best = (sims>0) ? game.getBestMove(sims) : game.getBestMoveGreedy();
-
-    json out; out["score"]=best.score(); out["move_type"]="place"; out["words"]=json::array();
-    out["tiles"]=json::array();
-    for (const auto& t : best.tiles()){
-      json jt; jt["row"]=t.row(); jt["col"]=t.col();
-      jt["letter"]=std::string(1,t.letter()); jt["points"]=t.points();
-      jt["isBlank"]=(t.letter()=='?'); out["tiles"].push_back(jt);
+    // Build rack
+    Quackle::Rack rr;
+    std::string rackString;
+    for (const auto &tile : jrack) {
+        char ch = std::toupper(tile.value("letter","?")[0]);
+        if (tile.value("isBlank", false)) ch = '?';
+        rackString.push_back(ch);
     }
+    rr.setTiles(rackString);
+
+    // Create game position
+    Quackle::PlayerList players;
+    players.push_back( Quackle::Player("A") );
+    players.push_back( Quackle::Player("B") );
+    Quackle::GamePosition pos(players);
+    pos.board().prepareEmptyBoard();
+    pos.setCurrentPlayerRack(rr, false);
+
+    // Place existing board tiles
+    for (auto it = jboard.begin(); it != jboard.end(); ++it) {
+      int r=0,c=0; char comma;
+      std::istringstream sscoord(it.key()); sscoord>>r>>comma>>c;
+      char ch = std::toupper(it->value("letter","?")[0]);
+      if (it->value("isBlank", false)) ch = '?';
+      Quackle::Move m = Quackle::Move::createPlaceMove(r, c, false, std::string(1, ch));
+      pos.board().makeMove(m);
+    }
+
+    // Generate best move
+    Quackle::Generator gen(pos);
+    gen.kibitz(1);
+    const auto &moves = gen.kibitzList();
+    if (moves.empty()) {
+      std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass"})"; return 0;
+    }
+    const Quackle::Move &best = moves.front();
+
+    // Extract tiles
+    json tiles = json::array();
+    const std::string word = best.tiles();
+    int row = best.startrow;
+    int col = best.startcol;
+    for (size_t i=0;i<word.size();++i){
+      char l = word[i];
+      if (l == '.') { if (best.horizontal) ++col; else ++row; continue; }
+      json jt; jt["row"]=row; jt["col"]=col;
+      jt["letter"] = std::string(1, (l=='?'?'?':std::toupper(l)));
+      jt["isBlank"] = (l=='?');
+      jt["points"] = QUACKLE_ALPHABET_PARAMETERS->score(l);
+      tiles.push_back(jt);
+      if (best.horizontal) ++col; else ++row;
+    }
+
+    // Words formed
+    json words = json::array();
+    Quackle::MoveList formed = pos.allWordsFormedBy(best);
+    for (const auto &w : formed){
+      std::string ws;
+      for (auto ch : w.wordTiles()) ws.push_back(static_cast<char>(ch));
+      words.push_back(ws);
+    }
+
+    json out;
+    out["score"]=best.score;
+    out["tiles"]=tiles;
+    out["words"]=words;
+    out["move_type"]="place";
     std::cout<<out.dump(); return 0;
   }catch(const std::exception& e){
     json out={{"tiles",json::array()},{"score",0},{"words",json::array()},{"move_type","pass"},{"engine_fallback",true},{"error",std::string("engine: ")+e.what()}};
