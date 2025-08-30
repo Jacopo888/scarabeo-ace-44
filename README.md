@@ -88,6 +88,23 @@ cp .env.example .env
 # then edit .env and provide values for SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY
 ```
 
+## Quackle AI – Setup rapido
+
+### Variabili frontend
+`VITE_QUACKLE_SERVICE_URL=` (URL pubblico del servizio)
+
+### Test locali
+`QUACKLE_BASE=http://localhost:5000  npm run quackle:health`
+`QUACKLE_BASE=https://<railway-app>.up.railway.app  npm run quackle:test`
+
+### Diagnostica
+Visita /debug/quackle per testare /health e /best-move dal browser.
+
+#### NOTE (Operatore umano – Railway)
+- Imposta CORS_ORIGINS includendo tutti i domini del frontend (preview/prod).
+- Imposta la porta 5000 (il Dockerfile espone 5000).
+- Verifica /health pubblico dopo il deploy.
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/c72bd105-8134-406f-8d24-e609c43ca3b0) and click on Share -> Publish.

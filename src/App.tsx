@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -17,12 +19,14 @@ import PuzzleGame from "./pages/PuzzleGame";
 import NotFound from "./pages/NotFound";
 import Daily from "./pages/Daily";
 import DailyChallengePage from "./pages/DailyChallenge";
+import QuackleDebug from "./pages/QuackleDebug";
 import { QuackleProvider } from "./contexts/QuackleContext";
 import { DictionaryProvider } from "./contexts/DictionaryContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { NotificationSystem } from "./components/NotificationSystem";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { checkHealth } from "@/config";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +56,7 @@ const AppRoutes = () => {
           } />
           <Route path="/daily" element={<Daily />} />
           <Route path="/daily-challenge" element={<DailyChallengePage />} />
+            <Route path="/debug/quackle" element={<QuackleDebug />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -61,7 +66,17 @@ const AppRoutes = () => {
 }
 
 const AppContent = () => {
-  const { user } = useAuth()
+  const { user } = useAuth();
+  const [quackleDown, setQuackleDown] = useState(false);
+
+  useEffect(() => {
+    checkHealth().then((h) => {
+      if (!h.ok) {
+        setQuackleDown(true);
+        toast.error("Quackle AI non raggiungibile – controlla variabili e CORS");
+      }
+    });
+  }, []);
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -80,6 +95,12 @@ const AppContent = () => {
               <ThemeToggle />
             </div>
           </header>
+            {quackleDown && (
+              <div className="bg-red-500 text-white text-center text-xs py-1">
+                Quackle AI non raggiungibile – controlla variabili e CORS
+              </div>
+            )}
+
           <main className="flex-1 overflow-auto">
             <AppRoutes />
           </main>
