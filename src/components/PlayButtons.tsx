@@ -19,8 +19,12 @@ export const PlayButtons = () => {
   }
   
   const handleDifficultySelect = (difficulty: Difficulty) => {
+    console.log('[PlayButtons] Setting difficulty:', difficulty)
     setDifficulty(difficulty)
-    navigate('/game')
+    // Use setTimeout to ensure context is updated before navigation
+    setTimeout(() => {
+      navigate('/game')
+    }, 10)
   }
   
   const handleQuickMatch = () => {

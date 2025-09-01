@@ -33,12 +33,15 @@ export const useGame = () => {
   const [isSurrendered, setIsSurrendered] = useState(false)
   const [moveHistory, setMoveHistory] = useState<GameMove[]>([])
   const gameIdRef = useRef<string>(crypto.randomUUID())
-  const [gameState, setGameState] = useState<GameState>(() => {
+  
+  // Initialize game state with proper bot mode detection
+  const initializeGameState = useCallback((): GameState => {
+    console.log('[useGame] Initializing game with difficulty:', difficulty)
     const shuffledBag = shuffleArray(TILE_DISTRIBUTION)
     const player1Tiles = drawTiles(shuffledBag, 7)
     const player2Tiles = drawTiles(player1Tiles.remaining, 7)
 
-    const gameMode = difficulty ? 'quackle' : 'human'
+    const gameMode: 'human' | 'quackle' = difficulty ? 'quackle' : 'human'
     const startingPlayerIndex = Math.floor(Math.random() * 2)
 
     return {
@@ -65,7 +68,9 @@ export const useGame = () => {
       gameMode,
       passCounts: [0, 0]
     }
-  })
+  }, [difficulty])
+
+  const [gameState, setGameState] = useState<GameState>(initializeGameState)
 
   const placeTile = useCallback((row: number, col: number, tile: Tile) => {
     const key = `${row},${col}`
@@ -434,42 +439,14 @@ export const useGame = () => {
   }, [])
 
   const resetGame = useCallback(() => {
-    const shuffledBag = shuffleArray(TILE_DISTRIBUTION)
-    const player1Tiles = drawTiles(shuffledBag, 7)
-    const player2Tiles = drawTiles(player1Tiles.remaining, 7)
-
-    const gameMode = difficulty ? 'quackle' : 'human'
-    const startingPlayerIndex = Math.floor(Math.random() * 2)
-
-    setGameState({
-      board: new Map(),
-      players: [
-        {
-          id: 'player1',
-          name: difficulty ? 'You' : 'Player 1',
-          score: 0,
-          rack: player1Tiles.drawn,
-          isBot: false
-        },
-        {
-          id: 'player2',
-          name: difficulty ? `Quackle (${difficulty})` : 'Player 2',
-          score: 0,
-          rack: player2Tiles.drawn,
-          isBot: !!difficulty
-        }
-      ],
-      currentPlayerIndex: startingPlayerIndex,
-      tileBag: player2Tiles.remaining,
-      gameStatus: 'playing',
-      gameMode,
-      passCounts: [0, 0]
-    })
+    console.log('[useGame] Resetting game with difficulty:', difficulty)
+    const newGameState = initializeGameState()
+    setGameState(newGameState)
     setPendingTiles([])
     setIsSurrendered(false)
     setMoveHistory([])
     gameIdRef.current = crypto.randomUUID()
-  }, [difficulty])
+  }, [difficulty, initializeGameState])
 
   // Quackle move logic
   const makeQuackleMove = useCallback(async () => {
@@ -675,17 +652,11 @@ export const useGame = () => {
     }
   }, [gameState.currentPlayerIndex, gameState.gameStatus, makeQuackleMove, isBotTurn, difficulty])
 
-  // Effect to reset game when difficulty changes
-  const isFirstRender = useRef(true)
-
+  // Effect to reset game when difficulty changes (including initial setup)
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false
-      return
-    }
-    if (difficulty) {
-      resetGame()
-    }
+    console.log('[useGame] Difficulty changed to:', difficulty)
+    // Always reset when difficulty changes (including initial load)
+    resetGame()
   }, [difficulty, resetGame])
 
   return {
