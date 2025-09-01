@@ -55,7 +55,7 @@ export const useGame = () => {
           isBot: false
         },
         {
-          id: 'player2', 
+          id: 'player2',
           name: difficulty ? `Quackle (${difficulty})` : 'Player 2',
           score: 0,
           rack: player2Tiles.drawn,
@@ -64,13 +64,22 @@ export const useGame = () => {
       ],
       currentPlayerIndex: startingPlayerIndex,
       tileBag: player2Tiles.remaining,
-      gameStatus: 'playing',
+      gameStatus: difficulty ? 'playing' : 'waiting',
       gameMode,
       passCounts: [0, 0]
     }
   }, [difficulty])
 
-  const [gameState, setGameState] = useState<GameState>(initializeGameState)
+  // Initialize with empty state and wait for difficulty
+  const [gameState, setGameState] = useState<GameState>(() => ({
+    board: new Map(),
+    players: [],
+    currentPlayerIndex: 0,
+    tileBag: [],
+    gameStatus: 'waiting',
+    gameMode: 'human',
+    passCounts: [0, 0]
+  }))
 
   const placeTile = useCallback((row: number, col: number, tile: Tile) => {
     const key = `${row},${col}`
@@ -652,12 +661,20 @@ export const useGame = () => {
     }
   }, [gameState.currentPlayerIndex, gameState.gameStatus, makeQuackleMove, isBotTurn, difficulty])
 
-  // Effect to reset game when difficulty changes (including initial setup)
+  // Effect to initialize game when difficulty is available
   useEffect(() => {
     console.log('[useGame] Difficulty changed to:', difficulty)
-    // Always reset when difficulty changes (including initial load)
-    resetGame()
-  }, [difficulty, resetGame])
+    if (difficulty) {
+      console.log('[useGame] Initializing game with difficulty:', difficulty)
+      const newGameState = initializeGameState()
+      console.log('[useGame] New game state players:', newGameState.players.map(p => ({ name: p.name, isBot: p.isBot })))
+      setGameState(newGameState)
+      setPendingTiles([])
+      setIsSurrendered(false)
+      setMoveHistory([])
+      gameIdRef.current = crypto.randomUUID()
+    }
+  }, [difficulty, initializeGameState])
 
   return {
     gameState,

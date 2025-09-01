@@ -8,7 +8,7 @@ import { DictionaryLoader } from "@/components/DictionaryLoader"
 import { AnalysisPanel } from "@/components/AnalysisPanel"
 import { useGameAnalysis } from "@/hooks/useGameAnalysis"
 import { BlankTileDialog } from "@/components/BlankTileDialog"
-import { QuackleProvider } from "@/contexts/QuackleContext"
+import { QuackleProvider, useQuackleContext } from "@/contexts/QuackleContext"
 import { QuackleHealthCheck } from "@/components/QuackleHealthCheck"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -37,6 +37,19 @@ const GameContent = () => {
     moveHistory,
     gameId
   } = useGameContext()
+  const { difficulty } = useQuackleContext()
+
+  // Show loading state while waiting for game initialization
+  if (gameState.gameStatus === 'waiting' || gameState.players.length === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Setting up your game...</p>
+        </div>
+      </div>
+    )
+  }
 
   const isMobile = useIsMobile()
   const [selectedTileIndex, setSelectedTileIndex] = useState<number | null>(null)
