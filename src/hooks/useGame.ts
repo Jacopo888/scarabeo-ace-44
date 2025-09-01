@@ -666,15 +666,49 @@ export const useGame = () => {
     console.log('[useGame] Difficulty changed to:', difficulty)
     if (difficulty) {
       console.log('[useGame] Initializing game with difficulty:', difficulty)
-      const newGameState = initializeGameState()
+      
+      // Initialize game state directly here to avoid circular dependency
+      const shuffledBag = shuffleArray(TILE_DISTRIBUTION)
+      const player1Tiles = drawTiles(shuffledBag, 7)
+      const player2Tiles = drawTiles(player1Tiles.remaining, 7)
+
+      const gameMode: 'human' | 'quackle' = 'quackle'
+      const startingPlayerIndex = Math.floor(Math.random() * 2)
+
+      const newGameState: GameState = {
+        board: new Map(),
+        players: [
+          {
+            id: 'player1',
+            name: 'You',
+            score: 0,
+            rack: player1Tiles.drawn,
+            isBot: false
+          },
+          {
+            id: 'player2',
+            name: `Quackle (${difficulty})`,
+            score: 0,
+            rack: player2Tiles.drawn,
+            isBot: true
+          }
+        ],
+        currentPlayerIndex: startingPlayerIndex,
+        tileBag: player2Tiles.remaining,
+        gameStatus: 'playing',
+        gameMode,
+        passCounts: [0, 0]
+      }
+      
       console.log('[useGame] New game state players:', newGameState.players.map(p => ({ name: p.name, isBot: p.isBot })))
+      console.log('[useGame] Game status set to:', newGameState.gameStatus)
       setGameState(newGameState)
       setPendingTiles([])
       setIsSurrendered(false)
       setMoveHistory([])
       gameIdRef.current = crypto.randomUUID()
     }
-  }, [difficulty, initializeGameState])
+  }, [difficulty])
 
   return {
     gameState,

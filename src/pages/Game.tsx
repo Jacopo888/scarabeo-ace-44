@@ -40,7 +40,7 @@ const GameContent = () => {
   const { difficulty } = useQuackleContext()
 
   // Show loading state while waiting for game initialization
-  if (gameState.gameStatus === 'waiting' || gameState.players.length === 0) {
+  if (gameState.players.length === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
