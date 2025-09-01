@@ -691,8 +691,8 @@ export const useGame = () => {
     makeQuackleMove,
     isBotTurn,
     isSurrendered,
-    currentPlayer: gameState.players[gameState.currentPlayerIndex],
-    isCurrentPlayerTurn: (playerId: string) => gameState.players[gameState.currentPlayerIndex].id === playerId,
+    currentPlayer: gameState.players[gameState.currentPlayerIndex] || { id: '', name: '', score: 0, rack: [], isBot: false },
+    isCurrentPlayerTurn: (playerId: string) => gameState.players[gameState.currentPlayerIndex]?.id === playerId,
     moveHistory,
     gameId: gameIdRef.current
   }
