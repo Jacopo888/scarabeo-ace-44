@@ -664,6 +664,7 @@ export const useGame = () => {
   // Effect to initialize game when difficulty is available
   useEffect(() => {
     console.log('[useGame] Difficulty changed to:', difficulty)
+    console.log('[useGame] Current game state:', gameState.gameStatus, 'players:', gameState.players.length)
     if (difficulty) {
       console.log('[useGame] Initializing game with difficulty:', difficulty)
       
