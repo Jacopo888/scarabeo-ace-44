@@ -685,8 +685,8 @@ export const useGame = () => {
           
           console.log('[useGame] Bot move received:', move)
           
-          if (!move || move.engine_fallback) {
-            console.log('[useGame] Bot passing turn - no valid move or engine fallback')
+          if (!move || move.tiles.length === 0) {
+            console.log('[useGame] Bot passing turn - no tiles to place')
             passTurn()
           } else if (move.move_type === 'pass') {
             console.log('[useGame] Bot chose to pass')
