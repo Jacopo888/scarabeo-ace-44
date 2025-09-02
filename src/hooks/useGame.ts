@@ -656,14 +656,117 @@ export const useGame = () => {
     })
   }, [difficulty, quackleMakeMove, toast])
 
-  // Effect to handle Quackle turns
+  // Effect to handle Quackle turns - simplified with no circular dependencies
   useEffect(() => {
     const currentPlayer = gameState.players[gameState.currentPlayerIndex]
+    const activeDifficulty = difficulty || urlDifficulty
 
-    if (currentPlayer?.isBot && gameState.gameStatus === 'playing' && !isBotTurn) {
-      makeQuackleMove()
+    console.log('[useGame] Bot turn effect:', {
+      currentPlayerIndex: gameState.currentPlayerIndex,
+      gameStatus: gameState.gameStatus,
+      isBot: currentPlayer?.isBot,
+      botThinking: isBotTurn,
+      activeDifficulty: activeDifficulty
+    })
+
+    if (gameState.gameStatus === 'playing' && 
+        currentPlayer?.isBot && 
+        !isBotTurn && 
+        activeDifficulty) {
+      
+      console.log('[useGame] Triggering bot move')
+      setIsBotTurn(true)
+      
+      // Make bot move directly here to avoid circular dependencies
+      const makeBotMove = async () => {
+        try {
+          const botRack = gameState.players[gameState.currentPlayerIndex].rack
+          const move = await quackleMakeMove(gameState, botRack)
+          
+          console.log('[useGame] Bot move received:', move)
+          
+          if (!move || move.engine_fallback) {
+            console.log('[useGame] Bot passing turn - no valid move or engine fallback')
+            passTurn()
+          } else if (move.move_type === 'pass') {
+            console.log('[useGame] Bot chose to pass')
+            passTurn()
+          } else if (move.move_type === 'exchange') {
+            console.log('[useGame] Bot exchanging tiles')
+            exchangeTiles()
+          } else {
+            console.log('[useGame] Bot placing tiles:', move.tiles)
+            // Apply bot move to game state
+            setGameState(prev => {
+              const newBoard = new Map(prev.board)
+              
+              move.tiles.forEach(tile => {
+                const key = `${tile.row},${tile.col}`
+                newBoard.set(key, {
+                  letter: tile.letter,
+                  points: tile.points,
+                  row: tile.row,
+                  col: tile.col,
+                  isBlank: tile.isBlank || false
+                })
+              })
+              
+              // Update bot's rack and score
+              const currentPlayer = prev.players[prev.currentPlayerIndex]
+              const newRack = [...currentPlayer.rack]
+              move.tiles.forEach(usedTile => {
+                const tileIndex = newRack.findIndex(t => {
+                  if (usedTile.isBlank && t.isBlank) return true
+                  return t.letter === usedTile.letter && t.points === usedTile.points
+                })
+                if (tileIndex !== -1) {
+                  newRack.splice(tileIndex, 1)
+                }
+              })
+              
+              // Draw new tiles
+              const tilesNeeded = 7 - newRack.length
+              const { drawn, remaining } = tilesNeeded > 0 && prev.tileBag.length > 0
+                ? drawTiles(prev.tileBag, Math.min(tilesNeeded, prev.tileBag.length))
+                : { drawn: [], remaining: prev.tileBag }
+              
+              const newPlayers = [...prev.players]
+              newPlayers[prev.currentPlayerIndex] = {
+                ...currentPlayer,
+                score: currentPlayer.score + move.score,
+                rack: [...newRack, ...drawn]
+              }
+              
+              const newPassCounts = [...(prev.passCounts || Array(prev.players.length).fill(0))]
+              newPassCounts[prev.currentPlayerIndex] = 0
+              
+              toast({
+                title: "Quackle played!",
+                description: `Quackle scored ${move.score} points with: ${move.words.join(', ')}`,
+              })
+              
+              return {
+                ...prev,
+                board: newBoard,
+                players: newPlayers,
+                tileBag: remaining,
+                currentPlayerIndex: (prev.currentPlayerIndex + 1) % prev.players.length,
+                passCounts: newPassCounts,
+                lastMove: move.tiles
+              }
+            })
+          }
+        } catch (error) {
+          console.error('[useGame] Bot move error:', error)
+          passTurn()
+        } finally {
+          setIsBotTurn(false)
+        }
+      }
+      
+      makeBotMove()
     }
-  }, [gameState.currentPlayerIndex, gameState.gameStatus, makeQuackleMove, isBotTurn, difficulty])
+  }, [gameState.currentPlayerIndex, gameState.gameStatus, isBotTurn, difficulty, urlDifficulty, quackleMakeMove, passTurn, exchangeTiles, toast])
 
   // Effect to sync URL difficulty with context
   useEffect(() => {
