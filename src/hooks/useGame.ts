@@ -684,12 +684,16 @@ export const useGame = () => {
           const move = await quackleMakeMove(gameState, botRack)
           
           console.log('[useGame] Bot move received:', move)
+          console.log('[useGame] Move details - tiles:', move?.tiles?.length, 'move_type:', move?.move_type, 'engine_fallback:', move?.engine_fallback)
           
-          if (!move || move.tiles.length === 0) {
-            console.log('[useGame] Bot passing turn - no tiles to place')
+          if (!move) {
+            console.log('[useGame] Bot passing turn - no move returned')
             passTurn()
           } else if (move.move_type === 'pass') {
             console.log('[useGame] Bot chose to pass')
+            passTurn()
+          } else if (!move.tiles || move.tiles.length === 0) {
+            console.log('[useGame] Bot passing turn - no tiles to place')
             passTurn()
           } else if (move.move_type === 'exchange') {
             console.log('[useGame] Bot exchanging tiles')

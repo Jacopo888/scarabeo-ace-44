@@ -43,9 +43,7 @@ export const useQuackle = () => {
         new Promise(resolve => setTimeout(resolve, thinkingTime))
       ])
       
-      if (move?.engine_fallback) {
-        return { tiles: [], score: 0, words: [], move_type: 'pass', engine_fallback: true }
-      }
+      console.log('[useQuackle] Raw move from Quackle service:', move)
       return move
     } finally {
       setIsThinking(false)
