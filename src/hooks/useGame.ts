@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { GameState, Player, Tile, PlacedTile, TILE_DISTRIBUTION } from '@/types/game'
 import { validateMoveLogic } from '@/utils/moveValidation'
 import { findNewWordsFormed } from '@/utils/newWordFinder'
@@ -8,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
 import type { GameMove } from './useGameAnalysis'
+import { Difficulty } from '@/components/DifficultyModal'
 
 const shuffleArray = <T,>(array: T[]): T[] => {
   const shuffled = [...array]
@@ -26,7 +28,9 @@ const drawTiles = (bag: Tile[], count: number): { drawn: Tile[], remaining: Tile
 
 export const useGame = () => {
   const { toast } = useToast()
-  const { difficulty, makeMove: quackleMakeMove } = useQuackleContext()
+  const [searchParams] = useSearchParams()
+  const urlDifficulty = searchParams.get('difficulty') as Difficulty | null
+  const { difficulty, setDifficulty, makeMove: quackleMakeMove } = useQuackleContext()
   const { isValidWord } = useDictionary()
   const [pendingTiles, setPendingTiles] = useState<PlacedTile[]>([])
   const [isBotTurn, setIsBotTurn] = useState(false)
@@ -661,12 +665,20 @@ export const useGame = () => {
     }
   }, [gameState.currentPlayerIndex, gameState.gameStatus, makeQuackleMove, isBotTurn, difficulty])
 
+  // Effect to sync URL difficulty with context
+  useEffect(() => {
+    if (urlDifficulty && urlDifficulty !== difficulty) {
+      console.log('[useGame] Setting difficulty from URL:', urlDifficulty)
+      setDifficulty(urlDifficulty)
+    }
+  }, [urlDifficulty, difficulty, setDifficulty])
+
   // Effect to initialize game when difficulty is available
   useEffect(() => {
-    console.log('[useGame] Difficulty changed to:', difficulty)
-    console.log('[useGame] Current game state:', gameState.gameStatus, 'players:', gameState.players.length)
-    if (difficulty) {
-      console.log('[useGame] Initializing game with difficulty:', difficulty)
+    const activeDifficulty = difficulty || urlDifficulty
+    console.log('[useGame] Active difficulty:', activeDifficulty)
+    if (activeDifficulty) {
+      console.log('[useGame] Initializing game with difficulty:', activeDifficulty)
       
       // Initialize game state directly here to avoid circular dependency
       const shuffledBag = shuffleArray(TILE_DISTRIBUTION)
@@ -688,7 +700,7 @@ export const useGame = () => {
           },
           {
             id: 'player2',
-            name: `Quackle (${difficulty})`,
+            name: `Quackle (${activeDifficulty})`,
             score: 0,
             rack: player2Tiles.drawn,
             isBot: true
@@ -709,7 +721,7 @@ export const useGame = () => {
       setMoveHistory([])
       gameIdRef.current = crypto.randomUUID()
     }
-  }, [difficulty])
+  }, [difficulty, urlDifficulty])
 
   return {
     gameState,

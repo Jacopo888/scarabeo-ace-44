@@ -21,8 +21,8 @@ export const PlayButtons = () => {
   const handleDifficultySelect = (difficulty: Difficulty) => {
     console.log('[PlayButtons] Setting difficulty:', difficulty)
     setDifficulty(difficulty)
-    // Navigate immediately - useEffect in useGame will handle initialization
-    navigate('/game')
+    // Navigate with difficulty in URL to persist state
+    navigate(`/game?difficulty=${difficulty}`)
   }
   
   const handleQuickMatch = () => {
