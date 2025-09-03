@@ -7,11 +7,15 @@ vi.mock('@/hooks/use-toast', () => ({
 }))
 
 vi.mock('@/contexts/QuackleContext', () => ({
-  useQuackleContext: () => ({ difficulty: null, makeMove: vi.fn() })
+  useQuackleContext: () => ({ difficulty: null, setDifficulty: vi.fn(), makeMove: vi.fn(), isThinking: false })
 }))
 
 vi.mock('@/contexts/DictionaryContext', () => ({
   useDictionary: () => ({ isValidWord: () => true })
+}))
+
+vi.mock('react-router-dom', () => ({
+  useSearchParams: () => [new URLSearchParams(), vi.fn()]
 }))
 
 import { useGame } from './useGame'
@@ -23,6 +27,7 @@ describe('useGame pass counter', () => {
     const { result } = renderHook(() => useGame())
 
     act(() => {
+      result.current.resetGame()
       result.current.passTurn()
       result.current.passTurn()
       result.current.passTurn()

@@ -7,7 +7,7 @@ import type { QuackleMove } from '@/services/quackleClient'
 interface QuackleContextType {
   difficulty: Difficulty | null
   setDifficulty: (difficulty: Difficulty) => void
-  makeMove: (gameState: GameState, playerRack: Tile[]) => Promise<QuackleMove | null>
+  makeMove: (gameState: GameState, playerRack: Tile[], difficulty: Difficulty | null) => Promise<QuackleMove | null>
   isThinking: boolean
 }
 
