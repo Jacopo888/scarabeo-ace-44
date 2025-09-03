@@ -472,7 +472,7 @@ export const useGame = () => {
       if (!currentPlayer.isBot) return prev
       
       // Start async Quackle move generation
-      quackleMakeMove(prev, currentPlayer.rack).then(bestMove => {
+      quackleMakeMove(prev, currentPlayer.rack, difficulty).then(bestMove => {
         if (!bestMove || bestMove.tiles.length === 0) {
           // Quackle passes if no valid moves
           setIsBotTurn(false)
@@ -681,7 +681,7 @@ export const useGame = () => {
       const makeBotMove = async () => {
         try {
           const botRack = gameState.players[gameState.currentPlayerIndex].rack
-          const move = await quackleMakeMove(gameState, botRack)
+          const move = await quackleMakeMove(gameState, botRack, activeDifficulty)
           
           console.log('[useGame] Bot move received:', move)
           console.log('[useGame] Move details - tiles:', move?.tiles?.length, 'move_type:', move?.move_type, 'engine_fallback:', move?.engine_fallback)

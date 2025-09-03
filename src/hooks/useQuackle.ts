@@ -9,7 +9,8 @@ export const useQuackle = () => {
 
   const makeMove = useCallback(async (
     gameState: GameState,
-    playerRack: Tile[]
+    playerRack: Tile[],
+    difficulty: Difficulty | null
   ): Promise<QuackleMove | null> => {
     if (!difficulty) return null
     
@@ -48,7 +49,7 @@ export const useQuackle = () => {
     } finally {
       setIsThinking(false)
     }
-  }, [difficulty])
+  }, [])
 
   return {
     difficulty,
