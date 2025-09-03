@@ -32,6 +32,8 @@ export const useQuackle = () => {
         }
       })
 
+      console.log('[useQuackle] Sending board keys:', Object.keys(boardObject))
+
       const payload = {
         board: boardObject,
         rack: playerRack.map(tile => ({
