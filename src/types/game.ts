@@ -61,5 +61,5 @@ export const TILE_DISTRIBUTION: Tile[] = [
   ...makeTiles('X', 8, 1),
   ...makeTiles('Y', 4, 2),
   ...makeTiles('Z', 10, 1),
-  ...makeTiles('', 0, 2, true) // Blank tiles
+  ...makeTiles('?', 0, 2, true) // Blank tiles
 ]

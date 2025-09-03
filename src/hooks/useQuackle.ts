@@ -34,15 +34,24 @@ export const useQuackle = () => {
 
       console.log('[useQuackle] Sending board keys:', Object.keys(boardObject))
 
+      // Filter out blank tiles or format them properly for Quackle
+      const formatRackForQuackle = (rack: Tile[]) => {
+        return rack
+          .filter(tile => tile.letter !== '' || tile.isBlank) // Keep non-blank tiles and proper blank tiles
+          .map(tile => ({
+            letter: tile.letter === '' && tile.isBlank ? '?' : tile.letter, // Convert empty string blanks to '?'
+            points: tile.points,
+            isBlank: tile.isBlank || false
+          }))
+      }
+
       const payload = {
         board: boardObject,
-        rack: playerRack.map(tile => ({
-          letter: tile.letter,
-          points: tile.points,
-          isBlank: tile.isBlank || false
-        })),
+        rack: formatRackForQuackle(playerRack),
         difficulty
       }
+
+      console.log('[useQuackle] Formatted rack for Quackle:', payload.rack)
 
       const [move] = await Promise.all([
         quackleBestMove(payload),
