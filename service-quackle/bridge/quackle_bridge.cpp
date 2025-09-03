@@ -71,14 +71,19 @@ int main(int argc, char** argv){
 
     // Place existing board tiles
     for (auto it = jboard.begin(); it != jboard.end(); ++it) {
-      int r=0,c=0; char comma;
-      std::istringstream sscoord(it.key()); sscoord>>r>>comma>>c;
-      char ch = std::toupper(it->value("letter","?")[0]);
+      int r = 0, c = 0; char comma;
+      std::istringstream sscoord(it.key()); sscoord >> r >> comma >> c;
+      // Convert from 1-based coordinates to Quackle's 0-based board
+      --r; --c;
+      char ch = std::toupper(it->value("letter", "?")[0]);
       if (it->value("isBlank", false)) ch = '?';
       Quackle::LetterString single;
       single.push_back(ch);
       Quackle::Move m = Quackle::Move::createPlaceMove(r, c, false, single);
       board.makeMove(m);
+      if (board.letter(r, c) != ch) {
+        throw std::runtime_error("failed to place existing tile");
+      }
     }
 
     // Generate best move
@@ -94,8 +99,8 @@ int main(int argc, char** argv){
     json tiles = json::array();
     const Quackle::LetterString ls = best.tiles();
     const std::string word(ls.begin(), ls.end());
-    int row = best.startrow;
-    int col = best.startcol;
+    int row = best.startrow - 1;
+    int col = best.startcol - 1;
     for (size_t i=0;i<word.size();++i){
       char l = word[i];
       if (l == '.') { if (best.horizontal) ++col; else ++row; continue; }
