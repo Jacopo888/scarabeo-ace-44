@@ -19,15 +19,20 @@ export const useQuackle = () => {
       // Add artificial thinking time for better UX
       const thinkingTime = getThinkingTime(difficulty)
       const boardObject: Record<string, any> = {}
-      gameState.board.forEach((tile, key) => {
-        boardObject[key] = {
+      gameState.board.forEach((tile) => {
+        const row = tile.row + 1
+        const col = tile.col + 1
+        const newKey = `${row},${col}`
+        boardObject[newKey] = {
           letter: tile.letter,
           points: tile.points,
-          row: tile.row,
-          col: tile.col,
+          row,
+          col,
           isBlank: tile.isBlank || false
         }
       })
+
+      console.log('[useQuackle] Sending board keys:', Object.keys(boardObject))
 
       const payload = {
         board: boardObject,
