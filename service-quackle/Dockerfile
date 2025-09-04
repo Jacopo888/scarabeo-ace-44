@@ -18,7 +18,7 @@ RUN git clone --depth=1 https://github.com/quackle/quackle.git /tmp/quackle && \
     cd /tmp/quackle && mkdir -p build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     make -j"$(nproc)" && \
-    cp -r /tmp/quackle/lexica/* /usr/share/quackle/lexica/ 2>/dev/null || true
+    cp -r /tmp/quackle/data/lexica/* /usr/share/quackle/lexica/ 2>/dev/null || true
 
 # Imposta la working directory per le istruzioni successive
 WORKDIR /srv
@@ -46,7 +46,7 @@ COPY app /srv/app
 
 # Variabili di default (modificabili in deploy)
 ENV CORS_ORIGINS="https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app"
-ENV QUACKLE_LEXICON="en-enable"
+ENV QUACKLE_LEXICON="nwl18"
 ENV QUACKLE_LEXDIR="/usr/share/quackle/lexica"
 
 # Porta esposta e healthcheck

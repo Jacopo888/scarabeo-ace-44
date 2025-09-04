@@ -29,6 +29,7 @@ def health():
 
 def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
+        print(f"[DEBUG] Calling bridge with payload: {json.dumps(payload, indent=2)[:500]}...")
         proc = subprocess.run(
             [BRIDGE_BIN, "--lexicon", QUACKLE_LEXICON, "--lexdir", QUACKLE_LEXDIR],
             input=json.dumps(payload).encode("utf-8"),
@@ -36,19 +37,29 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
             stderr=subprocess.PIPE,
             timeout=8,
         )
+        
+        # Always log stderr for debugging
+        stderr_output = proc.stderr.decode("utf-8")
+        if stderr_output:
+            print(f"[DEBUG] Bridge stderr: {stderr_output}")
+        
         if proc.returncode != 0:
-            print("bridge stderr:", proc.stderr.decode("utf-8")[:500])
+            print(f"[ERROR] Bridge failed with return code {proc.returncode}")
+            print(f"[ERROR] Bridge stderr: {stderr_output[:500]}")
             raise RuntimeError("bridge failed")
+            
         out = proc.stdout.decode("utf-8").strip()
+        print(f"[DEBUG] Bridge stdout: {out}")
         return json.loads(out) if out else {}
     except Exception as e:
-        print("bridge error:", repr(e))
+        print(f"[ERROR] Bridge error: {repr(e)}")
         return {
             "tiles": [],
             "score": 0,
             "words": [],
             "move_type": "pass",
-            "engine_fallback": True
+            "engine_fallback": True,
+            "error": str(e)
         }
 
 @app.post("/best-move")
