@@ -13,7 +13,7 @@ console.log('[Quackle Config] Environment details:', {
 // Force Railway URL unless we're explicitly on localhost in development
 let resolvedUrl = raw;
 if (!raw || (!isLocalhost && raw?.includes('localhost'))) {
-  resolvedUrl = 'https://scarabeo-ace-44-production.up.railway.app';
+  resolvedUrl = 'https://service-quackle-production.up.railway.app';
   console.warn('[Quackle Config] Forcing Railway URL:', resolvedUrl);
 }
 
