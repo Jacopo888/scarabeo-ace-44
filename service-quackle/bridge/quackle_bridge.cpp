@@ -30,7 +30,7 @@ static std::string arg(int argc, char** argv, const std::string& k, const std::s
   for (int i=1;i<argc-1;++i) if (std::string(argv[i])==k) return std::string(argv[i+1]);
   return d;
 }
-static int simsFor(const std::string& d){ if(d=="easy")return 0; if(d=="hard")return 800; return 300; }
+static int simsFor(const std::string& d){ if(d=="easy")return 1; if(d=="hard")return 800; return 300; }
 
 // Debug logging function
 void debugLog(const std::string& message) {
@@ -160,9 +160,32 @@ int main(int argc, char** argv){
     // Initialize strategy parameters using the chosen lexicon; this expects
     // data/strategy/{default,default_english,...} under appDataDirectory
     if (QUACKLE_DATAMANAGER->strategyParameters()) {
+      // Pre-log resolved strategy paths
+      try {
+        std::string p_syn2 = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "syn2");
+        std::string p_vc   = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "vcplace");
+        std::string p_sup  = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "superleaves");
+        std::string p_bw   = QUACKLE_DATAMANAGER->findDataFile("strategy", "default",          "bogowin");
+        std::string p_w    = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "worths");
+        debugLog(std::string("Strategy expected paths:\n  syn2=") + p_syn2 +
+                 "\n  vcplace=" + p_vc +
+                 "\n  superleaves=" + p_sup +
+                 "\n  bogowin=" + p_bw +
+                 "\n  worths=" + p_w);
+      } catch (...) { /* ignore */ }
+
       debugLog("Initializing strategy parameters for lexicon sets: default, default_english");
       QUACKLE_DATAMANAGER->strategyParameters()->initialize("default");
       QUACKLE_DATAMANAGER->strategyParameters()->initialize("default_english");
+
+      // Post-log which tables are loaded
+      auto *sp = QUACKLE_DATAMANAGER->strategyParameters();
+      debugLog(std::string("Strategy loaded flags: ") +
+               "syn2=" + (sp->hasSyn2() ? "1" : "0") + ", " +
+               "worths=" + (sp->hasWorths() ? "1" : "0") + ", " +
+               "vcplace=" + (sp->hasVcPlace() ? "1" : "0") + ", " +
+               "bogowin=" + (sp->hasBogowin() ? "1" : "0") + ", " +
+               "superleaves=" + (sp->hasSuperleaves() ? "1" : "0"));
       debugLog("Strategy parameters initialized");
     }
 

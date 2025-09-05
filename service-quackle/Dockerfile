@@ -40,14 +40,24 @@ RUN git clone --depth=1 --branch v1.0.4 https://github.com/quackle/quackle.git /
     ln -sf ../../build/liblibquackle.a lib/release/libquackle.a && \
     ln -sf ../../quackleio/lib/release/libquackleio.a quackleio/lib/release/libquackleio.a && \
     # Ora compila makegaddag usando qmake
-    echo "Compilando makegaddag con qmake..." && \
-    cd makegaddag && \
-    qmake makegaddag.pro && \
-    make && \
+    echo "Compilando makegaddag manualmente..." && \
+    g++ -O3 -std=c++17 \
+      -I/tmp/quackle \
+      -I/tmp/quackle/quackleio \
+      -I/tmp/quackle/src/libquackle/include \
+      -I/tmp/quackle/src/libquackle \
+      -I/usr/include/x86_64-linux-gnu/qt5 \
+      -I/usr/include/x86_64-linux-gnu/qt5/QtCore \
+      -I/usr/include/x86_64-linux-gnu/qt5/QtGui \
+      /tmp/quackle/makegaddag/makegaddag.cpp \
+      /tmp/quackle/build/liblibquackle.a \
+      /tmp/quackle/quackleio/lib/release/libquackleio.a \
+      -o /usr/local/bin/makegaddag \
+      -lQt5Core -lQt5Gui -lGL -lpthread && \
     echo "makegaddag compilato con successo" && \
     # Genera i file GADDAG per nwl18 dal DAWG esistente
     echo "Generando file GADDAG per nwl18..." && \
-    ./makegaddag /usr/share/quackle/lexica/nwl18.dawg /usr/share/quackle/lexica/nwl18.gaddag && \
+    /usr/local/bin/makegaddag /usr/share/quackle/lexica/nwl18.dawg /usr/share/quackle/lexica/nwl18.gaddag && \
     echo "File GADDAG nwl18 generato con successo" && \
     # Genera anche per altri lexicon comuni se esistono
     (./makegaddag /usr/share/quackle/lexica/csw19.dawg /usr/share/quackle/lexica/csw19.gaddag 2>/dev/null || echo "csw19.dawg non trovato") && \
