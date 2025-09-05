@@ -95,6 +95,34 @@ async def debug_echo(request: Request):
 def debug_ping():
     return {"ok": True, "msg": "pong", "version": "v104-debug"}
 
+# Ensure required lexicon assets exist at startup (generate GADDAG if missing)
+@app.on_event("startup")
+def _ensure_quackle_assets():
+    try:
+        lex = QUACKLE_LEXICON
+        lexdir = QUACKLE_LEXDIR
+        dawg = os.path.join(lexdir, f"{lex}.dawg")
+        gaddag = os.path.join(lexdir, f"{lex}.gaddag")
+        need_gaddag = not os.path.exists(gaddag)
+        if need_gaddag and os.path.exists(dawg):
+            mk = "/usr/local/bin/makegaddag"
+            if os.path.exists(mk):
+                print(f"[STARTUP] Generating GADDAG: {gaddag} from {dawg}")
+                proc = subprocess.run([mk, dawg, gaddag], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+                print(f"[STARTUP] makegaddag rc={proc.returncode}")
+                if proc.stdout:
+                    print(f"[STARTUP] makegaddag stdout: {proc.stdout.decode('utf-8', 'ignore')[:500]}")
+                if proc.stderr:
+                    print(f"[STARTUP] makegaddag stderr: {proc.stderr.decode('utf-8', 'ignore')[:500]}")
+                if proc.returncode != 0:
+                    print("[STARTUP] makegaddag failed; continuing without GADDAG")
+            else:
+                print("[STARTUP] makegaddag not found; skipping GADDAG generation")
+        else:
+            print("[STARTUP] GADDAG already present or DAWG missing; no action")
+    except Exception as e:
+        print("[STARTUP] ensure assets error:", repr(e))
+
 def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
         print(f"[DEBUG] Calling bridge with payload: {json.dumps(payload, indent=2)[:500]}...")
