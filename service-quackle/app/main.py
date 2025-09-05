@@ -64,14 +64,35 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 @app.post("/best-move")
 async def best_move(req: Request):
-    body = await req.json()
-    if "board" not in body or "rack" not in body:
-        raise HTTPException(400, "Missing 'board' or 'rack'")
-    result = _call_bridge(body)
-    return {
-        "tiles": result.get("tiles", []),
-        "score": result.get("score", 0),
-        "words": result.get("words", []),
-        "move_type": result.get("move_type", "place" if result.get("tiles") else "pass"),
-        "engine_fallback": result.get("engine_fallback", False)
-    }
+    try:
+        body = await req.json()
+        print("[DEBUG] /best-move payload keys:", list(body.keys()))
+        if "board" not in body or "rack" not in body:
+            raise HTTPException(400, "Missing 'board' or 'rack'")
+
+        result = _call_bridge(body)
+        print("[DEBUG] Bridge result summary:", {
+            'tiles_len': len(result.get('tiles', [])),
+            'move_type': result.get('move_type'),
+            'score': result.get('score'),
+            'engine_fallback': result.get('engine_fallback')
+        })
+        return {
+            "tiles": result.get("tiles", []),
+            "score": result.get("score", 0),
+            "words": result.get("words", []),
+            "move_type": result.get("move_type", "place" if result.get("tiles") else "pass"),
+            "engine_fallback": result.get("engine_fallback", False)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("[ERROR] /best-move exception:", repr(e))
+        return {
+            "tiles": [],
+            "score": 0,
+            "words": [],
+            "move_type": "pass",
+            "engine_fallback": True,
+            "error": str(e)
+        }

@@ -30,7 +30,8 @@ static std::string arg(int argc, char** argv, const std::string& k, const std::s
   for (int i=1;i<argc-1;++i) if (std::string(argv[i])==k) return std::string(argv[i+1]);
   return d;
 }
-static int simsFor(const std::string& d){ if(d=="easy")return 1; if(d=="hard")return 800; return 300; }
+// Kibitz length (number of top moves to generate and evaluate). Not simulations.
+static int kibitzLenFor(const std::string& d){ if(d=="easy")return 15; if(d=="hard")return 100; return 50; }
 
 // Debug logging function
 void debugLog(const std::string& message) {
@@ -64,7 +65,7 @@ int main(int argc, char** argv){
     const json jboard = req.value("board", json::object());
     const json jrack  = req.value("rack",  json::array());
     const std::string diff = req.value("difficulty", std::string("medium"));
-    const int simulations = simsFor(diff);
+    const int kibitzLen = kibitzLenFor(diff);
 
     debugLog("Board keys count: " + std::to_string(jboard.size()));
     debugLog("Rack size: " + std::to_string(jrack.size()));
@@ -289,9 +290,9 @@ int main(int argc, char** argv){
     debugLog("Attempting to use Quackle AI...");
     
     try {
-        // Use kibitz with appropriate number of simulations based on difficulty
-        debugLog("Calling kibitz(" + std::to_string(simulations) + ") for " + diff + " difficulty...");
-        gen.kibitz(simulations);
+        // Generate and evaluate top-N moves (kibitz length)
+        debugLog("Calling kibitz(" + std::to_string(kibitzLen) + ") for " + diff + " difficulty...");
+        gen.kibitz(kibitzLen);
         debugLog("Kibitz completed successfully");
         
         // Get the best move from kibitzList()
@@ -308,16 +309,14 @@ int main(int argc, char** argv){
         } else {
             debugLog("No moves found in kibitzList, trying fallback strategies");
 
-            // For easy difficulty with 0 simulations, try a minimal simulation
-            if (simulations == 0) {
-                debugLog("Easy difficulty with 0 simulations, trying minimal kibitz...");
-                gen.kibitz(1);
-                const auto &fallbackMoves = gen.kibitzList();
-                if (!fallbackMoves.empty()) {
-                    best = fallbackMoves.front();
-                    foundValidMove = true;
-                    debugLog("Found move with minimal simulation, score: " + std::to_string(best.score));
-                }
+            // Try a minimal kibitz if nothing found
+            debugLog("No moves yet, trying minimal kibitz(1)...");
+            gen.kibitz(1);
+            const auto &fallbackMoves = gen.kibitzList();
+            if (!fallbackMoves.empty()) {
+                best = fallbackMoves.front();
+                foundValidMove = true;
+                debugLog("Found move with minimal kibitz, score: " + std::to_string(best.score));
             }
 
             // If still no moves, try to find any possible move by generating all plays
