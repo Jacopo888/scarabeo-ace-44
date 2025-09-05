@@ -34,8 +34,23 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
 app.add_middleware(RequestLoggerMiddleware)
 
 BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", "/usr/local/bin/quackle_bridge")
-QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "en-enable")
-QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/usr/share/quackle/lexica")
+QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "enable1")
+QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/data/quackle/lexica/enable1")
+
+# Additional envs used for preflight/diagnostics (align with Dockerfile defaults)
+LEXICON_NAME = os.getenv("LEXICON_NAME", QUACKLE_LEXICON)
+LEX_DIR = os.getenv("LEX_DIR", QUACKLE_LEXDIR)
+APPDATA_DIR = os.getenv("QUACKLE_APPDATA_DIR", "/usr/share/quackle/data")
+
+def _lex_paths():
+    dawg = os.path.join(LEX_DIR, f"{LEXICON_NAME}.dawg")
+    gaddag = os.path.join(LEX_DIR, f"{LEXICON_NAME}.gaddag")
+    return dawg, gaddag
+
+def ensure_lexicon_ready():
+    dawg, gaddag = _lex_paths()
+    ok = os.path.isfile(dawg) and os.path.isfile(gaddag)
+    return ok, dawg, gaddag
 
 class BestMoveRequest(BaseModel):
     board: Dict[str, Any]
@@ -55,7 +70,7 @@ def health():
 
 @app.get("/debug/quackle")
 def debug_quackle():
-    appdata = os.getenv("QUACKLE_APPDATA_DIR", "")
+    appdata = APPDATA_DIR
     lexdir = QUACKLE_LEXDIR
     lex = QUACKLE_LEXICON
     dawg = os.path.join(lexdir, f"{lex}.dawg")
@@ -95,39 +110,36 @@ async def debug_echo(request: Request):
 def debug_ping():
     return {"ok": True, "msg": "pong", "version": "v104-debug"}
 
-# Ensure required lexicon assets exist at startup (generate GADDAG if missing)
+@app.get("/debug/lexicon")
+def debug_lexicon():
+    dawg, gaddag = _lex_paths()
+    strat_en = os.path.join(APPDATA_DIR, "strategy", "default_english")
+    strat_def = os.path.join(APPDATA_DIR, "strategy", "default")
+    def exists(p):
+        return os.path.isfile(p)
+    def join(*a):
+        return os.path.join(*a)
+    return {
+        "lexicon_name": LEXICON_NAME,
+        "lex_dir": LEX_DIR,
+        "app_data_dir": APPDATA_DIR,
+        "dawg_exists": exists(dawg),
+        "gaddag_exists": exists(gaddag),
+        "strategy_files": {
+            "syn2": exists(join(strat_en, "syn2")),
+            "vcplace": exists(join(strat_en, "vcplace")),
+            "superleaves": exists(join(strat_en, "superleaves")),
+            "bogowin": exists(join(strat_def, "bogowin")),
+            "worths_en": exists(join(strat_en, "worths"))
+        }
+    }
+
 @app.on_event("startup")
-def _ensure_quackle_assets():
-    try:
-        lex = QUACKLE_LEXICON
-        lexdir = QUACKLE_LEXDIR
-        dawg = os.path.join(lexdir, f"{lex}.dawg")
-        gaddag = os.path.join(lexdir, f"{lex}.gaddag")
-        need_gaddag = not os.path.exists(gaddag)
-        if need_gaddag and os.path.exists(dawg):
-            mk = "/usr/local/bin/makegaddag"
-            if os.path.exists(mk):
-                print(f"[STARTUP] Generating GADDAG: {gaddag} from {dawg}")
-                proc = subprocess.run(
-                    [mk, dawg, gaddag],
-                    cwd=lexdir,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=60,
-                )
-                print(f"[STARTUP] makegaddag rc={proc.returncode}")
-                if proc.stdout:
-                    print(f"[STARTUP] makegaddag stdout: {proc.stdout.decode('utf-8', 'ignore')[:500]}")
-                if proc.stderr:
-                    print(f"[STARTUP] makegaddag stderr: {proc.stderr.decode('utf-8', 'ignore')[:500]}")
-                if proc.returncode != 0:
-                    print("[STARTUP] makegaddag failed; continuing without GADDAG")
-            else:
-                print("[STARTUP] makegaddag not found; skipping GADDAG generation")
-        else:
-            print("[STARTUP] GADDAG already present or DAWG missing; no action")
-    except Exception as e:
-        print("[STARTUP] ensure assets error:", repr(e))
+def _startup_log():
+    print(f"[startup] Lexicon: {LEXICON_NAME}, LexDir: {LEX_DIR}, AppData: {APPDATA_DIR}")
+    ok, dawg, gaddag = ensure_lexicon_ready()
+    print(f"[startup] DAWG present? {os.path.isfile(dawg)} path={dawg}")
+    print(f"[startup] GADDAG present? {os.path.isfile(gaddag)} path={gaddag}")
 
 @app.post("/debug/generate_gaddag")
 def debug_generate_gaddag(lex: str | None = None):
@@ -202,6 +214,12 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
 @app.post("/best-move")
 async def best_move(req_model: BestMoveRequest):
     try:
+        # Preflight: ensure lexicon assets exist to avoid segfault in the bridge
+        ok, dawg, gaddag = ensure_lexicon_ready()
+        if not ok:
+            print(f"[lexicon] missing files: dawg={os.path.exists(dawg)} gaddag={os.path.exists(gaddag)} dir={LEX_DIR}")
+            raise HTTPException(status_code=503, detail="lexicon_not_ready")
+
         body = {
             "board": req_model.board,
             "rack": req_model.rack,
