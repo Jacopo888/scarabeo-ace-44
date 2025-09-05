@@ -108,7 +108,13 @@ def _ensure_quackle_assets():
             mk = "/usr/local/bin/makegaddag"
             if os.path.exists(mk):
                 print(f"[STARTUP] Generating GADDAG: {gaddag} from {dawg}")
-                proc = subprocess.run([mk, dawg, gaddag], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+                proc = subprocess.run(
+                    [mk, dawg, gaddag],
+                    cwd=lexdir,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=60,
+                )
                 print(f"[STARTUP] makegaddag rc={proc.returncode}")
                 if proc.stdout:
                     print(f"[STARTUP] makegaddag stdout: {proc.stdout.decode('utf-8', 'ignore')[:500]}")
