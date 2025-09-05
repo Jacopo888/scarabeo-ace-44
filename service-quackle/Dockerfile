@@ -36,39 +36,22 @@ RUN git clone --depth=1 --branch v1.0.4 https://github.com/quackle/quackle.git /
     echo "=== DEBUG: Cercando librerie ===" && \
     find . -name "*.a" -type f && \
     echo "=== Fine DEBUG ===" && \
-    # Crea i link corretti
+    # Crea i link attesi dal progetto qmake (lib/release e quackleio/lib/release)
     ln -sf ../../build/liblibquackle.a lib/release/libquackle.a && \
     ln -sf ../../quackleio/lib/release/libquackleio.a quackleio/lib/release/libquackleio.a && \
-    # Ora compila makegaddag usando qmake
-    echo "Compilando makegaddag manualmente..." && \
-    g++ -O3 -std=c++17 \
-      -I/tmp/quackle \
-      -I/tmp/quackle/quackleio \
-      -I/tmp/quackle/src/libquackle/include \
-      -I/tmp/quackle/src/libquackle \
-      -I/usr/include/x86_64-linux-gnu/qt5 \
-      -I/usr/include/x86_64-linux-gnu/qt5/QtCore \
-      -I/usr/include/x86_64-linux-gnu/qt5/QtGui \
-      /tmp/quackle/makegaddag/makegaddag.cpp \
-      /tmp/quackle/build/liblibquackle.a \
-      /tmp/quackle/quackleio/lib/release/libquackleio.a \
-      -o /usr/local/bin/makegaddag \
-      -lQt5Core -lQt5Gui -lGL -lpthread && \
+    # Compila makegaddag con qmake (link corretto contro libquackle e quackleio)
+    echo "Compilando makegaddag con qmake..." && \
+    cd /tmp/quackle/makegaddag && \
+    qmake makegaddag.pro && \
+    make && \
+    install -m 0755 ./makegaddag /usr/local/bin/makegaddag && \
     echo "makegaddag compilato con successo" && \
-    # Genera i file GADDAG per nwl18 dal DAWG esistente
+    # Genera i file GADDAG reali dal DAWG esistente
     echo "Generando file GADDAG per nwl18..." && \
     /usr/local/bin/makegaddag /usr/share/quackle/lexica/nwl18.dawg /usr/share/quackle/lexica/nwl18.gaddag && \
     echo "File GADDAG nwl18 generato con successo" && \
-    # Genera anche per altri lexicon comuni se esistono
-    (./makegaddag /usr/share/quackle/lexica/csw19.dawg /usr/share/quackle/lexica/csw19.gaddag 2>/dev/null || echo "csw19.dawg non trovato") && \
-    (./makegaddag /usr/share/quackle/lexica/twl06.dawg /usr/share/quackle/lexica/twl06.gaddag 2>/dev/null || echo "twl06.dawg non trovato") || \
-    # Se fallisce, crea file GADDAG con contenuto minimo
-    (echo "Compilazione makegaddag fallita, creando file GADDAG minimi..." && \
-     # Crea un file GADDAG con un header minimo per evitare segfault
-     python3 -c 'import struct; f=open("/usr/share/quackle/lexica/nwl18.gaddag", "wb"); f.write(struct.pack("<I", 1)); f.write(struct.pack("<I", 0)); f.write(struct.pack("<I", 0)); f.write(b"\x00" * 1000); f.close()' && \
-     cp /usr/share/quackle/lexica/nwl18.gaddag /usr/share/quackle/lexica/csw19.gaddag && \
-     cp /usr/share/quackle/lexica/nwl18.gaddag /usr/share/quackle/lexica/twl06.gaddag && \
-     echo "File GADDAG minimi creati come fallback")
+    (test -f /usr/share/quackle/lexica/csw19.dawg && /usr/local/bin/makegaddag /usr/share/quackle/lexica/csw19.dawg /usr/share/quackle/lexica/csw19.gaddag || echo "csw19.dawg non trovato") && \
+    (test -f /usr/share/quackle/lexica/twl06.dawg && /usr/local/bin/makegaddag /usr/share/quackle/lexica/twl06.dawg /usr/share/quackle/lexica/twl06.gaddag || echo "twl06.dawg non trovato")
 
 # Imposta la working directory per le istruzioni successive
 WORKDIR /srv
