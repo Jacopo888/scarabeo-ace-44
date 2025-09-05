@@ -86,13 +86,22 @@ COPY quackle_service /srv/quackle_service
 
 # Variabili di default (modificabili in deploy)
 ENV CORS_ORIGINS="https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app"
-ENV QUACKLE_LEXICON="nwl18"
-ENV QUACKLE_LEXDIR="/usr/share/quackle/lexica"
+ENV QUACKLE_LEXICON="enable1"
+ENV QUACKLE_LEXDIR="/data/quackle/lexica/enable1"
 ENV QUACKLE_APPDATA_DIR="/usr/share/quackle/data"
+ENV LEXICON_NAME="enable1"
+ENV LEX_DIR="/data/quackle/lexica/enable1"
+
+# Setup script and entrypoint for lexicon generation on Volume
+COPY ops/setup_enable_lexicon.sh /usr/local/bin/setup_enable_lexicon.sh
+RUN chmod +x /usr/local/bin/setup_enable_lexicon.sh
+COPY ops/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Porta esposta e healthcheck
 EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=3s CMD sh -c 'curl -fsS http://localhost:${PORT:-5000}/health || exit 1'
 
 # Avvio del microservizio
-CMD ["sh", "-c", "uvicorn quackle_service.main:app --host 0.0.0.0 --port ${PORT:-5000}"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["uvicorn", "quackle_service.main:app", "--host", "0.0.0.0", "--port", "${PORT:-5000}"]
