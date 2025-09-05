@@ -34,7 +34,7 @@ curl -Ls https://raw.githubusercontent.com/rressler/data_raw_courses/main/enable
 mkdir -p /usr/share/quackle/lexica
 cd /usr/share/quackle/lexica
 cp -f /tmp/enable1.txt gaddaginput.raw
-/usr/local/bin/makegaddag || true
+/usr/local/bin/makegaddag
 [ -f output.gaddag ] && cp -f output.gaddag "$DEST/enable1.gaddag" || cp -f *.gaddag "$DEST/enable1.gaddag"
 
 # Copia la txt per debug

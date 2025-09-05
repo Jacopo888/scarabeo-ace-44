@@ -46,13 +46,7 @@ RUN git clone --depth=1 --branch v1.0.4 https://github.com/quackle/quackle.git /
     qmake makegaddag.pro && \
     make && \
     install -m 0755 ./makegaddag /usr/local/bin/makegaddag && \
-    echo "makegaddag compilato con successo" && \
-    # Genera i file GADDAG reali dal DAWG esistente
-    echo "Generando file GADDAG per nwl18..." && \
-    /usr/local/bin/makegaddag /usr/share/quackle/lexica/nwl18.dawg /usr/share/quackle/lexica/nwl18.gaddag && \
-    echo "File GADDAG nwl18 generato con successo" && \
-    (test -f /usr/share/quackle/lexica/csw19.dawg && /usr/local/bin/makegaddag /usr/share/quackle/lexica/csw19.dawg /usr/share/quackle/lexica/csw19.gaddag || echo "csw19.dawg non trovato") && \
-    (test -f /usr/share/quackle/lexica/twl06.dawg && /usr/local/bin/makegaddag /usr/share/quackle/lexica/twl06.dawg /usr/share/quackle/lexica/twl06.gaddag || echo "twl06.dawg non trovato")
+    echo "makegaddag compilato con successo"
 
 # Imposta la working directory per le istruzioni successive
 WORKDIR /srv
@@ -102,6 +96,6 @@ RUN chmod +x /entrypoint.sh
 EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=3s CMD sh -c 'curl -fsS http://localhost:${PORT:-5000}/health || exit 1'
 
-# Avvio del microservizio
+# Avvio del microservizio (PORT espanso via shell)
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["uvicorn", "quackle_service.main:app", "--host", "0.0.0.0", "--port", "${PORT:-5000}"]
+CMD ["sh", "-c", "uvicorn quackle_service.main:app --host 0.0.0.0 --port ${PORT:-5000}"]
