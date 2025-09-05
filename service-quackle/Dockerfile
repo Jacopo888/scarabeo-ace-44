@@ -77,11 +77,12 @@ RUN g++ -O3 -std=c++17 \
     -licuuc -licui18n -lpthread
 
 # Rimuovi i sorgenti temporanei
-RUN rm -rf /tmp/quackle
-
 # Copia dati (alphabets, strategy, lexica) nell'immagine dalla build di Quackle
 RUN mkdir -p /usr/share/quackle/data && \
     cp -r /tmp/quackle/data/* /usr/share/quackle/data/
+
+# Rimuovi i sorgenti temporanei
+RUN rm -rf /tmp/quackle
 
 # Installazione dipendenze Python e codice FastAPI
 COPY requirements.txt /srv/requirements.txt
