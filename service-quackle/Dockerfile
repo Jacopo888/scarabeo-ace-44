@@ -51,18 +51,20 @@ RUN git clone --depth=1 --branch v1.0.4 https://github.com/quackle/quackle.git /
 # Imposta la working directory per le istruzioni successive
 WORKDIR /srv
 
-# Copia il bridge C++ e compila
+# Compila il bridge C++ linkando la libquackle prodotta da CMake
 COPY bridge/quackle_bridge.cpp /srv/bridge/quackle_bridge.cpp
-RUN g++ -O3 -std=c++17 \
-    -I/tmp/quackle \
-    -I/tmp/quackle/src/libquackle/include \
-    -I/tmp/quackle/src/libquackle \
-    -I/tmp/quackle/src \
-    /srv/bridge/quackle_bridge.cpp \
-    /tmp/quackle/build/liblibquackle.a \
-    -o /usr/local/bin/quackle_bridge \
-    -lboost_system -lboost_filesystem -lboost_regex \
-    -licuuc -licui18n -lpthread
+RUN LIBQ=$(find /tmp/quackle/build -name "libquackle.a" -print -quit) && \
+    echo "Using libquackle at: $LIBQ" && \
+    g++ -O3 -std=c++17 \
+      -I/tmp/quackle \
+      -I/tmp/quackle/src/libquackle/include \
+      -I/tmp/quackle/src/libquackle \
+      -I/tmp/quackle/src \
+      /srv/bridge/quackle_bridge.cpp \
+      "$LIBQ" \
+      -o /usr/local/bin/quackle_bridge \
+      -lboost_system -lboost_filesystem -lboost_regex \
+      -licuuc -licui18n -lpthread
 
 # Rimuovi i sorgenti temporanei
 # Copia dati (alphabets, strategy, lexica) nell'immagine dalla build di Quackle

@@ -7,6 +7,10 @@ from fastapi.responses import JSONResponse
 import os
 from pydantic import BaseModel
 
+# NOTE: This module is aligned with ENABLE defaults for consistency, but the
+# running app is `quackle_service.main:app` (see Docker CMD). Keep this file
+# only if you need a second app entry for local testing.
+
 ORIGINS = os.getenv("CORS_ORIGINS", "").split(",")
 app = FastAPI()
 app.add_middleware(
