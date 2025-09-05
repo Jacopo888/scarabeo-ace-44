@@ -148,6 +148,24 @@ PORT=4000
 ```
 
 **Production deployment:** Set `VITE_RATING_API_URL` to your production API URL. If not set, the frontend will use local fallback puzzle generation.
+## Railway Lexicon Setup (ENABLE on Volume)
+
+- Volume mount path consigliato: `/data`
+- Env service (Railway → Variables):
+  - `LEXICON_NAME=enable1`
+  - `LEX_DIR=/data/quackle/lexica/enable1`
+  - `QUACKLE_APPDATA_DIR=/usr/share/quackle/data`
+
+All'avvio il container esegue `setup_enable_lexicon.sh` che:
+- Scarica e normalizza ENABLE, genera `enable1.dawg` e `enable1.gaddag` se mancanti
+- Salva i file su Volume in `${LEX_DIR}` (persistenti tra i deploy)
+- Copia le alphabets e usa gli strategy di default (`default` + `default_english`)
+
+Comandi utili:
+- Logs: `railway logs -d | egrep 'Lexicon|DAWG|GADDAG|engine_fallback'`
+- Smoke test: `POST /best-move`
+- Diagnostica: `GET /debug/lexicon`
+
 
 Drizzle is used for database migrations:
 
