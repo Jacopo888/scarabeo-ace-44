@@ -1,5 +1,7 @@
 # BASE Python + toolchain
 FROM python:3.13-slim
+ARG BUILD_FORCE="v104-debug-2"
+ENV BUILD_FORCE=${BUILD_FORCE}
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -38,7 +40,6 @@ RUN git clone --depth=1 --branch v1.0.4 https://github.com/quackle/quackle.git /
     echo "=== Fine DEBUG ===" && \
     # Crea i link attesi dal progetto qmake (lib/release e quackleio/lib/release)
     ln -sf ../../build/liblibquackle.a lib/release/libquackle.a && \
-    ln -sf ../../quackleio/lib/release/libquackleio.a quackleio/lib/release/libquackleio.a && \
     # Compila makegaddag con qmake (link corretto contro libquackle e quackleio)
     echo "Compilando makegaddag con qmake..." && \
     cd /tmp/quackle/makegaddag && \
@@ -81,6 +82,7 @@ RUN rm -rf /tmp/quackle
 COPY requirements.txt /srv/requirements.txt
 RUN pip install --no-cache-dir -r /srv/requirements.txt
 COPY app /srv/app
+COPY quackle_service /srv/quackle_service
 
 # Variabili di default (modificabili in deploy)
 ENV CORS_ORIGINS="https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app"
@@ -93,4 +95,4 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=3s CMD sh -c 'curl -fsS http://localhost:${PORT:-5000}/health || exit 1'
 
 # Avvio del microservizio
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-5000}"]
+CMD ["sh", "-c", "uvicorn quackle_service.main:app --host 0.0.0.0 --port ${PORT:-5000}"]

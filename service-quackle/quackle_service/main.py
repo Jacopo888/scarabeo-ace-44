@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 import os
-from pydantic import BaseModel
 
 ORIGINS = os.getenv("CORS_ORIGINS", "").split(",")
 app = FastAPI()
@@ -36,11 +35,6 @@ app.add_middleware(RequestLoggerMiddleware)
 BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", "/usr/local/bin/quackle_bridge")
 QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "en-enable")
 QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/usr/share/quackle/lexica")
-
-class BestMoveRequest(BaseModel):
-    board: Dict[str, Any]
-    rack: Any
-    difficulty: str
 
 @app.get("/health")
 def health():
@@ -81,15 +75,6 @@ def debug_quackle():
         "gaddag": {"path": gaddag, "size": size_or_none(gaddag)},
         "strategy": {k: {"path": v, "size": size_or_none(v)} for k, v in paths.items()}
     })
-
-@app.post("/debug/echo")
-async def debug_echo(request: Request):
-    raw = await request.body()
-    try:
-        parsed = await request.json()
-    except Exception:
-        parsed = None
-    return {"raw_body": raw.decode(errors="replace"), "parsed_json": parsed}
 
 @app.get("/debug/ping")
 def debug_ping():
@@ -140,14 +125,16 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
         }
 
 @app.post("/best-move")
-async def best_move(req_model: BestMoveRequest):
+async def best_move(req: Request):
     try:
-        body = {
-            "board": req_model.board,
-            "rack": req_model.rack,
-            "difficulty": req_model.difficulty,
-        }
+        raw = await req.body()
+        print("[DEBUG] /best-move raw len:", len(raw))
+        print("[DEBUG] /best-move raw head:", raw[:200])
+        body = json.loads(raw.decode("utf-8"))
         print("[DEBUG] /best-move payload keys:", list(body.keys()))
+        if "board" not in body or "rack" not in body:
+            raise HTTPException(400, "Missing 'board' or 'rack'")
+
         result = _call_bridge(body)
         print("[DEBUG] Bridge result summary:", {
             'tiles_len': len(result.get('tiles', [])),
@@ -165,11 +152,20 @@ async def best_move(req_model: BestMoveRequest):
     except HTTPException:
         raise
     except Exception as e:
+        try:
+            raw = await req.body()
+            print("[ERROR] /best-move exception:", repr(e), "raw head:", raw[:200])
+            raw_head = raw[:400].decode("utf-8", errors="replace")
+        except Exception:
+            raw_head = ""
         return {
             "tiles": [],
             "score": 0,
             "words": [],
             "move_type": "pass",
             "engine_fallback": True,
-            "error": str(e)
+            "error": str(e),
+            "raw_head": raw_head
         }
+
+
