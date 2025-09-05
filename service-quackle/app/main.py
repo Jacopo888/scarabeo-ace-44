@@ -129,6 +129,32 @@ def _ensure_quackle_assets():
     except Exception as e:
         print("[STARTUP] ensure assets error:", repr(e))
 
+@app.post("/debug/generate_gaddag")
+def debug_generate_gaddag(lex: str | None = None):
+    """Generate GADDAG for current (or provided) lexicon and return stdout/stderr and file size."""
+    try:
+        target_lex = (lex or QUACKLE_LEXICON).strip()
+        lexdir = QUACKLE_LEXDIR
+        dawg = os.path.join(lexdir, f"{target_lex}.dawg")
+        gaddag = os.path.join(lexdir, f"{target_lex}.gaddag")
+        if not os.path.exists(dawg):
+            return {"ok": False, "error": f"dawg not found: {dawg}", "lex": target_lex}
+        mk = "/usr/local/bin/makegaddag"
+        if not os.path.exists(mk):
+            return {"ok": False, "error": "makegaddag not found", "path": mk}
+        proc = subprocess.run([mk, dawg, gaddag], cwd=lexdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=90)
+        size = os.path.getsize(gaddag) if os.path.exists(gaddag) else None
+        return {
+            "ok": proc.returncode == 0 and size not in (None, 0),
+            "rc": proc.returncode,
+            "stdout": proc.stdout.decode("utf-8", "ignore")[-1000:],
+            "stderr": proc.stderr.decode("utf-8", "ignore")[-1000:],
+            "gaddag": {"path": gaddag, "size": size},
+            "lex": target_lex,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
         print(f"[DEBUG] Calling bridge with payload: {json.dumps(payload, indent=2)[:500]}...")
