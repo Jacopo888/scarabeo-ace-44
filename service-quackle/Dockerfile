@@ -53,7 +53,8 @@ WORKDIR /srv
 
 # Compila il bridge C++ linkando la libquackle prodotta da CMake
 COPY bridge/quackle_bridge.cpp /srv/bridge/quackle_bridge.cpp
-RUN LIBQ=$(find /tmp/quackle/build -name "libquackle.a" -print -quit) && \
+RUN LIBQ=$(find /tmp/quackle/build \( -name "libquackle.a" -o -name "liblibquackle.a" \) -print -quit) && \
+    [ -n "$LIBQ" ] || { echo "libquackle library not found"; exit 1; } && \
     echo "Using libquackle at: $LIBQ" && \
     g++ -O3 -std=c++17 \
       -I/tmp/quackle \
