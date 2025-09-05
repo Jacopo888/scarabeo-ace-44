@@ -6,8 +6,8 @@ import json
 import subprocess
 import os
 
-BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", "/usr/local/bin/quackle_bridge")
-QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "en-enable")
+BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", "./quackle_bridge")
+QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "nwl18")
 QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/usr/share/quackle/lexica")
 
 def test_bridge(payload, test_name):
@@ -106,6 +106,28 @@ def main():
         ],
         "difficulty": "medium"
     }, "Test 4: Minimal rack (2 tiles)")
+
+    # Test 5: Hard difficulty test
+    test_bridge({
+        "board": {},
+        "rack": [
+            {"letter": "C", "points": 3, "isBlank": False},
+            {"letter": "A", "points": 1, "isBlank": False},
+            {"letter": "T", "points": 1, "isBlank": False}
+        ],
+        "difficulty": "hard"
+    }, "Test 5: Hard difficulty (800 simulations)")
+
+    # Test 6: Easy difficulty test
+    test_bridge({
+        "board": {},
+        "rack": [
+            {"letter": "C", "points": 3, "isBlank": False},
+            {"letter": "A", "points": 1, "isBlank": False},
+            {"letter": "T", "points": 1, "isBlank": False}
+        ],
+        "difficulty": "easy"
+    }, "Test 6: Easy difficulty (0 simulations)")
 
 if __name__ == "__main__":
     main()

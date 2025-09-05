@@ -21,6 +21,8 @@ using json = nlohmann::json;
 #include "alphabetparameters.h"
 #include "lexiconparameters.h"
 #include "bag.h"
+#include "gameparameters.h"
+#include "strategyparameters.h"
 
 static std::string arg(int argc, char** argv, const std::string& k, const std::string& d) {
   for (int i=1;i<argc-1;++i) if (std::string(argv[i])==k) return std::string(argv[i+1]);
@@ -40,7 +42,7 @@ void debugLog(const std::string& message) {
 }
 
 int main(int argc, char** argv){
-  debugLog("=== Quackle Bridge Started ===");
+  debugLog("=== Quackle Bridge Started (v1.0.4 with correct API) ===");
   
   const std::string lexicon = arg(argc, argv, "--lexicon", "en-enable");
   const std::string lexdir  = arg(argc, argv, "--lexdir",  "/usr/share/quackle/lexica");
@@ -60,7 +62,7 @@ int main(int argc, char** argv){
     const json jboard = req.value("board", json::object());
     const json jrack  = req.value("rack",  json::array());
     const std::string diff = req.value("difficulty", std::string("medium"));
-    (void)diff; // difficulty currently unused
+    const int simulations = simsFor(diff);
 
     debugLog("Board keys count: " + std::to_string(jboard.size()));
     debugLog("Rack size: " + std::to_string(jrack.size()));
@@ -115,7 +117,21 @@ int main(int argc, char** argv){
     
     debugLog("Loading lexicon...");
     lexParams->loadDawg(dawgFile);
-    debugLog("Lexicon loaded successfully");
+    debugLog("DAWG lexicon loaded successfully");
+    
+    // Also load GADDAG file if it exists
+    std::string gaddagFile = lexdir + "/" + lexicon + ".gaddag";
+    debugLog("Looking for GADDAG file: " + gaddagFile);
+    std::ifstream gaddagFileCheck(gaddagFile);
+    if (gaddagFileCheck.good()) {
+        gaddagFileCheck.close();
+        debugLog("GADDAG file found, loading...");
+        lexParams->loadGaddag(gaddagFile);
+        debugLog("GADDAG lexicon loaded successfully");
+    } else {
+        debugLog("WARNING: GADDAG file not found: " + gaddagFile);
+        debugLog("This may cause segmentation faults in move generation");
+    }
     
     QUACKLE_DATAMANAGER->setLexiconParameters(lexParams);
     debugLog("Lexicon parameters set");
@@ -126,14 +142,33 @@ int main(int argc, char** argv){
     debugLog("Building rack...");
     Quackle::Rack rr;
     Quackle::LetterString rackString;
-    for (const auto &tile : jrack) {
-        std::string letter = tile.value("letter","?");
-        bool isBlank = tile.value("isBlank", false);
-        char ch = std::toupper(letter[0]);
-        if (isBlank) ch = '?';
-        rackString.push_back(ch);
-        debugLog("Rack tile: letter='" + letter + "', isBlank=" + std::string(isBlank ? "true" : "false") + ", final='" + std::string(1,ch) + "'");
+    
+    // Handle both string and array formats for rack
+    if (jrack.is_string()) {
+        // If rack is a string like "CAT"
+        std::string rackStr = jrack.get<std::string>();
+        debugLog("Rack is string: " + rackStr);
+        for (char c : rackStr) {
+            char ch = std::toupper(c);
+            rackString.push_back(ch);
+            debugLog("Rack tile: letter='" + std::string(1, c) + "', final='" + std::string(1, ch) + "'");
+        }
+    } else if (jrack.is_array()) {
+        // If rack is an array of tile objects
+        for (const auto &tile : jrack) {
+            std::string letter = tile.value("letter","?");
+            bool isBlank = tile.value("isBlank", false);
+            char ch = std::toupper(letter[0]);
+            if (isBlank) ch = '?';
+            rackString.push_back(ch);
+            debugLog("Rack tile: letter='" + letter + "', isBlank=" + std::string(isBlank ? "true" : "false") + ", final='" + std::string(1,ch) + "'");
+        }
+    } else {
+        debugLog("ERROR: Invalid rack format");
+        std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid rack format"})" << std::endl;
+        return 1;
     }
+    
     rr.setTiles(rackString);
     debugLog("Rack string: " + std::string(rackString.begin(), rackString.end()));
 
@@ -151,6 +186,13 @@ int main(int argc, char** argv){
     Quackle::Bag bag;
     pos.setBag(bag);
     debugLog("Bag set for position");
+    
+    // Set current player to 0 (first player)
+    pos.setCurrentPlayer(0);
+    debugLog("Current player set to 0");
+    
+    // Game parameters and strategy parameters are set globally via DataManager
+    debugLog("Game parameters and strategy parameters configured via DataManager");
     
     debugLog("Game position created, rack set");
 
@@ -179,33 +221,155 @@ int main(int argc, char** argv){
     }
     debugLog("Board tiles placed successfully");
 
-    // Generate best move
+    // Generate best move using Quackle's AI
     debugLog("Generating best move...");
     debugLog("Creating generator...");
     Quackle::Generator gen(pos);
-    debugLog("Generator created, testing if it works...");
+    debugLog("Generator created successfully");
     
-    // Now test kibitz step by step
-    debugLog("Generator creation successful, now testing kibitz...");
+    // Update cross structures for move generation
+    debugLog("Updating cross structures...");
+    gen.allCrosses();
+    debugLog("Cross structures updated");
     
-    // For now, implement a simple fallback mechanism
-    // TODO: Investigate why gen.kibitz(1) causes segmentation fault
-    debugLog("Generator creation successful, but kibitz causes segfault - using fallback");
+    // Try to use Quackle's AI properly
+    debugLog("Attempting to use Quackle AI...");
     
-    // Simple fallback: return a basic move based on the rack
-    std::string rackStr = rr.toString();
-    debugLog("Rack string: " + rackStr);
-    
-    if (rackStr.length() >= 2) {
-      // Try to make a simple 2-letter word
-      std::string word = rackStr.substr(0, 2);
-      debugLog("Attempting simple word: " + word);
+    try {
+        // Use kibitz with appropriate number of simulations based on difficulty
+        debugLog("Calling kibitz(" + std::to_string(simulations) + ") for " + diff + " difficulty...");
+        gen.kibitz(simulations);
+        debugLog("Kibitz completed successfully");
+        
+        // Get the best move from kibitzList()
+        debugLog("Getting best move from kibitzList()...");
+        const auto &moves = gen.kibitzList();
+        
+        Quackle::Move best;
+        bool foundValidMove = false;
+        
+        if (!moves.empty()) {
+            best = moves.front(); // First move is the best
+            foundValidMove = true;
+            debugLog("Found valid move from Quackle AI, score: " + std::to_string(best.score));
+        } else {
+            debugLog("No moves found in kibitzList, trying fallback strategies");
+
+            // For easy difficulty with 0 simulations, try a minimal simulation
+            if (simulations == 0) {
+                debugLog("Easy difficulty with 0 simulations, trying minimal kibitz...");
+                gen.kibitz(1);
+                const auto &fallbackMoves = gen.kibitzList();
+                if (!fallbackMoves.empty()) {
+                    best = fallbackMoves.front();
+                    foundValidMove = true;
+                    debugLog("Found move with minimal simulation, score: " + std::to_string(best.score));
+                }
+            }
+
+            // If still no moves, try to find any possible move by generating all plays
+            if (!foundValidMove) {
+                debugLog("Trying to generate all possible plays...");
+                gen.kibitz(10); // Small number to find at least something
+                const auto &allMoves = gen.kibitzList();
+                if (!allMoves.empty()) {
+                    best = allMoves.front();
+                    foundValidMove = true;
+                    debugLog("Found move from expanded search, score: " + std::to_string(best.score));
+                }
+            }
+
+            // Final fallback: pass
+            if (!foundValidMove) {
+                debugLog("No valid moves found, bot will pass");
+                best = Quackle::Move::createPassMove();
+                debugLog("Pass move created");
+            }
+        }
       
-      std::cout << R"({"tiles":[{"letter":")" << word[0] << R"(","points":1,"isBlank":false},{"letter":")" << word[1] << R"(","points":1,"isBlank":false}],"score":2,"words":[")" << word << R"("],"move_type":"play","engine_fallback":true,"error":"kibitz segfault - using simple fallback"})" << std::endl;
-    } else {
-      // Pass if rack is too small
-      debugLog("Rack too small, passing");
-      std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"rack too small"})" << std::endl;
+        // Convert the move to JSON
+        json tiles = json::array();
+        json words = json::array();
+        
+        // Check move type
+        if (best.action == Quackle::Move::Pass) {
+            debugLog("Move is a pass");
+            json response;
+            response["tiles"] = json::array();
+            response["score"] = 0;
+            response["words"] = json::array();
+            response["move_type"] = "pass";
+            response["engine_fallback"] = !foundValidMove;
+            std::cout << response.dump() << std::endl;
+        } else if (!best.tiles().empty()) {
+          debugLog("Processing place move...");
+          
+          // Extract tiles from the move
+          Quackle::LetterString tilesStr = best.tiles();
+          
+          // Convert FixedLengthString to std::string by iterating through characters
+          std::string tilesString;
+          for (size_t i = 0; i < tilesStr.length(); ++i) {
+            tilesString += tilesStr[i];
+          }
+          debugLog("Tiles string: " + tilesString);
+          
+          // Extract proper tile information from the move
+          int startRow = best.startrow;
+          int startCol = best.startcol;
+          bool isHorizontal = best.horizontal;
+          
+          debugLog("Move details: startRow=" + std::to_string(startRow) + ", startCol=" + std::to_string(startCol) + ", isHorizontal=" + std::string(isHorizontal ? "true" : "false"));
+          
+          // Create tile representations with proper coordinates
+          for (size_t i = 0; i < tilesStr.length(); ++i) {
+            json tileJson;
+            tileJson["letter"] = std::string(1, tilesStr[i]);
+            tileJson["points"] = 1; // Default points - could be improved with actual tile values
+            tileJson["isBlank"] = (tilesStr[i] == '?');
+            
+            // Calculate proper coordinates based on direction
+            if (isHorizontal) {
+              tileJson["row"] = startRow;
+              tileJson["col"] = startCol + i;
+            } else {
+              tileJson["row"] = startRow + i;
+              tileJson["col"] = startCol;
+            }
+            
+            tiles.push_back(tileJson);
+          }
+          
+          // Extract words formed by this move
+          if (!tilesString.empty()) {
+            words.push_back(tilesString);
+          }
+          
+          json response;
+          response["tiles"] = tiles;
+          response["score"] = best.score;
+          response["words"] = words;
+          response["move_type"] = "play";
+          response["engine_fallback"] = !foundValidMove; // True only if we used fallback
+          
+          std::cout << response.dump() << std::endl;
+        } else {
+          debugLog("Move is not a place move and not a pass - returning pass");
+          json response;
+          response["tiles"] = json::array();
+          response["score"] = 0;
+          response["words"] = json::array();
+          response["move_type"] = "pass";
+          response["engine_fallback"] = true;
+          std::cout << response.dump() << std::endl;
+        }
+        
+    } catch (const std::exception& e) {
+      debugLog("Exception during move generation: " + std::string(e.what()));
+      std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":")" << e.what() << R"("})" << std::endl;
+    } catch (...) {
+      debugLog("Unknown exception during move generation");
+      std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"unknown exception"})" << std::endl;
     }
   }catch(const std::exception& e){
     debugLog("Exception caught: " + std::string(e.what()));
@@ -217,4 +381,3 @@ int main(int argc, char** argv){
     std::cout<<out.dump(); return 0;
   }
 }
-
