@@ -79,6 +79,10 @@ RUN g++ -O3 -std=c++17 \
 # Rimuovi i sorgenti temporanei
 RUN rm -rf /tmp/quackle
 
+# Copia dati (alphabets, strategy, lexica) nell'immagine dalla build di Quackle
+RUN mkdir -p /usr/share/quackle/data && \
+    cp -r /tmp/quackle/data/* /usr/share/quackle/data/
+
 # Installazione dipendenze Python e codice FastAPI
 COPY requirements.txt /srv/requirements.txt
 RUN pip install --no-cache-dir -r /srv/requirements.txt
@@ -88,6 +92,7 @@ COPY app /srv/app
 ENV CORS_ORIGINS="https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app"
 ENV QUACKLE_LEXICON="nwl18"
 ENV QUACKLE_LEXDIR="/usr/share/quackle/lexica"
+ENV QUACKLE_APPDATA_DIR="/usr/share/quackle/data"
 
 # Porta esposta e healthcheck
 EXPOSE 5000

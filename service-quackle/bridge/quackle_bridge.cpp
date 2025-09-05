@@ -6,12 +6,14 @@
 #include <cctype>
 #include <memory>
 #include <fstream>
+#include <cstdlib>
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 
 // Quackle headers
 #include "game.h"
 #include "board.h"
+#include "boardparameters.h"
 #include "rack.h"
 #include "move.h"
 #include "generator.h"
@@ -78,8 +80,14 @@ int main(int argc, char** argv){
       debugLog("DataManager instance created");
     }
     
-    QUACKLE_DATAMANAGER->setAppDataDirectory(lexdir);
-    debugLog("App data directory set");
+    // Set app data directory (strategy, alphabets). Prefer env QUACKLE_APPDATA_DIR,
+    // otherwise fallback to /usr/share/quackle/data.
+    const char* envAppData = std::getenv("QUACKLE_APPDATA_DIR");
+    std::string appDataDir = (envAppData && *envAppData)
+      ? std::string(envAppData)
+      : std::string("/usr/share/quackle/data");
+    QUACKLE_DATAMANAGER->setAppDataDirectory(appDataDir);
+    debugLog(std::string("App data directory set to: ") + appDataDir);
     QUACKLE_DATAMANAGER->setBackupLexicon(lexicon);
     debugLog("Backup lexicon set");
     auto *alphabet = new Quackle::EnglishAlphabetParameters();
@@ -88,10 +96,23 @@ int main(int argc, char** argv){
     debugLog("Alphabet parameters set");
     auto *lexParams = new Quackle::LexiconParameters();
     debugLog("Lexicon parameters created");
+    // Ensure game/board/strategy parameters are initialized
+    if (!QUACKLE_DATAMANAGER->parameters()) {
+      debugLog("Creating English game parameters");
+      QUACKLE_DATAMANAGER->setParameters(new Quackle::EnglishParameters());
+    }
+    if (!QUACKLE_DATAMANAGER->boardParameters()) {
+      debugLog("Creating English board parameters");
+      QUACKLE_DATAMANAGER->setBoardParameters(new Quackle::EnglishBoard());
+    }
+    if (!QUACKLE_DATAMANAGER->strategyParameters()) {
+      debugLog("Creating default strategy parameters");
+      QUACKLE_DATAMANAGER->setStrategyParameters(new Quackle::StrategyParameters());
+    }
     
     debugLog("Finding dictionary file...");
     debugLog("Looking for: " + lexicon + ".dawg");
-    debugLog("App data directory: " + lexdir);
+    debugLog(std::string("App data directory: ") + appDataDir);
     
     // Try to find the file using DataManager first
     std::string dawgFile = QUACKLE_DATAMANAGER->findDataFile("", lexicon + ".dawg");
@@ -136,6 +157,15 @@ int main(int argc, char** argv){
     QUACKLE_DATAMANAGER->setLexiconParameters(lexParams);
     debugLog("Lexicon parameters set");
     
+    // Initialize strategy parameters using the chosen lexicon; this expects
+    // data/strategy/{default,default_english,...} under appDataDirectory
+    if (QUACKLE_DATAMANAGER->strategyParameters()) {
+      debugLog("Initializing strategy parameters for lexicon sets: default, default_english");
+      QUACKLE_DATAMANAGER->strategyParameters()->initialize("default");
+      QUACKLE_DATAMANAGER->strategyParameters()->initialize("default_english");
+      debugLog("Strategy parameters initialized");
+    }
+
     debugLog("Data manager setup complete");
 
     // Build rack
@@ -325,7 +355,20 @@ int main(int argc, char** argv){
           for (size_t i = 0; i < tilesStr.length(); ++i) {
             json tileJson;
             tileJson["letter"] = std::string(1, tilesStr[i]);
-            tileJson["points"] = 1; // Default points - could be improved with actual tile values
+            // Assign proper English letter scores
+            char L = tilesStr[i];
+            int pts = 1;
+            switch (std::toupper(L)) {
+              case 'Q': case 'Z': pts = 10; break;
+              case 'J': case 'X': pts = 8; break;
+              case 'K': pts = 5; break;
+              case 'F': case 'H': case 'V': case 'W': case 'Y': pts = 4; break;
+              case 'B': case 'C': case 'M': case 'P': pts = 3; break;
+              case 'D': case 'G': pts = 2; break;
+              case '?': pts = 0; break;
+              default: pts = 1; break;
+            }
+            tileJson["points"] = pts;
             tileJson["isBlank"] = (tilesStr[i] == '?');
             
             // Calculate proper coordinates based on direction
