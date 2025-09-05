@@ -90,7 +90,7 @@ ENV QUACKLE_APPDATA_DIR="/usr/share/quackle/data"
 
 # Porta esposta e healthcheck
 EXPOSE 5000
-HEALTHCHECK --interval=30s --timeout=3s CMD curl -fsS http://localhost:5000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=3s CMD sh -c 'curl -fsS http://localhost:${PORT:-5000}/health || exit 1'
 
 # Avvio del microservizio
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "5000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-5000}"]
