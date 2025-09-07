@@ -14,6 +14,21 @@ COPY third_party/quackle/ /src/third_party/quackle/
 RUN cmake -S /src/third_party/quackle -B /src/third_party/quackle/build \
  && cmake --build /src/third_party/quackle/build -j
 
+# ==== genera GADDAG compatibile ====
+# Copia la wordlist sorgente (testo)
+COPY lexica_src/enable1.txt /tmp/enable1.txt
+
+# Costruisci la CLI 'makegaddag' dal submodule Quackle
+RUN cmake -S /src/third_party/quackle -B /tmp/mkg \
+ && cmake --build /tmp/mkg -j --target makegaddag
+
+# Genera il file .gaddag (compatibile col core)
+RUN /tmp/mkg/makegaddag /tmp/enable1.txt /tmp/enable1.gaddag \
+ && test -s /tmp/enable1.gaddag
+
+# Metti in una cartella d'uscita dal builder
+RUN mkdir -p /out_lexica && cp /tmp/enable1.gaddag /out_lexica/enable1.gaddag
+
 # Sanity check: esistenza di liblibquackle.a e struttura file (niente /src richiesto)
 RUN test -f /src/third_party/quackle/build/liblibquackle.a
 RUN ls -la /src/third_party/quackle | head -n 50
@@ -45,12 +60,16 @@ COPY pyproject.toml /app/pyproject.toml
 RUN pip install --no-cache-dir -e .
 COPY app/ /app/app/
 
-# copia wrapper e lexicon baked-in
+# copia wrapper e lexicon generato baked-in
 RUN mkdir -p /app/bin /app/lexica
 COPY --from=builder /build/engine_wrapper /app/bin/engine_wrapper
-# >>> IMPORTANTISSIMO: copia qui il tuo .gaddag prima del build della image
-# Per esempio, se hai engine/lexica/enable1.gaddag nel repo:
-COPY lexica/ /app/lexica/
+COPY --from=builder /out_lexica/enable1.gaddag /app/lexica/enable1.gaddag
+
+ENV GADDAG_PATH=/app/lexica/enable1.gaddag
+
+# Sanity check: il wrapper deve rispondere (fail-fast se crasha)
+RUN /app/bin/engine_wrapper --gaddag /app/lexica/enable1.gaddag --ruleset it <<<'{"op":"ping"}' >/dev/null \
+ && /app/bin/engine_wrapper --gaddag /app/lexica/enable1.gaddag --ruleset it <<<'{"op":"probe_lexicon"}' >/dev/null
 
 COPY scripts/init_lexicon.sh /app/scripts/init_lexicon.sh
 COPY scripts/verify_runtime.sh /app/scripts/verify_runtime.sh
