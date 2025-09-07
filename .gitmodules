@@ -1,0 +1,3 @@
+[submodule "engine/third_party/quackle"]
+	path = engine/third_party/quackle
+	url = https://github.com/quackle/quackle.git
