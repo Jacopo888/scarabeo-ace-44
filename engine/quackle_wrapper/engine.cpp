@@ -37,6 +37,19 @@ static inline std::string to_upper(const std::string &s) {
     return r;
 }
 
+static bool json_board_is_empty(const nlohmann::json& grid) {
+    if (!grid.is_array() || grid.size() != 15) return false;
+    for (const auto& row : grid) {
+        if (!row.is_array() || row.size() != 15) return false;
+        for (const auto& cell : row) {
+            if (!cell.is_string()) return false;
+            const std::string s = cell.get<std::string>();
+            if (!s.empty() && s != " ") return false;
+        }
+    }
+    return true;
+}
+
 int main(int argc, char** argv) {
     Config cfg;
     for (int i=1; i<argc; ++i) {
@@ -128,6 +141,7 @@ int main(int argc, char** argv) {
                 continue;
             }
         }
+        const bool is_board_empty = json_board_is_empty(board_in);
         std::string rackStr = in.value("rack", std::string());
         rackStr = to_upper(rackStr);
 
@@ -183,7 +197,7 @@ int main(int argc, char** argv) {
                 for (size_t i = 0; i < tls.length(); ++i) word.push_back(tls[i]);
 
                 // Enforce center rule on first move: must cross (7,7)
-                if (board.lettersOnBoard() == 0) {
+                if (is_board_empty) {
                     bool crossesCenter = false;
                     for (size_t i = 0; i < tls.length(); ++i) {
                         int rr = mv.startrow + (mv.horizontal ? 0 : static_cast<int>(i));
