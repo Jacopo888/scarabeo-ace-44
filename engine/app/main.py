@@ -2,6 +2,9 @@ import json
 import os
 import time
 import subprocess
+import threading
+import select
+import sys
 from fastapi import FastAPI, Body, HTTPException
 from fastapi.responses import JSONResponse
 from app.models import MoveRequest, MoveResponse
@@ -14,10 +17,12 @@ RULESET = os.getenv("RULESET", "it")
 app = FastAPI(title="Scarabeo Engine", version="0.1.0")
 
 _engine_proc: Optional[subprocess.Popen] = None
+_stderr_thread: Optional[threading.Thread] = None
 
 
 def start_engine():
     global _engine_proc
+    global _stderr_thread
     if _engine_proc and _engine_proc.poll() is None:
         return
     binary_path = "/app/bin/engine_wrapper"
@@ -33,6 +38,30 @@ def start_engine():
         text=True,
         bufsize=1  # line-buffered
     )
+    # Start stderr drain thread (non-blocking logging)
+    def _drain_stderr(proc: subprocess.Popen):
+        try:
+            while True:
+                if proc.poll() is not None:
+                    # Drain any remaining content
+                    rest = proc.stderr.read() if proc.stderr else ""
+                    if rest:
+                        for ln in rest.splitlines():
+                            print(f"[wrapper] {ln}")
+                    break
+                if proc.stderr is None:
+                    break
+                r, _, _ = select.select([proc.stderr], [], [], 0.2)
+                if r:
+                    line = proc.stderr.readline()
+                    if line:
+                        print(f"[wrapper] {line.rstrip()}\n", end="")
+        except Exception as e:
+            print(f"[engine] stderr thread error: {e}", file=sys.stderr)
+
+    if _engine_proc.stderr and (_stderr_thread is None or not _stderr_thread.is_alive()):
+        _stderr_thread = threading.Thread(target=_drain_stderr, args=(_engine_proc,), daemon=True)
+        _stderr_thread.start()
 
 
 def ask_engine(payload: dict, timeout_ms: int) -> dict:
@@ -52,11 +81,20 @@ def ask_engine(payload: dict, timeout_ms: int) -> dict:
     # leggere una riga JSON come risposta
     start_t = time.time()
     while True:
-        if (time.time() - start_t) * 1000 > timeout_ms + 200:
+        if (time.time() - start_t) * 1000 > timeout_ms + 800:
             raise TimeoutError("engine timeout")
         line = _engine_proc.stdout.readline()
         if not line:
-            # se il wrapper ha scritto su stderr, puoi loggare; qui evitiamo deadlock
+            # try to drain a bit of stderr for diagnostics without blocking
+            try:
+                if _engine_proc.stderr is not None:
+                    r, _, _ = select.select([_engine_proc.stderr], [], [], 0)
+                    if r:
+                        err_line = _engine_proc.stderr.readline()
+                        if err_line:
+                            print(f"[wrapper] {err_line.rstrip()}\n", end="")
+            except Exception:
+                pass
             continue
         try:
             return json.loads(line)
@@ -79,6 +117,22 @@ def healthz():
     ok = os.path.exists(GADDAG_PATH)
     return JSONResponse({"ok": ok, "dict_loaded": ok, "lang": RULESET, "path": GADDAG_PATH})
 
+
+@app.get("/health/lexicon")
+def health_lexicon():
+    ok_fs = os.path.exists(GADDAG_PATH)
+    lex_ok = False
+    try:
+        out = ask_engine({"op": "status"}, timeout_ms=300)
+        lex_ok = bool(out.get("lexicon_loaded", False))
+    except Exception:
+        lex_ok = False
+    return {
+        "lexicon_name": "enable1",
+        "lex_dir": os.path.dirname(GADDAG_PATH),
+        "lexicon_ok": bool(ok_fs and lex_ok),
+        "gaddag_path": GADDAG_PATH,
+    }
 
 @app.post("/api/v1/move", response_model=MoveResponse)
 def compute_move(req: MoveRequest = Body(...)):

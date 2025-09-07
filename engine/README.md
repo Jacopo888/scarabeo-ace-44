@@ -41,7 +41,7 @@ print(resp.json())
 
 - Configura repo con `engine/` e abilita deploy da Dockerfile.
 - **Nessun volume richiesto**. Il lexicon è incluso nell’immagine.
-- Imposta `RULESET` e `GADDAG_PATH` (già corretti di default).
+- Imposta `RULESET` e `GADDAG_PATH` (default: `/app/lexica/enable1.gaddag`).
 
 ## TODO per integrare Quackle
 
@@ -62,7 +62,7 @@ print(resp.json())
 ```bash
 git submodule update --init --recursive
 ```
-- Il file `engine/lexica/enable1.gaddag` deve esistere prima del build.
+- Il file `engine/lexica/enable1.gaddag` deve esistere prima del build (copiato nell'immagine in `/app/lexica/enable1.gaddag`).
 - Il builder compila `third_party/quackle` e produce `third_party/quackle/build/liblibquackle.a`.
 - `engine/quackle_wrapper/CMakeLists.txt` importa la lib da `${QUACKLE_BUILD_DIR}/liblibquackle.a` e include `${QUACKLE_ROOT}` (mai `${QUACKLE_ROOT}/src`).
 

@@ -5,6 +5,8 @@
 #include <chrono>
 #include <cctype>
 #include <nlohmann/json.hpp>
+#include <future>
+#include <atomic>
 
 // Quackle headers (core only, no Qt)
 #include "game.h"
@@ -108,6 +110,15 @@ int main(int argc, char** argv) {
         if (top_n < 1) top_n = 1;
         if (top_n > 50) top_n = 50;
 
+        // status probe
+        const std::string op2 = in.value("op", "");
+        if (op2 == "status") {
+            json out = { {"lexicon_loaded", true} };
+            std::cout << out.dump() << "\n";
+            std::cout.flush();
+            continue;
+        }
+
         const auto &board_in = in["board"];
         if (!board_in.is_array() || board_in.size() != 15) {
             continue;
@@ -157,40 +168,61 @@ int main(int argc, char** argv) {
             }
         }
 
-        // Generate moves
-        auto t0 = std::chrono::steady_clock::now();
-        Quackle::Generator gen(pos);
-        gen.allCrosses();
-        gen.kibitz(std::max(10, top_n));
-        const auto &kmoves = gen.kibitzList();
+        // Hard timebox via async
+        auto worker = [&]() {
+            Quackle::Generator gen(pos);
+            gen.allCrosses();
+            gen.kibitz(std::max(10, top_n));
+            const auto &kmoves = gen.kibitzList();
+            json moves = json::array();
+            int count = 0;
+            for (const auto &mv : kmoves) {
+                if (count >= top_n) break;
+                Quackle::LetterString tls = mv.tiles();
+                std::string word;
+                for (size_t i = 0; i < tls.length(); ++i) word.push_back(tls[i]);
 
-        json moves = json::array();
-        int count = 0;
-        for (const auto &mv : kmoves) {
-            if (count >= top_n) break;
-            Quackle::LetterString tls = mv.tiles();
-            std::string word;
-            for (size_t i = 0; i < tls.length(); ++i) word.push_back(tls[i]);
+                // Enforce center rule on first move: must cross (7,7)
+                if (board.lettersOnBoard() == 0) {
+                    bool crossesCenter = false;
+                    for (size_t i = 0; i < tls.length(); ++i) {
+                        int rr = mv.startrow + (mv.horizontal ? 0 : static_cast<int>(i));
+                        int cc = mv.startcol + (mv.horizontal ? static_cast<int>(i) : 0);
+                        if (rr == 7 && cc == 7) { crossesCenter = true; break; }
+                    }
+                    if (!crossesCenter) continue;
+                }
 
-            json pos_arr = json::array();
-            for (size_t i = 0; i < tls.length(); ++i) {
-                int rr = mv.startrow + (mv.horizontal ? 0 : static_cast<int>(i));
-                int cc = mv.startcol + (mv.horizontal ? static_cast<int>(i) : 0);
-                pos_arr.push_back(json::array({rr, cc}));
+                json pos_arr = json::array();
+                for (size_t i = 0; i < tls.length(); ++i) {
+                    int rr = mv.startrow + (mv.horizontal ? 0 : static_cast<int>(i));
+                    int cc = mv.startcol + (mv.horizontal ? static_cast<int>(i) : 0);
+                    pos_arr.push_back(json::array({rr, cc}));
+                }
+
+                json jmv = {
+                    {"word", word},
+                    {"row", mv.startrow},
+                    {"col", mv.startcol},
+                    {"dir", mv.horizontal ? "H" : "V"},
+                    {"score", mv.score},
+                    {"positions", pos_arr}
+                };
+                moves.push_back(jmv);
+                ++count;
             }
+            return moves;
+        };
 
-            json jmv = {
-                {"word", word},
-                {"row", mv.startrow},
-                {"col", mv.startcol},
-                {"dir", mv.horizontal ? "H" : "V"},
-                {"score", mv.score},
-                {"positions", pos_arr}
-            };
-            moves.push_back(jmv);
-            ++count;
+        auto fut = std::async(std::launch::async, worker);
+        auto status = fut.wait_for(std::chrono::milliseconds(limit_ms + 50));
+        json moves;
+        if (status == std::future_status::timeout) {
+            // Timed out: return empty or best-so-far (not tracked here)
+            moves = json::array();
+        } else {
+            moves = fut.get();
         }
-
         json out = { {"moves", moves} };
         std::cout << out.dump() << "\n";
         std::cout.flush();
