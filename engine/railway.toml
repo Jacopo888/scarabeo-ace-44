@@ -1,0 +1,19 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "engine/Dockerfile"
+
+[deploy]
+numReplicas = 1
+healthcheckPath = "/healthz"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+
+[service]
+name = "scarabeo-engine"
+internal_port = 8080
+
+[variables]
+RULESET = "it"
+GADDAG_PATH = "/app/lexica/enable1.gaddag"
+
+
