@@ -1,23 +1,30 @@
-# ---------- STAGE 1: build wrapper ----------
+# ---------- STAGE 1: build wrapper + quackle ----------
 FROM ubuntu:22.04 AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake git ca-certificates \
-    libboost-all-dev libicu-dev \
-    && rm -rf /var/lib/apt/lists/*
+    build-essential cmake git ca-certificates pkg-config \
+    # dipendenze spesso richieste da quackle core
+    libicu-dev libboost-all-dev \
+  && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /src
 
-# Copy Quackle submodule and build it (core, no Qt UI)
+# Porta dentro il submodule e compila la static lib
 COPY third_party/quackle/ /src/third_party/quackle/
-RUN mkdir -p /src/third_party/quackle/build && \
-    cd /src/third_party/quackle/build && \
-    cmake -DCMAKE_BUILD_TYPE=Release .. && \
-    cmake --build . -j
+# Build della static lib del submodule in /src/third_party/quackle/build
+RUN cmake -S /src/third_party/quackle -B /src/third_party/quackle/build \
+ && cmake --build /src/third_party/quackle/build -j
 
-# Build wrapper linking static libquackle
-COPY quackle_wrapper/ ./quackle_wrapper/
-RUN cmake -S quackle_wrapper -B /build -DQUACKLE_ROOT=/src/third_party/quackle -DQUACKLE_BUILD_DIR=/src/third_party/quackle/build && \
-    cmake --build /build -j
-# wrapper risultante: /build/engine_wrapper
+# Sanity check: esistenza di liblibquackle.a e struttura file (niente /src richiesto)
+RUN test -f /src/third_party/quackle/build/liblibquackle.a
+RUN ls -la /src/third_party/quackle | head -n 50
+
+# Ora build del wrapper
+COPY quackle_wrapper/ /src/quackle_wrapper/
+RUN cmake -S /src/quackle_wrapper -B /build \
+      -DQUACKLE_ROOT=/src/third_party/quackle \
+      -DQUACKLE_BUILD_DIR=/src/third_party/quackle/build \
+ && cmake --build /build -j
+# Risultato atteso: /build/engine_wrapper
 
 # ---------- STAGE 2: runtime ----------
 FROM python:3.11-slim AS runtime
@@ -27,10 +34,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     RULESET=it \
     GADDAG_PATH=/app/lexica/enable1.gaddag
 
-# dipendenze base
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    tini libicu67 libboost-system1.74.0 libboost-filesystem1.74.0 libboost-regex1.74.0 \
-    && rm -rf /var/lib/apt/lists/*
+    tini \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -47,7 +53,10 @@ COPY --from=builder /build/engine_wrapper /app/bin/engine_wrapper
 COPY lexica/ /app/lexica/
 
 COPY scripts/init_lexicon.sh /app/scripts/init_lexicon.sh
-RUN chmod +x /app/scripts/init_lexicon.sh && /app/scripts/init_lexicon.sh
+COPY scripts/verify_runtime.sh /app/scripts/verify_runtime.sh
+RUN chmod +x /app/scripts/init_lexicon.sh /app/scripts/verify_runtime.sh \
+ && /app/scripts/init_lexicon.sh \
+ && /app/scripts/verify_runtime.sh
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/bin/tini","--"]

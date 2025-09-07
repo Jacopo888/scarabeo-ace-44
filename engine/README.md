@@ -56,4 +56,14 @@ print(resp.json())
 - Include paths: `src`, `src/libquackle`, `src/libquackle/include`.
 - App data copiati dal repo Quackle non necessari in Piano A, ma supportati via `QUACKLE_APPDATA_DIR` se presenti.
 
+## Build invariants
+
+- Esegui prima:
+```bash
+git submodule update --init --recursive
+```
+- Il file `engine/lexica/enable1.gaddag` deve esistere prima del build.
+- Il builder compila `third_party/quackle` e produce `third_party/quackle/build/liblibquackle.a`.
+- `engine/quackle_wrapper/CMakeLists.txt` importa la lib da `${QUACKLE_BUILD_DIR}/liblibquackle.a` e include `${QUACKLE_ROOT}` (mai `${QUACKLE_ROOT}/src`).
+
 
