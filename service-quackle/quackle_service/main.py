@@ -32,18 +32,19 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(RequestLoggerMiddleware)
 
-BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", "/usr/local/bin/quackle_bridge")
-QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "enable1")
-QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/data/quackle/lexica/enable1")
+BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", "/usr/local/bin/quackle_bridge").strip()
+QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "enable1").strip()
+QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/data/quackle/lexica/enable1").strip()
 
 # Additional envs used for preflight/diagnostics (align with Dockerfile defaults)
-LEXICON_NAME = os.getenv("LEXICON_NAME", QUACKLE_LEXICON)
-LEX_DIR = os.getenv("LEX_DIR", QUACKLE_LEXDIR)
-APPDATA_DIR = os.getenv("QUACKLE_APPDATA_DIR", "/usr/share/quackle/data")
+LEXICON_NAME = os.getenv("LEXICON_NAME", QUACKLE_LEXICON).strip()
+LEX_DIR = os.getenv("LEX_DIR", QUACKLE_LEXDIR).strip()
+APPDATA_DIR = os.getenv("QUACKLE_APPDATA_DIR", "/usr/share/quackle/data").strip()
 
 def _lex_paths():
-    dawg = os.path.join(LEX_DIR, f"{LEXICON_NAME}.dawg")
-    gaddag = os.path.join(LEX_DIR, f"{LEXICON_NAME}.gaddag")
+    base = os.path.normpath(LEX_DIR)
+    dawg = os.path.join(base, f"{LEXICON_NAME}.dawg")
+    gaddag = os.path.join(base, f"{LEXICON_NAME}.gaddag")
     return dawg, gaddag
 
 def ensure_lexicon_ready():
