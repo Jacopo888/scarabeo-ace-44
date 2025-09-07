@@ -7,6 +7,11 @@
 #include <nlohmann/json.hpp>
 #include <future>
 #include <atomic>
+#include <unistd.h>
+#include <errno.h>
+#include <cstring>
+#include <sys/stat.h>
+#include <cstdio>
 
 // Quackle headers (core only, no Qt)
 #include "game.h"
@@ -59,9 +64,13 @@ int main(int argc, char** argv) {
     }
 
     if (cfg.gaddag_path.empty()) {
-        std::cerr << "Missing --gaddag path" << std::endl;
+        std::fprintf(stderr, "[wrapper] start pid=%d\n", getpid());
+        std::fprintf(stderr, "[wrapper] gaddag_load_error path=<empty> errno=%d msg=%s\n", errno, std::strerror(errno));
         return 1;
     }
+
+    std::fprintf(stderr, "[wrapper] start pid=%d\n", getpid());
+    std::fprintf(stderr, "[wrapper] loading gaddag path=%s\n", cfg.gaddag_path.c_str());
 
     // Initialize Quackle environment (once)
     if (!QUACKLE_DATAMANAGER_EXISTS) {
@@ -90,12 +99,17 @@ int main(int argc, char** argv) {
 
     // Load GADDAG lexicon once
     auto *lexParams = new Quackle::LexiconParameters();
+    bool gaddag_loaded = false;
+    auto t0_load = std::chrono::steady_clock::now();
     try {
         lexParams->loadGaddag(cfg.gaddag_path);
+        gaddag_loaded = true;
     } catch (...) {
-        std::cerr << "Failed to load GADDAG from: " << cfg.gaddag_path << std::endl;
+        std::fprintf(stderr, "[wrapper] gaddag_load_error path=%s errno=%d msg=%s\n", cfg.gaddag_path.c_str(), errno, std::strerror(errno));
         return 1;
     }
+    auto ms_load = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0_load).count();
+    std::fprintf(stderr, "[wrapper] gaddag_loaded ms=%lld\n", static_cast<long long>(ms_load));
     QUACKLE_DATAMANAGER->setLexiconParameters(lexParams);
 
     // Initialize strategy tables
@@ -115,7 +129,30 @@ int main(int argc, char** argv) {
         catch (...) { continue; }
 
         const std::string op = in.value("op", "");
-        if (op != "compute") continue;
+        std::fprintf(stderr, "[wrapper] recv op=%s\n", op.c_str());
+        try {
+            if (op == "ping") {
+                json out = { {"pong", true} };
+                std::cout << out.dump() << "\n";
+                std::cout.flush();
+                continue;
+            }
+            if (op == "probe_lexicon") {
+                if (gaddag_loaded) {
+                    struct stat st{};
+                    long long size = -1;
+                    if (::stat(cfg.gaddag_path.c_str(), &st) == 0) size = static_cast<long long>(st.st_size);
+                    json out = { {"lexicon_ok", true}, {"path", cfg.gaddag_path}, {"size", size} };
+                    std::cout << out.dump() << "\n";
+                    std::cout.flush();
+                } else {
+                    json out = { {"lexicon_ok", false}, {"error", "gaddag_not_loaded"} };
+                    std::cout << out.dump() << "\n";
+                    std::cout.flush();
+                }
+                continue;
+            }
+            if (op != "compute") continue;
 
         // Validate and parse input
         int limit_ms = in.value("limit_ms", 1500);
@@ -134,10 +171,14 @@ int main(int argc, char** argv) {
 
         const auto &board_in = in["board"];
         if (!board_in.is_array() || board_in.size() != 15) {
+            json out = { {"moves", json::array()}, {"error", "invalid_board"} };
+            std::cout << out.dump() << "\n"; std::cout.flush();
             continue;
         }
         for (const auto &row : board_in) {
             if (!row.is_array() || row.size() != 15) {
+                json out = { {"moves", json::array()}, {"error", "invalid_board"} };
+                std::cout << out.dump() << "\n"; std::cout.flush();
                 continue;
             }
         }
@@ -233,13 +274,23 @@ int main(int argc, char** argv) {
         json moves;
         if (status == std::future_status::timeout) {
             // Timed out: return empty or best-so-far (not tracked here)
+            std::fprintf(stderr, "[wrapper] compute timeout limit_ms=%d truncated=true\n", limit_ms);
             moves = json::array();
         } else {
             moves = fut.get();
         }
-        json out = { {"moves", moves} };
+        json out = { {"moves", moves}, {"truncated", status == std::future_status::timeout} };
         std::cout << out.dump() << "\n";
         std::cout.flush();
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "[wrapper] compute_exception what=%s\n", e.what());
+            json out = { {"moves", json::array()}, {"error", "exception"}, {"message", std::string(e.what())} };
+            std::cout << out.dump() << "\n"; std::cout.flush();
+        } catch (...) {
+            std::fprintf(stderr, "[wrapper] compute_exception what=<unknown>\n");
+            json out = { {"moves", json::array()}, {"error", "exception"}, {"message", "unknown"} };
+            std::cout << out.dump() << "\n"; std::cout.flush();
+        }
     }
     return 0;
 }

@@ -123,8 +123,11 @@ def health_lexicon():
     ok_fs = os.path.exists(GADDAG_PATH)
     lex_ok = False
     try:
-        out = ask_engine({"op": "status"}, timeout_ms=300)
-        lex_ok = bool(out.get("lexicon_loaded", False))
+        out = ask_engine({"op": "probe_lexicon"}, timeout_ms=800)
+        # Propaga risposta wrapper se presente
+        if isinstance(out, dict) and "lexicon_ok" in out:
+            return out
+        lex_ok = False
     except Exception:
         lex_ok = False
     return {
@@ -133,6 +136,17 @@ def health_lexicon():
         "lexicon_ok": bool(ok_fs and lex_ok),
         "gaddag_path": GADDAG_PATH,
     }
+
+
+@app.get("/health/engine")
+def health_engine():
+    try:
+        out = ask_engine({"op": "ping"}, timeout_ms=500)
+        if isinstance(out, dict) and out.get("pong") is True:
+            return {"ok": True}
+    except Exception:
+        pass
+    return {"ok": False}
 
 @app.post("/api/v1/move", response_model=MoveResponse)
 def compute_move(req: MoveRequest = Body(...)):
