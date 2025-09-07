@@ -62,6 +62,17 @@ def health():
         "version": "v104-debug"
     }
 
+@app.get("/health/lexicon")
+def health_lexicon():
+    ok, dawg, gaddag = ensure_lexicon_ready()
+    return {
+        "lexicon_name": LEXICON_NAME,
+        "lex_dir": LEX_DIR,
+        "lexicon_ok": ok,
+        "dawg_path": dawg,
+        "gaddag_path": gaddag,
+    }
+
 @app.get("/debug/quackle")
 def debug_quackle():
     appdata = APPDATA_DIR

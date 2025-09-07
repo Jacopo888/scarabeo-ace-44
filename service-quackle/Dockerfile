@@ -92,7 +92,9 @@ ENV LEX_DIR="/data/quackle/lexica/enable1"
 # Setup script and entrypoint for lexicon generation on Volume
 COPY ops/setup_enable_lexicon.sh /usr/local/bin/setup_enable_lexicon.sh
 RUN chmod +x /usr/local/bin/setup_enable_lexicon.sh
-COPY ops/entrypoint.sh /entrypoint.sh
+COPY ops/bootstrap_lexicon.sh /usr/local/bin/bootstrap_lexicon.sh
+RUN chmod +x /usr/local/bin/bootstrap_lexicon.sh
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Porta esposta e healthcheck
