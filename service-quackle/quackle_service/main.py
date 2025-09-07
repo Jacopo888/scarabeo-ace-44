@@ -118,6 +118,8 @@ def debug_lexicon():
         return os.path.join(*a)
     # Directory listing for diagnostics (names and sizes)
     listing = []
+    dir_exists = os.path.isdir(LEX_DIR)
+    dir_error = None
     try:
         for name in sorted(os.listdir(LEX_DIR)):
             p = os.path.join(LEX_DIR, name)
@@ -126,15 +128,22 @@ def debug_lexicon():
             except Exception:
                 size = None
             listing.append({"name": name, "is_file": os.path.isfile(p), "size": size})
-    except Exception:
+    except Exception as e:
         listing = []
+        dir_error = str(e)
     return {
         "lexicon_name": LEXICON_NAME,
         "lex_dir": LEX_DIR,
+        "lex_dir_exists": dir_exists,
+        "lex_dir_error": dir_error,
         "app_data_dir": APPDATA_DIR,
         "dawg_exists": exists(dawg),
         "gaddag_exists": exists(gaddag),
         "lex_dir_listing": listing,
+        "env": {
+            "DAWG_URL_set": bool(os.getenv("DAWG_URL")),
+            "GADDAG_URL_set": bool(os.getenv("GADDAG_URL")),
+        },
         "strategy_files": {
             "syn2": exists(join(strat_en, "syn2")),
             "vcplace": exists(join(strat_en, "vcplace")),
