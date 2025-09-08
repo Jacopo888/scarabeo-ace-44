@@ -1,5 +1,6 @@
 # ---------- STAGE 1: build wrapper + quackle ----------
 FROM ubuntu:22.04 AS builder
+SHELL ["/bin/bash", "-lc"]
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake git ca-certificates pkg-config \
     # Qt5 + ICU + Boost per tool di build stile Colab (Piano C)
