@@ -162,6 +162,17 @@ def health_engine():
         pass
     return {"ok": False}
 
+@app.post("/engine/cmd")
+def cmd(payload: dict = Body(...)):
+    """Forward JSON command to wrapper process and return response"""
+    try:
+        out = ask_engine(payload, timeout_ms=5000)  # 5 second default timeout
+        return out
+    except TimeoutError:
+        raise HTTPException(status_code=504, detail="engine timeout")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"engine error: {e}")
+
 @app.post("/api/v1/move", response_model=MoveResponse)
 def compute_move(req: MoveRequest = Body(...)):
     # validazione dimensione board

@@ -86,7 +86,7 @@ RUN cmake -S /src/quackle_wrapper -B /build \
 
 # ---------- STAGE 2: runtime ----------
 FROM python:3.11-slim AS runtime
-SHELL ["/bin/bash", "-lc"]
+SHELL ["/bin/bash","-lc"]
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8080 \
@@ -109,6 +109,11 @@ RUN mkdir -p /app/bin /app/lexica
 COPY --from=builder /build/engine_wrapper /app/bin/engine_wrapper
 COPY --from=builder /out_lexica/enable1.gaddag /app/lexica/enable1.gaddag
 
+# bring the alphabet file to runtime (many loaders expect it around)
+RUN mkdir -p /app/alphabets
+COPY --from=builder /src/third_party/quackle/data/alphabets/english.quackle_alphabet /app/alphabets/english.quackle_alphabet
+ENV QUACKLE_ALPHABET=/app/alphabets/english.quackle_alphabet
+
 ENV GADDAG_PATH=/app/lexica/enable1.gaddag
 
 # Sanity check: verifica solo che il file GADDAG esista e non sia vuoto
@@ -116,7 +121,9 @@ RUN test -s /app/lexica/enable1.gaddag && ls -lh /app/lexica/enable1.gaddag
 
 COPY scripts/init_lexicon.sh /app/scripts/init_lexicon.sh
 COPY scripts/verify_runtime.sh /app/scripts/verify_runtime.sh
-RUN chmod +x /app/scripts/init_lexicon.sh /app/scripts/verify_runtime.sh \
+COPY scripts/route_discovery.sh /app/scripts/route_discovery.sh
+COPY scripts/exec_ping.sh       /app/scripts/exec_ping.sh
+RUN chmod +x /app/scripts/*.sh \
  && /app/scripts/init_lexicon.sh \
  && /app/scripts/verify_runtime.sh
 
