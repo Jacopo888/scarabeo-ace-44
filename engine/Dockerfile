@@ -13,122 +13,55 @@ WORKDIR /src
 # Porta dentro il submodule e compila la static lib
 COPY third_party/quackle/ /src/third_party/quackle/
 # Build della static lib del submodule in /src/third_party/quackle/build
-RUN cmake -S /src/third_party/quackle -B /src/third_party/quackle/build \
+RUN cmake -S /src/third_party/quackle -B /src/third_party/quackle/build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
  && cmake --build /src/third_party/quackle/build -j
 
 # ==== costruisci SOLO makegaddag_tool (stile Colab) e genera GADDAG ====
 # Copia la wordlist sorgente (testo, uppercase)
 COPY lexica_src/enable1.txt /src/enable1.txt
 
-# Step 8 — build e usa solo makegaddag
+# Manually build makegaddag_tool (no CMake target provided upstream)
 RUN set -euo pipefail; \
   cd /src/third_party/quackle; \
-  LIB="$(find build -type f -name 'liblibquackle.a' | head -n1)"; \
+  LIB="$(find /src/third_party/quackle/build -type f -name 'liblibquackle.a' | head -n1)"; \
   test -n "$LIB"; echo "Using lib: $LIB"; \
-  INCS="-I/src/third_party/quackle \
-        -I/src/third_party/quackle/include \
-        -I/src/third_party/quackle/libquackle \
-        -I/src/third_party/quackle/quackleio \
-        -I/src/third_party/quackle/makegaddag \
-        -I/src/third_party/quackle/src \
-        -I/src/third_party/quackle/src/libquackle \
-        -I/src/third_party/quackle/src/libquackle/include"; \
+  INCS="-I/src/third_party/quackle -I/src/third_party/quackle/include -I/src/third_party/quackle/libquackle -I/src/third_party/quackle/quackleio -I/src/third_party/quackle/makegaddag -I/src/third_party/quackle/src -I/src/third_party/quackle/src/libquackle -I/src/third_party/quackle/src/libquackle/include"; \
   ICU_CFLAGS="$(pkg-config --cflags icu-uc icu-i18n 2>/dev/null || true)"; \
   ICU_LIBS="$(pkg-config --libs   icu-uc icu-i18n 2>/dev/null || echo '-licuuc -licui18n')"; \
   QT_CFLAGS="$(pkg-config --cflags Qt5Core 2>/dev/null || true)"; \
   QT_LIBS="$(pkg-config --libs   Qt5Core   2>/dev/null || echo '-lQt5Core')"; \
   CXXFLAGS="-O3 -std=c++17 -fPIC"; \
   LATE_LIBS="-lpthread -lboost_regex -lboost_filesystem -lboost_system $ICU_LIBS $QT_LIBS"; \
-  \
   mkdir -p /tmp/quackle_bin /tmp/quackle_obj; \
-  mapfile -t QIO_CPP < <(find quackleio -maxdepth 1 -type f -name '*.cpp' | sort -u || true); \
-  for must in gcgio.cpp dictfactory.cpp flexiblealphabetparameters.cpp alphabetparameters.cpp; do \
-    [ -f "quackleio/$must" ] && QIO_CPP+=("quackleio/$must"); \
+  QIO_SRCS="quackleio/dawgfactory.cpp quackleio/dict.cpp quackleio/dictfactory.cpp quackleio/dictimplementation.cpp quackleio/flexiblealphabet.cpp quackleio/froggetopt.cpp quackleio/gaddagfactory.cpp quackleio/gcgio.cpp quackleio/queenie.cpp quackleio/streamingreporter.cpp quackleio/util.cpp alphabetparameters.cpp"; \
+  for f in $QIO_SRCS; do \
+    base="$(basename "$f" .cpp)"; \
+    g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c "$f" -o "/tmp/quackle_obj/${base}.o"; \
   done; \
-  # De-dup
-  readarray -t QIO_CPP < <(printf '%s\n' "${QIO_CPP[@]}" | awk 'NF && !x[$0]++'); \
-  \
-  # Compila mantenendo le sottocartelle e prepara lista OBJS
-  OBJS=(); \
-  for f in "${QIO_CPP[@]}"; do \
-    out="/tmp/quackle_obj/${f%.cpp}.o"; \
-    mkdir -p "$(dirname "$out")"; \
-    g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c "$f" -o "$out"; \
-    OBJS+=("$out"); \
-  done; \
-  # Main di makegaddag
   g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c makegaddag/makegaddag.cpp -o /tmp/quackle_obj/makegaddag_main.o; \
-  \
-  # Link finale (solo makegaddag)
-  g++ /tmp/quackle_obj/makegaddag_main.o "${OBJS[@]}" "$LIB" -o /tmp/quackle_bin/makegaddag_tool $LATE_LIBS; \
+  OBJS=$(ls /tmp/quackle_obj/*.o | grep -v 'makegaddag_main.o' || true); \
+  g++ /tmp/quackle_obj/makegaddag_main.o $OBJS "$LIB" -o /tmp/quackle_bin/makegaddag_tool $LATE_LIBS; \
   ls -lh /tmp/quackle_bin/makegaddag_tool; \
-  \
-  # Canonical Quackle flow: DAWG first, then GADDAG
-  echo "=== Canonical Quackle Lexicon Generation ==="; \
-  echo "Step 1: Generate DAWG from wordlist"; \
-  cd /src/third_party/quackle; \
+  # Generate the GADDAG
   mkdir -p /tmp/lexicon_build; \
   cp -f /src/enable1.txt /tmp/lexicon_build/wordlist.txt; \
-  cd /tmp/lexicon_build; \
-  \
-  # Create GADDAG using canonical method
-  echo "Creating GADDAG from wordlist..."; \
   cd /src/third_party/quackle/makegaddag; \
   ln -sf /tmp/lexicon_build/wordlist.txt gaddaginput.raw; \
   /tmp/quackle_bin/makegaddag_tool 1>/tmp/gadd.stdout 2>/tmp/gadd.stderr || true; \
-  \
   echo "=== GADDAG Generation Output ==="; \
-  echo "stdout:"; cat /tmp/gadd.stdout || true; \
-  echo "stderr:"; cat /tmp/gadd.stderr || true; \
-  # Ensure we have a GADDAG output
-  if [ -f "output.gaddag" ]; then \
+  echo "stdout:"; tail -n +1 /tmp/gadd.stdout || true; \
+  echo "stderr:"; tail -n +1 /tmp/gadd.stderr || true; \
+  if [ -f "output.gaddag" ] && [ -s "output.gaddag" ]; then \
     echo "GADDAG generated successfully"; \
     ls -lh output.gaddag; \
     mkdir -p /out_lexica && cp -f output.gaddag /out_lexica/enable1.gaddag; \
   else \
-    echo "GADDAG generation failed, trying alternative method..."; \
-    cd /src/third_party/quackle/makegaddag; \
-    ln -sf /src/enable1.txt gaddaginput.raw; \
-    /tmp/quackle_bin/makegaddag_tool 1>/tmp/gadd2.stdout 2>/tmp/gadd2.stderr || true; \
-    if [ -f "output.gaddag" ]; then \
-      echo "Alternative GADDAG method succeeded"; \
-      ls -lh output.gaddag; \
-      mkdir -p /out_lexica && cp -f output.gaddag /out_lexica/enable1.gaddag; \
-    else \
-      echo "FATAL: Both GADDAG generation methods failed"; \
-      echo "--- stderr from method 1 ---"; cat /tmp/gadd.stderr || true; \
-      echo "--- stderr from method 2 ---"; cat /tmp/gadd2.stderr || true; \
-      exit 1; \
-    fi; \
+    echo "FATAL: GADDAG generation failed (manual tool)"; \
+    exit 1; \
   fi; \
-  echo "Final GADDAG:"; ls -lh /out_lexica/enable1.gaddag; \
-  \
-  echo "=== Generating DAWG as fallback ==="; \
-  cd /src/third_party/quackle; \
-  # Build makeminidawg tool with same exact configuration as GADDAG
-  if [ -f "makeminidawg/makeminidawgmain.cpp" ]; then \
-    echo "Building makeminidawg tool with same config as GADDAG..."; \
-    g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c makeminidawg/makeminidawgmain.cpp -o /tmp/quackle_obj/makeminidawg_main.o; \
-    g++ /tmp/quackle_obj/makeminidawg_main.o "${OBJS[@]}" "$LIB" -o /tmp/quackle_bin/makeminidawg_tool $LATE_LIBS; \
-    echo "Generating DAWG from same wordlist..."; \
-    cd /tmp/lexicon_build; \
-    echo "Arguments: wordlist.txt enable1.dawg"; \
-    /tmp/quackle_bin/makeminidawg_tool wordlist.txt enable1.dawg 1>/tmp/dawg.stdout 2>/tmp/dawg.stderr || true; \
-    echo "DAWG stdout:"; cat /tmp/dawg.stdout || true; \
-    echo "DAWG stderr:"; cat /tmp/dawg.stderr || true; \
-    if [ -f "enable1.dawg" ] && [ -s "enable1.dawg" ]; then \
-      echo "DAWG generated successfully"; \
-      ls -lh enable1.dawg; \
-      cp -f enable1.dawg /out_lexica/enable1.dawg; \
-    else \
-      echo "DAWG generation failed or empty, using basic fallback"; \
-      # Create a minimal valid DAWG placeholder
-      echo -e "\\x00\\x00\\x00\\x01DAWG" > /out_lexica/enable1.dawg; \
-    fi; \
-  else \
-    echo "makeminidawg not available, creating minimal fallback"; \
-    echo -e "\\x00\\x00\\x00\\x01DAWG" > /out_lexica/enable1.dawg; \
-  fi
+  echo "Final GADDAG:"; ls -lh /out_lexica/enable1.gaddag;
+
+  # DAWG generation removed to enforce GADDAG-only per constraints
 
 # Sanity check: esistenza di liblibquackle.a e struttura file (niente /src richiesto)
 RUN test -f /src/third_party/quackle/build/liblibquackle.a
@@ -192,12 +125,14 @@ COPY app/ /app/app/
 RUN mkdir -p /app/bin /app/lexica
 COPY --from=builder /build/engine_wrapper /app/bin/engine_wrapper
 COPY --from=builder /out_lexica/enable1.gaddag /app/lexica/enable1.gaddag
-COPY --from=builder /out_lexica/enable1.dawg /app/lexica/enable1.dawg
+# No DAWG runtime copy (GADDAG-only)
 
 # bring the alphabet file to runtime (many loaders expect it around)
 RUN mkdir -p /app/alphabets
 COPY --from=builder /src/third_party/quackle/data/alphabets/english.quackle_alphabet /app/alphabets/english.quackle_alphabet
 ENV QUACKLE_ALPHABET=/app/alphabets/english.quackle_alphabet
+COPY --from=builder /src/third_party/quackle/data /usr/share/quackle/data
+ENV QUACKLE_APPDATA_DIR=/usr/share/quackle/data
 
 ENV GADDAG_PATH=/app/lexica/enable1.gaddag
 
@@ -211,18 +146,13 @@ COPY scripts/exec_ping.sh       /app/scripts/exec_ping.sh
 COPY scripts/debug_gaddag.sh    /app/scripts/debug_gaddag.sh
 COPY scripts/smoke_test.sh      /app/scripts/smoke_test.sh
 
-# Critical smoke test with debugging and regeneration
+# Critical smoke test: must load GADDAG and answer ping; fail build otherwise
 RUN chmod +x /app/scripts/*.sh \
  && /app/scripts/init_lexicon.sh \
  && /app/scripts/verify_runtime.sh \
- && echo "=== CRITICAL SMOKE TEST: wrapper must load lexicon without segfault ===" \
- && (timeout 30s bash -c 'echo '\''{"op":"ping"}'\'' | /app/bin/engine_wrapper --gaddag /app/lexica/enable1.gaddag --ruleset it' \
-     && echo "✓ GADDAG SMOKE TEST PASSED" \
-     || (echo "GADDAG failed, generating backtrace and attempting regeneration..." \
-         && echo '{"op":"ping"}' | gdb -batch -ex "run --gaddag /app/lexica/enable1.gaddag --ruleset it" -ex "bt" -ex "quit" /app/bin/engine_wrapper 2>&1 | head -30 \
-         && echo "Regenerating GADDAG with runtime libraries..." \
-         && echo "⚠ WARNING: Using fallback mode - GADDAG incompatible with runtime" \
-         && echo "✓ BUILD CONTINUES: Runtime will attempt DAWG fallback"))
+ && echo "=== CRITICAL SMOKE TEST: GADDAG must load and respond to ping ===" \
+ && timeout 30s bash -c 'echo '\''{"op":"ping"}'\'' | /app/bin/engine_wrapper --gaddag /app/lexica/enable1.gaddag --ruleset it' \
+ && echo "✓ GADDAG SMOKE TEST PASSED"
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/bin/tini","--"]

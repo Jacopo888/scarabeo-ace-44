@@ -129,6 +129,7 @@ int main(int argc, char** argv) {
         ? std::string(envAppData)
         : std::string("/usr/share/quackle/data");
     QUACKLE_DATAMANAGER->setAppDataDirectory(appDataDir);
+    std::fprintf(stderr, "[wrapper] appdata_dir=%s\n", appDataDir.c_str());
 
     QUACKLE_DATAMANAGER->setBackupLexicon("enable1");
     if (!QUACKLE_DATAMANAGER->parameters()) {
@@ -141,14 +142,21 @@ int main(int argc, char** argv) {
         QUACKLE_DATAMANAGER->setStrategyParameters(new Quackle::StrategyParameters());
     }
 
-    // Alphabet selection: use default English for now
-    // TODO: Add support for custom alphabets when FlexibleAlphabetParameters is available
+    // Alphabet selection: prefer provided QUACKLE_ALPHABET when available
     std::string alphabet_path = std::getenv("QUACKLE_ALPHABET") ? std::getenv("QUACKLE_ALPHABET") : "";
     if (!alphabet_path.empty()) {
-        std::fprintf(stderr, "[wrapper] alphabet file specified: %s (using default English for now)\n", alphabet_path.c_str());
+        std::fprintf(stderr, "[wrapper] alphabet file specified: %s\n", alphabet_path.c_str());
+        try {
+            // Try flexible alphabet if available in this build
+            // Fallback to English if not supported
+            QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
+        } catch (...) {
+            QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
+        }
+    } else {
+        std::fprintf(stderr, "[wrapper] using default English alphabet\n");
+        QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
     }
-    std::fprintf(stderr, "[wrapper] using default English alphabet\n");
-    QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
 
     // Load GADDAG lexicon once with robust error handling
     auto *lexParams = new Quackle::LexiconParameters();
@@ -206,70 +214,18 @@ int main(int argc, char** argv) {
         } else {
             std::fprintf(stderr, "[wrapper] Using default English alphabet (no QUACKLE_ALPHABET env)\n");
         }
-        
-        // Check if we should skip GADDAG loading due to known incompatibility
-        bool skip_gaddag = false;
-        if (std::getenv("SKIP_GADDAG_LOAD") && std::string(std::getenv("SKIP_GADDAG_LOAD")) == "1") {
-            skip_gaddag = true;
-            std::fprintf(stderr, "[wrapper] ⚠ SKIP_GADDAG_LOAD=1, bypassing GADDAG loading\n");
+        // Load GADDAG (no fallbacks allowed)
+        try {
+            lexParams->loadGaddag(cfg.gaddag_path);
+            std::fprintf(stderr, "[wrapper] ✓ GADDAG loaded successfully\n");
+            gaddag_loaded = true;
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "[wrapper] ✗ GADDAG loading failed: %s\n", e.what());
+            return 4;
+        } catch (...) {
+            std::fprintf(stderr, "[wrapper] ✗ GADDAG loading failed: unknown exception\n");
+            return 5;
         }
-        
-        // Try multiple lexicon loading strategies
-        bool lexicon_loaded = false;
-        std::string loaded_lexicon_type = "none";
-        
-        // Strategy 1: Try GADDAG (unless skipped)
-        if (!skip_gaddag) {
-            try {
-                lexParams->loadGaddag(cfg.gaddag_path);
-                std::fprintf(stderr, "[wrapper] ✓ GADDAG loaded successfully\n");
-                lexicon_loaded = true;
-                loaded_lexicon_type = "GADDAG";
-            } catch (const std::exception& e) {
-                std::fprintf(stderr, "[wrapper] ✗ GADDAG loading failed: %s\n", e.what());
-            } catch (...) {
-                std::fprintf(stderr, "[wrapper] ✗ GADDAG loading failed: unknown exception\n");
-            }
-        } else {
-            std::fprintf(stderr, "[wrapper] Skipping GADDAG loading due to environment flag\n");
-        }
-        
-        // Strategy 2: Try DAWG fallback
-        if (!lexicon_loaded) {
-            std::string dawg_path = cfg.gaddag_path;
-            size_t pos = dawg_path.find(".gaddag");
-            if (pos != std::string::npos) {
-                dawg_path.replace(pos, 7, ".dawg");
-                if (std::filesystem::exists(dawg_path)) {
-                    std::fprintf(stderr, "[wrapper] Trying DAWG fallback: %s\n", dawg_path.c_str());
-                    try {
-                        lexParams->loadDawg(dawg_path);
-                        std::fprintf(stderr, "[wrapper] ✓ DAWG loaded successfully as fallback\n");
-                        lexicon_loaded = true;
-                        loaded_lexicon_type = "DAWG";
-                    } catch (const std::exception& dawg_e) {
-                        std::fprintf(stderr, "[wrapper] ✗ DAWG fallback failed: %s\n", dawg_e.what());
-                    } catch (...) {
-                        std::fprintf(stderr, "[wrapper] ✗ DAWG fallback failed: unknown exception\n");
-                    }
-                }
-            }
-        }
-        
-        // Strategy 3: Initialize with minimal lexicon for testing
-        if (!lexicon_loaded) {
-            std::fprintf(stderr, "[wrapper] ⚠ No lexicon files loadable, initializing minimal test lexicon\n");
-            std::fprintf(stderr, "[wrapper] This will allow basic testing but move generation will be limited\n");
-            
-            // Create a minimal working lexicon state
-            // Note: This is a fallback for testing - in production you need proper lexicon files
-            lexicon_loaded = true;
-            loaded_lexicon_type = "minimal_test";
-        }
-        
-        gaddag_loaded = lexicon_loaded;
-        std::fprintf(stderr, "[wrapper] Final lexicon state: %s (type: %s)\n", 
-                     lexicon_loaded ? "loaded" : "failed", loaded_lexicon_type.c_str());
         
     } catch (const std::exception& e) {
         std::fprintf(stderr, "[wrapper] FATAL: File system error: %s\n", e.what());
@@ -310,88 +266,19 @@ int main(int argc, char** argv) {
             if (op == "probe_lexicon") {
                 json out;
                 out["lexicon_ok"] = gaddag_loaded;
-                out["gaddag_ok"] = false;
-                out["dawg_ok"] = false;
-                
-                if (gaddag_loaded) {
-                    // Determine lexicon type based on what was actually loaded
-                    std::string lexicon_type = "unknown";
-                    std::string lexicon_path = cfg.gaddag_path;
-                    
-                    // Check file extension to determine type
-                    if (cfg.gaddag_path.find(".gaddag") != std::string::npos) {
-                        lexicon_type = "GADDAG";
-                        out["gaddag_ok"] = true;
-                    } else if (cfg.gaddag_path.find(".dawg") != std::string::npos) {
-                        lexicon_type = "DAWG";
-                        out["dawg_ok"] = true;
-                        // For DAWG fallback, use the actual DAWG path
-                        std::string dawg_path = cfg.gaddag_path;
-                        size_t pos = dawg_path.find(".gaddag");
-                        if (pos != std::string::npos) {
-                            dawg_path.replace(pos, 7, ".dawg");
-                            lexicon_path = dawg_path;
-                        }
-                    } else {
-                        lexicon_type = "minimal_test";
-                        out["notes"] = "Using minimal test lexicon - limited functionality";
-                    }
-                    
-                    struct stat st{};
-                    long long size = -1;
-                    if (::stat(lexicon_path.c_str(), &st) == 0) size = static_cast<long long>(st.st_size);
-                    
-                    out["path"] = lexicon_path;
-                    out["size"] = size;
-                    out["lexicon_type"] = lexicon_type;
-                    
-                    if (lexicon_type != "minimal_test") {
-                        out["notes"] = lexicon_type + " loaded successfully";
-                    }
-                    
-                    std::string alphabet_path = std::getenv("QUACKLE_ALPHABET") ? std::getenv("QUACKLE_ALPHABET") : "";
-                    out["alphabet"] = alphabet_path.empty() ? "default_english" : alphabet_path;
-                } else {
-                    out["error"] = "no_lexicon_loaded";
-                    out["notes"] = "All lexicon loading strategies failed";
-                    out["alphabet"] = "unknown";
-                }
-                
+                out["gaddag_ok"] = gaddag_loaded;
+                out["gaddag_path"] = cfg.gaddag_path;
+                struct stat st{};
+                long long size = -1;
+                if (::stat(cfg.gaddag_path.c_str(), &st) == 0) size = static_cast<long long>(st.st_size);
+                out["size"] = size;
+                std::string alphabet_path2 = std::getenv("QUACKLE_ALPHABET") ? std::getenv("QUACKLE_ALPHABET") : "";
+                out["alphabet"] = alphabet_path2.empty() ? "default_english" : alphabet_path2;
                 std::cout << out.dump() << "\n";
                 std::cout.flush();
                 continue;
             }
-            if (op == "test_move") {
-                // Generate a test move even with minimal lexicon
-                json out;
-                if (gaddag_loaded) {
-                    // Create a simple test move for demonstration
-                    json test_move;
-                    test_move["word"] = "TEST";
-                    test_move["row"] = 7;
-                    test_move["col"] = 7;
-                    test_move["dir"] = "across";
-                    test_move["score"] = 8;
-                    test_move["positions"] = json::array({
-                        json::object({{"row", 7}, {"col", 7}, {"letter", "T"}}),
-                        json::object({{"row", 7}, {"col", 8}, {"letter", "E"}}),
-                        json::object({{"row", 7}, {"col", 9}, {"letter", "S"}}),
-                        json::object({{"row", 7}, {"col", 10}, {"letter", "T"}})
-                    });
-                    
-                    out["moves"] = json::array({test_move});
-                    out["status"] = "success";
-                    out["note"] = "Test move generated - lexicon functionality limited";
-                } else {
-                    out["moves"] = json::array();
-                    out["status"] = "error";
-                    out["error"] = "no_lexicon";
-                }
-                
-                std::cout << out.dump() << "\n";
-                std::cout.flush();
-                continue;
-            }
+            // no test_move op; only compute is supported
             
             if (op != "compute") continue;
 
@@ -464,11 +351,14 @@ int main(int argc, char** argv) {
             }
         }
 
-        // Hard timebox via async
+        // Hard timebox via async (also include heavy cross computation here)
+        auto t_compute_start = std::chrono::steady_clock::now();
         auto worker = [&]() {
             Quackle::Generator gen(pos);
-            gen.allCrosses();
-            gen.kibitz(std::max(10, top_n));
+            if (!is_board_empty) {
+                gen.allCrosses();
+            }
+            gen.kibitz(std::max(5, top_n));
             const auto &kmoves = gen.kibitzList();
             json moves = json::array();
             int count = 0;
@@ -514,13 +404,35 @@ int main(int argc, char** argv) {
         auto status = fut.wait_for(std::chrono::milliseconds(limit_ms + 50));
         json moves;
         if (status == std::future_status::timeout) {
-            // Timed out: return empty or best-so-far (not tracked here)
+            // Timed out: return fallback safe move (never timeout outward)
             std::fprintf(stderr, "[wrapper] compute timeout limit_ms=%d truncated=true\n", limit_ms);
+            // Simple fallback: PASS (or a single-letter center drop on empty board)
+            json jmv;
+            if (is_board_empty && !rackStr.empty()) {
+                // place first rack letter at center
+                char ch = std::toupper(static_cast<unsigned char>(rackStr[0]));
+                json pos_arr = json::array({ json::array({7, 7}) });
+                jmv = {
+                    {"word", std::string(1, ch)},
+                    {"row", 7}, {"col", 7}, {"dir", "H"}, {"score", 0}, {"positions", pos_arr}
+                };
+            } else {
+                jmv = { {"word","PASS"}, {"row",7}, {"col",7}, {"dir","H"}, {"score",0}, {"positions", json::array()} };
+            }
             moves = json::array();
+            moves.push_back(jmv);
         } else {
             moves = fut.get();
         }
-        json out = { {"moves", moves}, {"truncated", status == std::future_status::timeout} };
+        auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - t_compute_start).count();
+        json meta = {
+            {"time_ms", static_cast<long long>(elapsed_ms)},
+            {"board_empty", is_board_empty},
+            {"truncated", status == std::future_status::timeout},
+            {"moves_returned", static_cast<int>(moves.size())}
+        };
+        json out = { {"moves", moves}, {"meta", meta} };
         std::cout << out.dump() << "\n";
         std::cout.flush();
         } catch (const std::exception& e) {

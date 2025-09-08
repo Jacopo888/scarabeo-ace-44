@@ -30,19 +30,13 @@ def start_engine():
         raise RuntimeError("Wrapper bin not found at /app/bin/engine_wrapper")
     if not os.path.exists(GADDAG_PATH):
         raise RuntimeError(f"GADDAG not found at {GADDAG_PATH}")
-    # Set environment for wrapper process
-    env = os.environ.copy()
-    # Skip GADDAG loading if we know it causes segfaults (temporary workaround)
-    env["SKIP_GADDAG_LOAD"] = "1"
-    
     _engine_proc = subprocess.Popen(
         [binary_path, "--gaddag", GADDAG_PATH, "--ruleset", RULESET],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        bufsize=1,  # line-buffered
-        env=env
+        bufsize=1  # line-buffered
     )
     # Start stderr drain thread (non-blocking logging)
     def _drain_stderr(proc: subprocess.Popen):
@@ -179,79 +173,108 @@ def cmd(payload: dict = Body(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"engine error: {e}")
 
+def _is_board_empty(board: list[list[str]]) -> bool:
+    try:
+        if len(board) != 15:
+            return False
+        for r in board:
+            if len(r) != 15:
+                return False
+            for c in r:
+                if isinstance(c, str) and (c == "" or c == " "):
+                    continue
+                return False
+        return True
+    except Exception:
+        return False
+
+
+def _fallback_move(board: list[list[str]], rack: str) -> dict:
+    # Simple, safe fallback: center drop single tile if empty board, else PASS
+    if _is_board_empty(board) and rack:
+        ch = rack[0].upper()
+        return {
+            "ok": True,
+            "status": "fallback_center_drop",
+            "best_move": {"word": ch, "row": 7, "col": 7, "dir": "H", "score": 0, "positions": [[7, 7]]},
+            "moves": [{"word": ch, "row": 7, "col": 7, "dir": "H", "score": 0, "positions": [[7, 7]]}],
+            "meta": {"fallback": True}
+        }
+    return {
+        "ok": True,
+        "status": "fallback_pass",
+        "best_move": {"word": "PASS", "row": 7, "col": 7, "dir": "H", "score": 0, "positions": []},
+        "moves": [{"word": "PASS", "row": 7, "col": 7, "dir": "H", "score": 0, "positions": []}],
+        "meta": {"fallback": True}
+    }
+
+
 @app.post("/engine/move")
 def test_move(req: dict = Body(...)):
-    """Test endpoint to get a move with a sample board and rack"""
-    
-    # Default simple test configuration
+    """Budgeted compute: always respond within limit_ms with moves or fallback."""
+
     default_board = [["" for _ in range(15)] for _ in range(15)]
     default_rack = "ABCDEFG"
-    
-    # Use provided values or defaults
+
     board = req.get("board", default_board)
     rack = req.get("rack", default_rack)
-    
-    test_payload = {
+    limit_ms = int(req.get("limit_ms", 500))
+    top_n = int(req.get("top_n", 5))
+
+    payload = {
         "op": "compute",
         "board": board,
         "rack": rack,
         "bag": "",
         "turn": "me",
-        "limit_ms": req.get("limit_ms", 3000),
+        "limit_ms": limit_ms,
         "ruleset": "it",
-        "top_n": req.get("top_n", 5)
+        "top_n": top_n,
     }
-    
+
+    # Ping once (short) to verify wrapper alive; do not block response
     try:
-        # First try a simple ping to see if wrapper is working
-        ping_result = ask_engine({"op": "ping"}, timeout_ms=2000)
-        if not ping_result.get("pong"):
-            return {
-                "ok": False,
-                "error": "wrapper_not_responding", 
-                "ping_result": ping_result,
-                "status": "GADDAG/DAWG loading failed"
-            }
-        
-        # If ping works, try to get a move (use test_move for compatibility)
+        _ = ask_engine({"op": "ping"}, timeout_ms=300)
+    except Exception:
+        # wrapper not responding; immediate fallback
+        return _fallback_move(board, rack)
+
+    # Run compute in a short-lived thread; join with budget, return fallback if not ready
+    result: dict = {}
+    done = threading.Event()
+
+    def _worker():
+        nonlocal result
         try:
-            move_result = ask_engine({"op": "test_move"}, timeout_ms=3000)
-        except Exception:
-            # Fallback to compute if test_move not available
-            move_result = ask_engine(test_payload, timeout_ms=6000)
-        
-        moves = move_result.get("moves", [])
-        
-        if moves and len(moves) > 0:
-            return {
-                "ok": True,
-                "ping_ok": True,
-                "best_move": moves[0],
-                "moves": moves,
-                "status": "success"
-            }
-        else:
-            return {
-                "ok": False,
-                "ping_ok": True,
-                "error": "no_moves_found",
-                "wrapper_response": move_result,
-                "status": "engine responded but found no moves"
-            }
-        
-    except TimeoutError:
-        return {
-            "ok": False,
-            "error": "timeout", 
-            "status": "wrapper crashed or hung during move computation"
+            # Give wrapper a bit more time internally; we'll still enforce budget here
+            result = ask_engine(payload, timeout_ms=limit_ms + 3000)
+        except Exception as e:
+            result = {"moves": [], "error": str(e)}
+        finally:
+            done.set()
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    done.wait(timeout=max(0, (limit_ms + 50) / 1000.0))
+
+    if not done.is_set():
+        return _fallback_move(board, rack)
+
+    moves = result.get("moves", [])
+    if moves:
+        # Normalize output
+        out = {
+            "ok": True,
+            "best_move": moves[0],
+            "moves": moves,
+            "status": "success",
         }
-    except Exception as e:
-        return {
-            "ok": False,
-            "error": "exception", 
-            "message": str(e),
-            "status": "wrapper failed to process request"
-        }
+        if isinstance(result.get("meta"), dict):
+            out["meta"] = result["meta"]
+        return out
+
+    # No moves -> return fallback
+    return _fallback_move(board, rack)
 
 @app.post("/engine/move-old")
 def get_move_old(req: dict = Body(...)):
