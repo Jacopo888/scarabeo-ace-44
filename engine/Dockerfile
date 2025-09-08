@@ -20,48 +20,57 @@ RUN cmake -S /src/third_party/quackle -B /src/third_party/quackle/build \
 # Copia la wordlist sorgente (testo, uppercase)
 COPY lexica_src/enable1.txt /src/enable1.txt
 
+# Step 8 — build e usa solo makegaddag
 RUN set -euo pipefail; \
-    cd /src/third_party/quackle; \
-    LIB="$(find build -type f -name 'liblibquackle.a' | head -n1)"; \
-    test -n "$LIB"; \
-    echo "Using lib: $LIB"; \
-    INCS="-I/src/third_party/quackle \
-          -I/src/third_party/quackle/include \
-          -I/src/third_party/quackle/libquackle \
-          -I/src/third_party/quackle/quackleio \
-          -I/src/third_party/quackle/makegaddag \
-          -I/src/third_party/quackle/src \
-          -I/src/third_party/quackle/src/libquackle \
-          -I/src/third_party/quackle/src/libquackle/include"; \
-    ICU_CFLAGS="$(pkg-config --cflags icu-uc icu-i18n 2>/dev/null || true)"; \
-    ICU_LIBS="$(pkg-config --libs   icu-uc icu-i18n 2>/dev/null || echo '-licuuc -licui18n')"; \
-    QT_CFLAGS="$(pkg-config --cflags Qt5Core 2>/dev/null || true)"; \
-    QT_LIBS="$(pkg-config --libs   Qt5Core   2>/dev/null || echo '-lQt5Core')"; \
-    CXXFLAGS="-O3 -std=c++17 -fPIC"; \
-    LATE_LIBS="-lpthread -lboost_regex -lboost_filesystem -lboost_system $ICU_LIBS $QT_LIBS"; \
-    mkdir -p /tmp/quackle_bin /tmp/quackle_obj; \
-    mapfile -t QIO_CPP < <(find quackleio -maxdepth 1 -type f -name '*.cpp' | sort -u || true); \
-    # aggiungi eventuali sorgenti richiesti esplicitamente
-    for must in gcgio.cpp dictfactory.cpp flexiblealphabetparameters.cpp alphabetparameters.cpp; do \
-      [ -f "quackleio/$must" ] && QIO_CPP+=("quackleio/$must"); \
-    done; \
-    readarray -t QIO_CPP < <(printf "%s\n" "${QIO_CPP[@]}" | awk 'NF && !x[$0]++'); \
-    for f in "${QIO_CPP[@]}"; do \
-      base="$(basename "$f" .cpp)"; \
-      g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c "$f" -o "/tmp/quackle_obj/${base}.o"; \
-    done; \
-    g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c makegaddag/makegaddag.cpp -o /tmp/quackle_obj/makegaddag_main.o; \
-    g++ /tmp/quackle_obj/makegaddag_main.o "${QIO_CPP[@]/#/\/tmp\/quackle_obj\/}" "$LIB" -o /tmp/quackle_bin/makegaddag_tool $LATE_LIBS; \
-    ls -lh /tmp/quackle_bin/makegaddag_tool; \
-    # esegui dalla cartella makegaddag con input gaddaginput.raw (symlink)
-    cp -f /src/enable1.txt ./enable1.txt; \
-    cd makegaddag; \
-    ln -sf ../enable1.txt gaddaginput.raw; \
-    /tmp/quackle_bin/makegaddag_tool 1>/tmp/gadd.stdout 2>/tmp/gadd.stderr || true; \
-    echo '--- makegaddag stderr (tail) ---'; tail -n 60 /tmp/gadd.stderr || true; \
-    # verifica output.gaddag non vuoto
-    test -f output.gaddag && test -s output.gaddag; \
-    mkdir -p /out_lexica && cp -f output.gaddag /out_lexica/enable1.gaddag && ls -lh /out_lexica/enable1.gaddag
+  cd /src/third_party/quackle; \
+  LIB="$(find build -type f -name 'liblibquackle.a' | head -n1)"; \
+  test -n "$LIB"; echo "Using lib: $LIB"; \
+  INCS="-I/src/third_party/quackle \
+        -I/src/third_party/quackle/include \
+        -I/src/third_party/quackle/libquackle \
+        -I/src/third_party/quackle/quackleio \
+        -I/src/third_party/quackle/makegaddag \
+        -I/src/third_party/quackle/src \
+        -I/src/third_party/quackle/src/libquackle \
+        -I/src/third_party/quackle/src/libquackle/include"; \
+  ICU_CFLAGS="$(pkg-config --cflags icu-uc icu-i18n 2>/dev/null || true)"; \
+  ICU_LIBS="$(pkg-config --libs   icu-uc icu-i18n 2>/dev/null || echo '-licuuc -licui18n')"; \
+  QT_CFLAGS="$(pkg-config --cflags Qt5Core 2>/dev/null || true)"; \
+  QT_LIBS="$(pkg-config --libs   Qt5Core   2>/dev/null || echo '-lQt5Core')"; \
+  CXXFLAGS="-O3 -std=c++17 -fPIC"; \
+  LATE_LIBS="-lpthread -lboost_regex -lboost_filesystem -lboost_system $ICU_LIBS $QT_LIBS"; \
+  \
+  mkdir -p /tmp/quackle_bin /tmp/quackle_obj; \
+  mapfile -t QIO_CPP < <(find quackleio -maxdepth 1 -type f -name '*.cpp' | sort -u || true); \
+  for must in gcgio.cpp dictfactory.cpp flexiblealphabetparameters.cpp alphabetparameters.cpp; do \
+    [ -f "quackleio/$must" ] && QIO_CPP+=("quackleio/$must"); \
+  done; \
+  # De-dup
+  readarray -t QIO_CPP < <(printf '%s\n' "${QIO_CPP[@]}" | awk 'NF && !x[$0]++'); \
+  \
+  # Compila mantenendo le sottocartelle e prepara lista OBJS
+  OBJS=(); \
+  for f in "${QIO_CPP[@]}"; do \
+    out="/tmp/quackle_obj/${f%.cpp}.o"; \
+    mkdir -p "$(dirname "$out")"; \
+    g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c "$f" -o "$out"; \
+    OBJS+=("$out"); \
+  done; \
+  # Main di makegaddag
+  g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c makegaddag/makegaddag.cpp -o /tmp/quackle_obj/makegaddag_main.o; \
+  \
+  # Link finale (solo makegaddag)
+  g++ /tmp/quackle_obj/makegaddag_main.o "${OBJS[@]}" "$LIB" -o /tmp/quackle_bin/makegaddag_tool $LATE_LIBS; \
+  ls -lh /tmp/quackle_bin/makegaddag_tool; \
+  \
+  # Esecuzione: il tool vuole essere lanciato da makegaddag/ e usa nomi fissi
+  cp -f /src/enable1.txt ./enable1.txt; \
+  cd makegaddag; \
+  ln -sf ../enable1.txt gaddaginput.raw; \
+  /tmp/quackle_bin/makegaddag_tool 1>/tmp/gadd.stdout 2>/tmp/gadd.stderr || true; \
+  echo '--- makegaddag stderr (tail) ---'; tail -n 60 /tmp/gadd.stderr || true; \
+  test -s output.gaddag; \
+  mkdir -p /out_lexica && cp -f output.gaddag /out_lexica/enable1.gaddag && ls -lh /out_lexica/enable1.gaddag
 
 # Sanity check: esistenza di liblibquackle.a e struttura file (niente /src richiesto)
 RUN test -f /src/third_party/quackle/build/liblibquackle.a
