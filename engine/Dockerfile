@@ -125,6 +125,9 @@ COPY app/ /app/app/
 RUN mkdir -p /app/bin /app/lexica
 COPY --from=builder /build/engine_wrapper /app/bin/engine_wrapper
 COPY --from=builder /out_lexica/enable1.gaddag /app/lexica/enable1.gaddag
+# bring the source wordlist to runtime for empty-board fast path
+RUN mkdir -p /app/lexica_src
+COPY --from=builder /src/enable1.txt /app/lexica_src/enable1.txt
 # No DAWG runtime copy (GADDAG-only)
 
 # bring the alphabet file to runtime (many loaders expect it around)

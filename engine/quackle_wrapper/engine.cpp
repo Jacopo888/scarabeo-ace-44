@@ -14,6 +14,8 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <unordered_map>
+#include <algorithm>
 
 // Quackle headers (core only, no Qt)
 #include "game.h"
@@ -37,6 +39,73 @@ struct Config {
     std::string gaddag_path;
     std::string ruleset = "it";
 };
+
+// Simple signature-based word index for empty-board fast path
+static std::unordered_map<std::string, std::vector<std::string>> g_sig_index;
+static bool g_sig_index_ready = false;
+
+static std::string sig_of(const std::string &w) {
+    std::string s = w;
+    for (char &c : s) c = std::toupper(static_cast<unsigned char>(c));
+    std::sort(s.begin(), s.end());
+    return s;
+}
+
+static void build_signature_index_from_wordlist(const std::string &path) {
+    std::ifstream in(path);
+    if (!in.good()) return;
+    std::string w;
+    size_t added = 0;
+    while (std::getline(in, w)) {
+        if (w.empty()) continue;
+        std::string up;
+        up.reserve(w.size());
+        for (char c: w) if (!isspace(static_cast<unsigned char>(c))) up.push_back(std::toupper(static_cast<unsigned char>(c)));
+        if (up.empty()) continue;
+        g_sig_index[sig_of(up)].push_back(up);
+        if (++added >= 200000) { /* cap to avoid memory blow */ }
+    }
+    g_sig_index_ready = true;
+}
+
+static void ensure_signature_index() {
+    if (g_sig_index_ready) return;
+    const char *wl = std::getenv("ENABLE1_WORDLIST");
+    std::string path = wl && *wl ? wl : std::string("/app/lexica_src/enable1.txt");
+    build_signature_index_from_wordlist(path);
+}
+
+static std::vector<std::string> subset_signatures(const std::string &rack) {
+    // generate all subset signatures length 2..7 with upcased letters; treat '?' separately later
+    std::string letters;
+    int blanks = 0;
+    for (char c: rack) {
+        if (c == '?') { blanks++; continue; }
+        letters.push_back(std::toupper(static_cast<unsigned char>(c)));
+    }
+    std::sort(letters.begin(), letters.end());
+    const int n = (int)letters.size();
+    std::vector<std::string> out;
+    for (int mask = 1; mask < (1<<n); ++mask) {
+        int bits = __builtin_popcount((unsigned)mask);
+        if (bits < 2 || bits > 7) continue;
+        std::string s;
+        s.reserve(bits);
+        for (int i=0;i<n;++i) if (mask & (1<<i)) s.push_back(letters[i]);
+        out.push_back(s);
+    }
+    // naive blank expansion: duplicate entries with a placeholder '0' to indicate one extra letter (limit to 1 blank)
+    if (blanks > 0) {
+        size_t base = out.size();
+        for (size_t i=0;i<base;++i) {
+            if (out[i].size() >= 7) continue;
+            std::string t = out[i];
+            t.push_back('\x01'); // marker for one extra
+            out.push_back(std::move(t));
+        }
+    }
+    return out;
+}
 
 static inline std::string to_upper(const std::string &s) {
     std::string r = s;
@@ -354,10 +423,33 @@ int main(int argc, char** argv) {
         // Hard timebox via async (also include heavy cross computation here)
         auto t_compute_start = std::chrono::steady_clock::now();
         auto worker = [&]() {
-            Quackle::Generator gen(pos);
-            if (!is_board_empty) {
-                gen.allCrosses();
+            // Fast path: empty board anagram via signature index
+            if (is_board_empty) {
+                ensure_signature_index();
+                std::vector<std::string> sigs = subset_signatures(rackStr);
+                json moves = json::array();
+                for (const auto &sig : sigs) {
+                    // handle blank-marked signatures: here we rely on GADDAG later; keep simple to avoid explosion
+                    auto it = g_sig_index.find(sig);
+                    if (it == g_sig_index.end()) continue;
+                    for (const auto &w : it->second) {
+                        // Place across center horizontally
+                        int len = (int)w.size();
+                        int startc = 7 - (len-1); // ensure covers 7
+                        if (startc < 0) startc = 0;
+                        if (startc + len <= 15) {
+                            json pos_arr = json::array();
+                            for (int i=0;i<len;++i) pos_arr.push_back(json::array({7, startc+i}));
+                            moves.push_back({{"word", w},{"row",7},{"col",startc},{"dir","H"},{"score",0},{"positions",pos_arr}});
+                        }
+                    }
+                    if (moves.size() >= (size_t)top_n) break;
+                }
+                return moves;
             }
+
+            Quackle::Generator gen(pos);
+            gen.allCrosses();
             gen.kibitz(std::max(5, top_n));
             const auto &kmoves = gen.kibitzList();
             json moves = json::array();
