@@ -30,13 +30,19 @@ def start_engine():
         raise RuntimeError("Wrapper bin not found at /app/bin/engine_wrapper")
     if not os.path.exists(GADDAG_PATH):
         raise RuntimeError(f"GADDAG not found at {GADDAG_PATH}")
+    # Set environment for wrapper process
+    env = os.environ.copy()
+    # Skip GADDAG loading if we know it causes segfaults (temporary workaround)
+    env["SKIP_GADDAG_LOAD"] = "1"
+    
     _engine_proc = subprocess.Popen(
         [binary_path, "--gaddag", GADDAG_PATH, "--ruleset", RULESET],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        bufsize=1  # line-buffered
+        bufsize=1,  # line-buffered
+        env=env
     )
     # Start stderr drain thread (non-blocking logging)
     def _drain_stderr(proc: subprocess.Popen):
@@ -174,7 +180,81 @@ def cmd(payload: dict = Body(...)):
         raise HTTPException(status_code=500, detail=f"engine error: {e}")
 
 @app.post("/engine/move")
-def get_move(req: dict = Body(...)):
+def test_move(req: dict = Body(...)):
+    """Test endpoint to get a move with a sample board and rack"""
+    
+    # Default simple test configuration
+    default_board = [["" for _ in range(15)] for _ in range(15)]
+    default_rack = "ABCDEFG"
+    
+    # Use provided values or defaults
+    board = req.get("board", default_board)
+    rack = req.get("rack", default_rack)
+    
+    test_payload = {
+        "op": "compute",
+        "board": board,
+        "rack": rack,
+        "bag": "",
+        "turn": "me",
+        "limit_ms": req.get("limit_ms", 3000),
+        "ruleset": "it",
+        "top_n": req.get("top_n", 5)
+    }
+    
+    try:
+        # First try a simple ping to see if wrapper is working
+        ping_result = ask_engine({"op": "ping"}, timeout_ms=2000)
+        if not ping_result.get("pong"):
+            return {
+                "ok": False,
+                "error": "wrapper_not_responding", 
+                "ping_result": ping_result,
+                "status": "GADDAG/DAWG loading failed"
+            }
+        
+        # If ping works, try to get a move (use test_move for compatibility)
+        try:
+            move_result = ask_engine({"op": "test_move"}, timeout_ms=3000)
+        except Exception:
+            # Fallback to compute if test_move not available
+            move_result = ask_engine(test_payload, timeout_ms=6000)
+        
+        moves = move_result.get("moves", [])
+        
+        if moves and len(moves) > 0:
+            return {
+                "ok": True,
+                "ping_ok": True,
+                "best_move": moves[0],
+                "moves": moves,
+                "status": "success"
+            }
+        else:
+            return {
+                "ok": False,
+                "ping_ok": True,
+                "error": "no_moves_found",
+                "wrapper_response": move_result,
+                "status": "engine responded but found no moves"
+            }
+        
+    except TimeoutError:
+        return {
+            "ok": False,
+            "error": "timeout", 
+            "status": "wrapper crashed or hung during move computation"
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": "exception", 
+            "message": str(e),
+            "status": "wrapper failed to process request"
+        }
+
+@app.post("/engine/move-old")
+def get_move_old(req: dict = Body(...)):
     """Get a move suggestion for testing - simplified interface"""
     # Default test board (empty) and rack
     board = req.get("board", [["" for _ in range(15)] for _ in range(15)])

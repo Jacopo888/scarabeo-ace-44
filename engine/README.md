@@ -12,11 +12,14 @@ This engine provides a complete Scrabble/Scarabeo move generation service using 
 
 ## Architecture
 
-- **Multi-stage Docker build**: Builder stage compiles Quackle + generates GADDAG, runtime stage runs the service
-- **GADDAG format**: Uses Quackle's versioned GADDAG format with MD5 integrity checks
+- **Multi-stage Docker build**: Builder stage compiles Quackle + generates GADDAG/DAWG, runtime stage runs the service
+- **Lexicon compatibility system**: Automatic GADDAG → DAWG fallback with runtime compatibility detection
+- **GADDAG format**: Primary lexicon format using Quackle's versioned GADDAG with MD5 integrity checks
+- **DAWG fallback**: Secondary format for compatibility when GADDAG has version mismatches
 - **Alphabet support**: Includes English alphabet file for proper character mapping
-- **Runtime libraries**: Qt5Core, ICU, Boost for GADDAG loading
-- **Persistent wrapper**: FastAPI maintains long-running wrapper process for performance
+- **Runtime libraries**: Qt5Core, ICU, Boost for lexicon loading (Ubuntu 22.04 compatible versions)
+- **Persistent wrapper**: FastAPI maintains long-running wrapper process with automatic restart on crashes
+- **Comprehensive diagnostics**: Built-in smoke tests, GDB debugging, and health monitoring
 
 ## Quick Start
 
@@ -140,10 +143,27 @@ docker logs scarabeo-engine | grep wrapper
 docker run -e RUN_GADDAG_CHECK=1 scarabeo-engine:real
 ```
 
+### GADDAG vs DAWG Compatibility
+
+**Background**: Quackle supports two lexicon formats ([GADDAG Wikipedia](https://en.wikipedia.org/wiki/GADDAG), [MIT CSAIL](https://people.csail.mit.edu/jasonkb/quackle/index.html)):
+- **GADDAG**: Optimized for Scrabble, ~2x faster but ~5x larger than DAWG
+- **DAWG**: More compact, slower for cross-word generation
+
+**Automatic Fallback System**:
+1. Primary: Load GADDAG for optimal performance
+2. Fallback: Switch to DAWG if GADDAG has version incompatibility
+3. Minimal: Basic test functionality if both fail
+
+**Regeneration** (if needed):
+```bash
+# Fresh build ensures matching Quackle versions
+docker build -t scarabeo-engine:fresh -f engine/Dockerfile engine
+```
+
 ### Performance Tuning
-- **GADDAG vs DAWG**: GADDAG is ~2x faster but ~5x larger than DAWG
-- **Memory usage**: ~50MB runtime (20MB GADDAG + 30MB overhead)
+- **Memory usage**: ~50MB runtime (17MB GADDAG + 30MB overhead, or 1MB DAWG + 30MB overhead)
 - **Response times**: <100ms for simple moves, <1s for complex positions
+- **Lexicon status**: Check `/health/lexicon` to see which format is active
 - **Concurrency**: Single wrapper process, FastAPI handles multiple requests
 
 ## Deploy Railway

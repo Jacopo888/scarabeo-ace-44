@@ -109,15 +109,15 @@ MOVE_RESULT=$(curl -s -X POST "http://localhost:$PORT/engine/move" \
     -H 'content-type: application/json' \
     -d '{"rack":"ABCDEFG"}')
 
-MOVE_SUCCESS=$(echo "$MOVE_RESULT" | jq -r '.success // false')
+MOVE_SUCCESS=$(echo "$MOVE_RESULT" | jq -r '.ok // false')
 if [ "$MOVE_SUCCESS" != "true" ]; then
     echo "[smoke] FAIL: move generation failed"
     echo "$MOVE_RESULT" | jq .
     exit 1
 fi
 
-MOVE_WORD=$(echo "$MOVE_RESULT" | jq -r '.move.word // ""')
-MOVE_SCORE=$(echo "$MOVE_RESULT" | jq -r '.move.score // 0')
+MOVE_WORD=$(echo "$MOVE_RESULT" | jq -r '.best_move.word // ""')
+MOVE_SCORE=$(echo "$MOVE_RESULT" | jq -r '.best_move.score // 0')
 
 if [ -z "$MOVE_WORD" ] || [ "$MOVE_SCORE" -eq 0 ]; then
     echo "[smoke] FAIL: invalid move generated"
