@@ -16,11 +16,10 @@ COPY third_party/quackle/ /src/third_party/quackle/
 RUN cmake -S /src/third_party/quackle -B /src/third_party/quackle/build \
  && cmake --build /src/third_party/quackle/build -j
 
-# ==== costruisci tool makedawg/makegaddag (fallback stile Colab) e genera DAWG -> GADDAG ====
-# Copia la wordlist sorgente (testo)
+# ==== costruisci SOLO makegaddag_tool (stile Colab) e genera GADDAG ====
+# Copia la wordlist sorgente (testo, uppercase)
 COPY lexica_src/enable1.txt /src/enable1.txt
 
-# Costruisci gli eseguibili dei tool direttamente dai sorgenti del submodule e genera enable1.gaddag
 RUN set -euo pipefail; \
     cd /src/third_party/quackle; \
     LIB="$(find build -type f -name 'liblibquackle.a' | head -n1)"; \
@@ -30,7 +29,6 @@ RUN set -euo pipefail; \
           -I/src/third_party/quackle/include \
           -I/src/third_party/quackle/libquackle \
           -I/src/third_party/quackle/quackleio \
-          -I/src/third_party/quackle/makedawg \
           -I/src/third_party/quackle/makegaddag \
           -I/src/third_party/quackle/src \
           -I/src/third_party/quackle/src/libquackle \
@@ -43,7 +41,8 @@ RUN set -euo pipefail; \
     LATE_LIBS="-lpthread -lboost_regex -lboost_filesystem -lboost_system $ICU_LIBS $QT_LIBS"; \
     mkdir -p /tmp/quackle_bin /tmp/quackle_obj; \
     mapfile -t QIO_CPP < <(find quackleio -maxdepth 1 -type f -name '*.cpp' | sort -u || true); \
-    for must in dawgfactory.cpp gcgio.cpp dictfactory.cpp flexiblealphabetparameters.cpp alphabetparameters.cpp; do \
+    # aggiungi eventuali sorgenti richiesti esplicitamente
+    for must in gcgio.cpp dictfactory.cpp flexiblealphabetparameters.cpp alphabetparameters.cpp; do \
       [ -f "quackleio/$must" ] && QIO_CPP+=("quackleio/$must"); \
     done; \
     readarray -t QIO_CPP < <(printf "%s\n" "${QIO_CPP[@]}" | awk 'NF && !x[$0]++'); \
@@ -51,24 +50,18 @@ RUN set -euo pipefail; \
       base="$(basename "$f" .cpp)"; \
       g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c "$f" -o "/tmp/quackle_obj/${base}.o"; \
     done; \
-    g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c makedawg/makedawg.cpp -o /tmp/quackle_obj/makedawg_main.o; \
     g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c makegaddag/makegaddag.cpp -o /tmp/quackle_obj/makegaddag_main.o; \
-    g++ /tmp/quackle_obj/makedawg_main.o  "${QIO_CPP[@]/#/\/tmp\/quackle_obj\/}" "$LIB" -o /tmp/quackle_bin/makedawg_tool   $LATE_LIBS; \
     g++ /tmp/quackle_obj/makegaddag_main.o "${QIO_CPP[@]/#/\/tmp\/quackle_obj\/}" "$LIB" -o /tmp/quackle_bin/makegaddag_tool $LATE_LIBS; \
-    ls -lh /tmp/quackle_bin/makedawg_tool /tmp/quackle_bin/makegaddag_tool; \
+    ls -lh /tmp/quackle_bin/makegaddag_tool; \
+    # esegui dalla cartella makegaddag con input gaddaginput.raw (symlink)
     cp -f /src/enable1.txt ./enable1.txt; \
-    ln -sf enable1.txt dawginput.raw; \
-    /tmp/quackle_bin/makedawg_tool 1>/tmp/mk.stdout 2>/tmp/mk.stderr || true; \
-    echo '--- makedawg stderr (tail) ---'; tail -n 40 /tmp/mk.stderr || true; \
-    DAWG="$(find . -maxdepth 2 -type f -name '*dawg*' -printf '%T@ %p\n' | sort -nr | awk 'NR==1{print $2}')"; \
-    test -n "$DAWG" && test -s "$DAWG"; \
-    echo "Using DAWG: $DAWG"; \
-    ln -sf "$DAWG" output.dawg; \
-    (cd makegaddag && /tmp/quackle_bin/makegaddag_tool 1>/tmp/gadd.stdout 2>/tmp/gadd.stderr || true); \
-    echo '--- makegaddag stderr (tail) ---'; tail -n 40 /tmp/gadd.stderr || true; \
-    GADD="$(find . -maxdepth 2 -type f -name '*gaddag*' -printf '%T@ %p\n' | sort -nr | awk 'NR==1{print $2}')"; \
-    test -n "$GADD" && test -s "$GADD"; \
-    mkdir -p /out_lexica && cp -f "$GADD" /out_lexica/enable1.gaddag && ls -lh /out_lexica/enable1.gaddag
+    cd makegaddag; \
+    ln -sf ../enable1.txt gaddaginput.raw; \
+    /tmp/quackle_bin/makegaddag_tool 1>/tmp/gadd.stdout 2>/tmp/gadd.stderr || true; \
+    echo '--- makegaddag stderr (tail) ---'; tail -n 60 /tmp/gadd.stderr || true; \
+    # verifica output.gaddag non vuoto
+    test -f output.gaddag && test -s output.gaddag; \
+    mkdir -p /out_lexica && cp -f output.gaddag /out_lexica/enable1.gaddag && ls -lh /out_lexica/enable1.gaddag
 
 # Sanity check: esistenza di liblibquackle.a e struttura file (niente /src richiesto)
 RUN test -f /src/third_party/quackle/build/liblibquackle.a
