@@ -12,6 +12,8 @@
 #include <cstring>
 #include <sys/stat.h>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 
 // Quackle headers (core only, no Qt)
 #include "game.h"
@@ -72,6 +74,51 @@ int main(int argc, char** argv) {
     std::fprintf(stderr, "[wrapper] start pid=%d\n", getpid());
     std::fprintf(stderr, "[wrapper] loading gaddag path=%s\n", cfg.gaddag_path.c_str());
 
+    // Check for --check-gaddag mode
+    if (argc >= 3 && std::string(argv[1]) == "--check-gaddag") {
+        const std::string check_path = argv[2];
+        std::fprintf(stderr, "[wrapper] checking gaddag: %s\n", check_path.c_str());
+        
+        try {
+            if (!std::filesystem::exists(check_path)) {
+                std::fprintf(stderr, "[wrapper] ERROR: file not found: %s\n", check_path.c_str());
+                return 2;
+            }
+            
+            std::ifstream f(check_path, std::ios::binary);
+            if (!f.good()) {
+                std::fprintf(stderr, "[wrapper] ERROR: cannot open: %s\n", check_path.c_str());
+                return 3;
+            }
+            
+            // Get file size
+            f.seekg(0, std::ios::end);
+            auto size = f.tellg();
+            f.seekg(0, std::ios::beg);
+            
+            if (size <= 0) {
+                std::fprintf(stderr, "[wrapper] ERROR: empty or invalid file: %s\n", check_path.c_str());
+                return 4;
+            }
+            
+            // Try to load with Quackle (minimal check)
+            if (!QUACKLE_DATAMANAGER_EXISTS) {
+                new Quackle::DataManager();
+            }
+            auto *lexParams = new Quackle::LexiconParameters();
+            lexParams->loadGaddag(check_path);
+            std::fprintf(stderr, "[wrapper] gaddag-ok size=%lld\n", static_cast<long long>(size));
+            return 0;
+            
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "[wrapper] ERROR: exception while loading GADDAG: %s\n", e.what());
+            return 5;
+        } catch (...) {
+            std::fprintf(stderr, "[wrapper] ERROR: unknown exception while loading GADDAG\n");
+            return 6;
+        }
+    }
+
     // Initialize Quackle environment (once)
     if (!QUACKLE_DATAMANAGER_EXISTS) {
         new Quackle::DataManager();
@@ -97,16 +144,35 @@ int main(int argc, char** argv) {
     // Alphabet selection: default English
     QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
 
-    // Load GADDAG lexicon once
+    // Load GADDAG lexicon once with robust error handling
     auto *lexParams = new Quackle::LexiconParameters();
     bool gaddag_loaded = false;
     auto t0_load = std::chrono::steady_clock::now();
+    
     try {
+        // Check file exists and is readable
+        if (!std::filesystem::exists(cfg.gaddag_path)) {
+            std::fprintf(stderr, "[wrapper] ERROR: GADDAG file not found: %s\n", cfg.gaddag_path.c_str());
+            return 2;
+        }
+        
+        std::ifstream test_file(cfg.gaddag_path, std::ios::binary);
+        if (!test_file.good()) {
+            std::fprintf(stderr, "[wrapper] ERROR: cannot open GADDAG file: %s\n", cfg.gaddag_path.c_str());
+            return 3;
+        }
+        
+        // Try to load with Quackle
         lexParams->loadGaddag(cfg.gaddag_path);
         gaddag_loaded = true;
+        
+    } catch (const std::exception& e) {
+        std::fprintf(stderr, "[wrapper] ERROR: invalid or unsupported GADDAG file (wrong version/corrupt). Regenerate with the same Quackle revision as libquackle.\n");
+        std::fprintf(stderr, "[wrapper] Exception details: %s\n", e.what());
+        return 4;
     } catch (...) {
-        std::fprintf(stderr, "[wrapper] gaddag_load_error path=%s errno=%d msg=%s\n", cfg.gaddag_path.c_str(), errno, std::strerror(errno));
-        return 1;
+        std::fprintf(stderr, "[wrapper] ERROR: unknown exception while loading GADDAG\n");
+        return 5;
     }
     auto ms_load = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0_load).count();
     std::fprintf(stderr, "[wrapper] gaddag_loaded ms=%lld\n", static_cast<long long>(ms_load));

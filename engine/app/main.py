@@ -105,10 +105,24 @@ def ask_engine(payload: dict, timeout_ms: int) -> dict:
 
 @app.on_event("startup")
 def _on_startup():
+    # Optional GADDAG check at startup
+    gaddag_path = os.environ.get("GADDAG_PATH", "/app/lexica/enable1.gaddag")
+    if os.environ.get("RUN_GADDAG_CHECK", "0") == "1":
+        try:
+            subprocess.run(
+                ["/app/bin/engine_wrapper", "--check-gaddag", gaddag_path],
+                check=True
+            )
+            print(f"[startup] GADDAG check passed for {gaddag_path}")
+        except subprocess.CalledProcessError as e:
+            print(f"[startup] FATAL: GADDAG check failed for {gaddag_path} (rc={e.returncode}). "
+                  f"Regenerate the file with the same Quackle version as the one used to build libquackle.")
+            sys.exit(10)
+    
     try:
         start_engine()
     except Exception as e:
-        # non bloccare l’avvio: /healthz segnalerà lo stato
+        # non bloccare l'avvio: /healthz segnalerà lo stato
         print(f"[engine] startup warning: {e}")
 
 
