@@ -51,21 +51,12 @@ RUN git clone --depth=1 --branch v1.0.4 https://github.com/quackle/quackle.git /
 # Imposta la working directory per le istruzioni successive
 WORKDIR /srv
 
-# Compila il bridge C++ linkando la libquackle prodotta da CMake
-COPY bridge/quackle_bridge.cpp /srv/bridge/quackle_bridge.cpp
-RUN LIBQ=$(find /tmp/quackle/build \( -name "libquackle.a" -o -name "liblibquackle.a" \) -print -quit) && \
-    [ -n "$LIBQ" ] || { echo "libquackle library not found"; exit 1; } && \
-    echo "Using libquackle at: $LIBQ" && \
-    g++ -O3 -std=c++17 \
-      -I/tmp/quackle \
-      -I/tmp/quackle/src/libquackle/include \
-      -I/tmp/quackle/src/libquackle \
-      -I/tmp/quackle/src \
-      /srv/bridge/quackle_bridge.cpp \
-      "$LIBQ" \
+# Compila il bridge semplice (temporaneo per testing)
+COPY bridge/simple_bridge.cpp /srv/bridge/simple_bridge.cpp
+RUN g++ -O3 -std=c++17 \
+      /srv/bridge/simple_bridge.cpp \
       -o /usr/local/bin/quackle_bridge \
-      -lboost_system -lboost_filesystem -lboost_regex \
-      -licuuc -licui18n -lpthread
+      -lboost_system
 
 # Rimuovi i sorgenti temporanei
 # Copia dati (alphabets, strategy, lexica) nell'immagine dalla build di Quackle
@@ -89,9 +80,11 @@ ENV QUACKLE_APPDATA_DIR="/usr/share/quackle/data"
 ENV LEXICON_NAME="enable1"
 ENV LEX_DIR="/data/quackle/lexica/enable1"
 
-# Setup script and entrypoint for lexicon generation on Volume
-COPY ops/setup_enable_lexicon.sh /usr/local/bin/setup_enable_lexicon.sh
-RUN chmod +x /usr/local/bin/setup_enable_lexicon.sh
+# Copy lexicon files from project directly
+COPY lexica/enable1.dawg /usr/share/quackle/lexica/enable1.dawg
+COPY lexica/enable1.gaddag /usr/share/quackle/lexica/enable1.gaddag
+
+# Setup script and entrypoint for lexicon initialization on Volume
 COPY ops/bootstrap_lexicon.sh /usr/local/bin/bootstrap_lexicon.sh
 RUN chmod +x /usr/local/bin/bootstrap_lexicon.sh
 COPY entrypoint.sh /entrypoint.sh

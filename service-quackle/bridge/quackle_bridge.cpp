@@ -286,59 +286,40 @@ int main(int argc, char** argv){
     gen.allCrosses();
     debugLog("Cross structures updated");
     
-    // Try to use Quackle's AI properly
-    debugLog("Attempting to use Quackle AI...");
+    // Try to use Quackle's AI with minimal approach to avoid crashes
+    debugLog("Attempting to use Quackle AI with minimal kibitz...");
+    
+    Quackle::Move best;
+    bool foundValidMove = false;
     
     try {
-        // Generate and evaluate top-N moves (kibitz length)
-        debugLog("Calling kibitz(" + std::to_string(kibitzLen) + ") for " + diff + " difficulty...");
-        gen.kibitz(kibitzLen);
-        debugLog("Kibitz completed successfully");
-        
-        // Get the best move from kibitzList()
-        debugLog("Getting best move from kibitzList()...");
+        // Try very minimal kibitz to avoid crashes
+        debugLog("Trying minimal kibitz(1)...");
+        gen.kibitz(1);
         const auto &moves = gen.kibitzList();
         
-        Quackle::Move best;
-        bool foundValidMove = false;
-        
         if (!moves.empty()) {
-            best = moves.front(); // First move is the best
+            best = moves.front();
             foundValidMove = true;
-            debugLog("Found valid move from Quackle AI, score: " + std::to_string(best.score));
+            debugLog("Found valid move from minimal kibitz, score: " + std::to_string(best.score));
         } else {
-            debugLog("No moves found in kibitzList, trying fallback strategies");
-
-            // Try a minimal kibitz if nothing found
-            debugLog("No moves yet, trying minimal kibitz(1)...");
-            gen.kibitz(1);
-            const auto &fallbackMoves = gen.kibitzList();
-            if (!fallbackMoves.empty()) {
-                best = fallbackMoves.front();
-                foundValidMove = true;
-                debugLog("Found move with minimal kibitz, score: " + std::to_string(best.score));
-            }
-
-            // If still no moves, try to find any possible move by generating all plays
-            if (!foundValidMove) {
-                debugLog("Trying to generate all possible plays...");
-                gen.kibitz(10); // Small number to find at least something
-                const auto &allMoves = gen.kibitzList();
-                if (!allMoves.empty()) {
-                    best = allMoves.front();
-                    foundValidMove = true;
-                    debugLog("Found move from expanded search, score: " + std::to_string(best.score));
-                }
-            }
-
-            // Final fallback: pass
-            if (!foundValidMove) {
-                debugLog("No valid moves found, bot will pass");
-                best = Quackle::Move::createPassMove();
-                debugLog("Pass move created");
-            }
+            debugLog("No moves found even with minimal kibitz");
         }
-      
+        
+    } catch (const std::exception& e) {
+        debugLog("Exception during move generation: " + std::string(e.what()));
+    } catch (...) {
+        debugLog("Unknown exception during move generation");
+    }
+    
+    // Final fallback: pass
+    if (!foundValidMove) {
+        debugLog("No valid moves found, bot will pass");
+        best = Quackle::Move::createPassMove();
+        debugLog("Pass move created");
+    }
+    
+    try {
         // Convert the move to JSON
         json tiles = json::array();
         json words = json::array();

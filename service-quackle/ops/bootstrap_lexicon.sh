@@ -40,24 +40,20 @@ if [ -s "${DAWG_PATH}" ] && [ -s "${GADDAG_PATH}" ]; then
   exit 0
 fi
 
-if [ -z "${DAWG_URL}" ] || [ -z "${GADDAG_URL}" ]; then
-  echo "[bootstrap] Missing DAWG_URL or GADDAG_URL environment variables"
+# Copy lexicon files from container to volume if they don't exist on volume
+CONTAINER_DAWG="/usr/share/quackle/lexica/${LEXICON_NAME}.dawg"
+CONTAINER_GADDAG="/usr/share/quackle/lexica/${LEXICON_NAME}.gaddag"
+
+if [ ! -s "${CONTAINER_DAWG}" ] || [ ! -s "${CONTAINER_GADDAG}" ]; then
+  echo "[bootstrap] Container lexicon files missing"
   exit 1
 fi
 
-command -v curl >/dev/null 2>&1 || { echo "[bootstrap] curl not found in image"; exit 1; }
+echo "[bootstrap] Copying DAWG from container ${CONTAINER_DAWG} -> ${DAWG_PATH}"
+cp -f "${CONTAINER_DAWG}" "${DAWG_PATH}"
 
-echo "[bootstrap] Downloading DAWG from ${DAWG_URL} -> ${DAWG_PATH}"
-TMP_DAWG="/tmp/${LEXICON_NAME}.dawg.$$"
-curl -fL --retry 3 --retry-delay 2 -o "${TMP_DAWG}" "${DAWG_URL}"
-test -s "${TMP_DAWG}" || { echo "[bootstrap] Downloaded DAWG is empty"; exit 1; }
-mv -f "${TMP_DAWG}" "${DAWG_PATH}"
-
-echo "[bootstrap] Downloading GADDAG from ${GADDAG_URL} -> ${GADDAG_PATH}"
-TMP_GAD="/tmp/${LEXICON_NAME}.gaddag.$$"
-curl -fL --retry 3 --retry-delay 2 -o "${TMP_GAD}" "${GADDAG_URL}"
-test -s "${TMP_GAD}" || { echo "[bootstrap] Downloaded GADDAG is empty"; exit 1; }
-mv -f "${TMP_GAD}" "${GADDAG_PATH}"
+echo "[bootstrap] Copying GADDAG from container ${CONTAINER_GADDAG} -> ${GADDAG_PATH}"
+cp -f "${CONTAINER_GADDAG}" "${GADDAG_PATH}"
 
 echo "[bootstrap] Completed. Contents of ${LEX_DIR}:"
 ls -lh "${LEX_DIR}" || true
