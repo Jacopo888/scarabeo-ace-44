@@ -86,6 +86,7 @@ RUN cmake -S /src/quackle_wrapper -B /build \
 
 # ---------- STAGE 2: runtime ----------
 FROM python:3.11-slim AS runtime
+SHELL ["/bin/bash", "-lc"]
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8080 \
