@@ -82,6 +82,9 @@ RUN cmake -S /src/quackle_wrapper -B /build \
       -DQUACKLE_ROOT=/src/third_party/quackle \
       -DQUACKLE_BUILD_DIR=/src/third_party/quackle/build \
  && cmake --build /build -j
+
+# Build-time smoke test disabled: will test in runtime stage
+# RUN echo '{"op":"ping"}' | timeout 10s /build/engine_wrapper --gaddag /out_lexica/enable1.gaddag --ruleset it
 # Risultato atteso: /build/engine_wrapper
 
 # ---------- STAGE 2: runtime ----------
@@ -93,9 +96,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     RULESET=it \
     GADDAG_PATH=/app/lexica/enable1.gaddag
 
+# dipendenze base + runtime libs per Quackle (auto-detect versions)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
-  && rm -rf /var/lib/apt/lists/*
+    libqt5core5a \
+    libicu-dev \
+    libboost-regex-dev \
+    libboost-filesystem-dev \
+    libboost-system-dev \
+    util-linux \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 

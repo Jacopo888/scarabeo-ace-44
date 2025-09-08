@@ -141,7 +141,13 @@ int main(int argc, char** argv) {
         QUACKLE_DATAMANAGER->setStrategyParameters(new Quackle::StrategyParameters());
     }
 
-    // Alphabet selection: default English
+    // Alphabet selection: use default English for now
+    // TODO: Add support for custom alphabets when FlexibleAlphabetParameters is available
+    std::string alphabet_path = std::getenv("QUACKLE_ALPHABET") ? std::getenv("QUACKLE_ALPHABET") : "";
+    if (!alphabet_path.empty()) {
+        std::fprintf(stderr, "[wrapper] alphabet file specified: %s (using default English for now)\n", alphabet_path.c_str());
+    }
+    std::fprintf(stderr, "[wrapper] using default English alphabet\n");
     QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
 
     // Load GADDAG lexicon once with robust error handling

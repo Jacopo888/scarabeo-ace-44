@@ -173,6 +173,54 @@ def cmd(payload: dict = Body(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"engine error: {e}")
 
+@app.post("/engine/move")
+def get_move(req: dict = Body(...)):
+    """Get a move suggestion for testing - simplified interface"""
+    # Default test board (empty) and rack
+    board = req.get("board", [["" for _ in range(15)] for _ in range(15)])
+    rack = req.get("rack", "ABCDEFG")
+    
+    payload = {
+        "op": "compute",
+        "board": board,
+        "rack": rack,
+        "bag": "",
+        "turn": "me",
+        "limit_ms": 2000,
+        "ruleset": "it",
+        "top_n": 3
+    }
+    
+    try:
+        out = ask_engine(payload, timeout_ms=3000)
+        moves = out.get("moves", [])
+        if moves:
+            return {
+                "success": True,
+                "move": moves[0],
+                "total_moves": len(moves),
+                "all_moves": moves
+            }
+        else:
+            return {
+                "success": False,
+                "error": "No moves generated",
+                "debug_output": out
+            }
+    except TimeoutError:
+        return {
+            "success": False,
+            "error": "engine timeout",
+            "timeout_ms": 3000
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"engine error: {e}",
+            "rack": rack,
+            "board_size": f"{len(board)}x{len(board[0]) if board else 0}"
+        }
+
 @app.post("/api/v1/move", response_model=MoveResponse)
 def compute_move(req: MoveRequest = Body(...)):
     # validazione dimensione board
