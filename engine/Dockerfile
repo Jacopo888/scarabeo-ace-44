@@ -14,19 +14,19 @@ COPY third_party/quackle/ /src/third_party/quackle/
 RUN cmake -S /src/third_party/quackle -B /src/third_party/quackle/build \
  && cmake --build /src/third_party/quackle/build -j
 
-# ==== genera GADDAG compatibile ====
-# Copia la wordlist sorgente (testo)
+# ==== genera GADDAG compatibile con tool custom ====
+# copia il tool custom
+COPY tools/makegaddag/ /tmp/mkgtool/
+# compila il tool contro liblibquackle.a già costruita
+RUN cmake -S /tmp/mkgtool -B /tmp/mkg \
+ -DQUACKLE_ROOT=/src/third_party/quackle \
+ -DQUACKLE_BUILD_DIR=/src/third_party/quackle/build \
+ && cmake --build /tmp/mkg -j
+# genera il gaddag
 COPY lexica_src/enable1.txt /tmp/enable1.txt
-
-# Costruisci la CLI 'makegaddag' dal submodule Quackle
-RUN cmake -S /src/third_party/quackle -B /tmp/mkg \
- && cmake --build /tmp/mkg -j --target makegaddag
-
-# Genera il file .gaddag (compatibile col core)
 RUN /tmp/mkg/makegaddag /tmp/enable1.txt /tmp/enable1.gaddag \
  && test -s /tmp/enable1.gaddag
-
-# Metti in una cartella d'uscita dal builder
+# esponi il gaddag generato allo stage runtime
 RUN mkdir -p /out_lexica && cp /tmp/enable1.gaddag /out_lexica/enable1.gaddag
 
 # Sanity check: esistenza di liblibquackle.a e struttura file (niente /src richiesto)
