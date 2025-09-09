@@ -33,13 +33,29 @@ SimpleMove generateSimpleMove(const std::vector<std::string>& rack, const std::m
         c = std::toupper(c);
     }
     
-    // Simple word patterns - real valid English words
+    // Extended word patterns - real valid English words (sorted by length for better moves)
     std::vector<std::pair<std::string, int>> commonWords = {
+        // 5+ letter words (higher priority for better scores)
+        {"METAL", 7}, {"MEALS", 7}, {"TALES", 5}, {"STEAL", 5}, {"LEAST", 5}, 
+        {"SLATE", 5}, {"STEAM", 7}, {"TEAMS", 7}, {"MATES", 7}, {"MEATS", 7},
+        {"GATES", 6}, {"STAGE", 6}, {"GREAT", 5}, {"GRATE", 5}, {"GAMES", 8},
+        {"MAGIC", 10}, {"IMAGE", 8}, {"AGENT", 6}, {"ANGLE", 6},
+        
+        // 4 letter words
+        {"MEAT", 6}, {"GAME", 7}, {"TALE", 4}, {"GATE", 5}, {"MATE", 6}, 
+        {"TEAM", 6}, {"LATE", 4}, {"MEAL", 6}, {"MALE", 6}, {"LAME", 6},
+        {"TAME", 6}, {"CAGE", 7}, {"PAGE", 7}, {"RAGE", 5}, {"SAGE", 5},
+        {"TAKE", 8}, {"MAKE", 10}, {"LAKE", 8}, {"CAME", 8}, {"NAME", 6},
+        {"SAME", 6}, {"TIME", 6}, {"LIME", 6}, {"GAME", 7}, {"FAME", 9},
+        
+        // 3 letter words (fallback)
         {"ARE", 3}, {"EAR", 3}, {"ERA", 3}, {"ART", 3}, {"RAT", 3}, {"TAR", 3},
-        {"CAR", 5}, {"CAT", 5}, {"ACE", 5}, {"CUT", 5}, {"CUE", 5},
-        {"DOG", 5}, {"GOD", 5}, {"LOG", 4}, {"HOG", 7}, {"HAT", 6},
-        {"THE", 6}, {"SET", 3}, {"TEN", 3}, {"NET", 3}, {"PET", 5},
-        {"POT", 5}, {"TOP", 5}, {"OPT", 5}, {"LOT", 3}, {"TOO", 3},
+        {"CAR", 5}, {"CAT", 5}, {"ACE", 5}, {"CUT", 5}, {"CUE", 5}, {"AGE", 4},
+        {"DOG", 5}, {"GOD", 5}, {"LOG", 4}, {"HOG", 7}, {"HAT", 6}, {"MAT", 5},
+        {"THE", 6}, {"SET", 3}, {"TEN", 3}, {"NET", 3}, {"PET", 5}, {"GET", 4},
+        {"POT", 5}, {"TOP", 5}, {"OPT", 5}, {"LOT", 3}, {"TOO", 3}, {"TEA", 3},
+        {"EAT", 3}, {"ATE", 3}, {"TAG", 4}, {"GAL", 4}, {"LAG", 4}, {"GAG", 5},
+        {"ELM", 5}, {"GEL", 4}, {"LEG", 4}, {"MET", 5}, {"LET", 3}, {"GEM", 6},
         {"BOX", 12}, {"FOX", 13}, {"WAX", 13}, {"MAX", 12}, {"MIX", 12}
     };
     
@@ -48,15 +64,24 @@ SimpleMove generateSimpleMove(const std::vector<std::string>& rack, const std::m
         std::string word = wordPair.first;
         int baseScore = wordPair.second;
         
-        // Check if we can make this word with available tiles
-        std::string tempRack = rackString;
-        bool canMake = true;
+        // Check if we can make this word with available tiles (improved for duplicates)
+        std::map<char, int> rackCount;
+        std::map<char, int> wordCount;
         
+        // Count letters in rack
+        for (char c : rackString) {
+            rackCount[c]++;
+        }
+        
+        // Count letters needed for word
         for (char c : word) {
-            size_t pos = tempRack.find(c);
-            if (pos != std::string::npos) {
-                tempRack.erase(pos, 1);
-            } else {
+            wordCount[c]++;
+        }
+        
+        // Check if we have enough of each letter
+        bool canMake = true;
+        for (const auto& pair : wordCount) {
+            if (rackCount[pair.first] < pair.second) {
                 canMake = false;
                 break;
             }

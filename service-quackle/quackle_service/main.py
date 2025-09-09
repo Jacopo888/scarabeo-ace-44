@@ -171,8 +171,12 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
             timeout=8,
         )
         
-        # Always log stderr for debugging
-        stderr_output = proc.stderr.decode("utf-8")
+        # Always log stderr for debugging - handle encoding issues
+        try:
+            stderr_output = proc.stderr.decode("utf-8")
+        except UnicodeDecodeError:
+            # Fallback to latin-1 for binary data or corrupted UTF-8
+            stderr_output = proc.stderr.decode("latin-1", errors="replace")
         if stderr_output:
             print(f"[DEBUG] Bridge stderr: {stderr_output}")
         

@@ -37,7 +37,9 @@ using json = nlohmann::json;
 
 struct Config {
     std::string gaddag_path;
-    std::string ruleset = "it";
+    std::string dawg_path;
+    std::string ruleset = "en";
+    std::string use_lexicon = "gaddag"; // "gaddag" or "dawg"
 };
 
 // Simple signature-based word index for empty-board fast path
@@ -113,6 +115,92 @@ static inline std::string to_upper(const std::string &s) {
     return r;
 }
 
+// Input validation and normalization functions
+static inline bool is_upper_letter(char c) { 
+    return c >= 'A' && c <= 'Z'; 
+}
+
+static void validate_and_normalize_rack(std::string &rackStr) {
+    std::string normalized;
+    int blank_count = 0;
+    
+    for (char c : rackStr) {
+        char upper_c = std::toupper(static_cast<unsigned char>(c));
+        if (upper_c == '?') {
+            blank_count++;
+            normalized.push_back('?');
+        } else if (is_upper_letter(upper_c)) {
+            normalized.push_back(upper_c);
+        } else {
+            std::fprintf(stderr, "[wrapper] ERROR: invalid tile in rack: '%c' (not A-Z or ?)\n", c);
+            throw std::runtime_error("invalid tile in rack");
+        }
+    }
+    
+    if (blank_count > 2) {
+        std::fprintf(stderr, "[wrapper] ERROR: too many blanks in rack: %d (max 2)\n", blank_count);
+        throw std::runtime_error("too many blanks in rack");
+    }
+    
+    rackStr = normalized;
+    std::fprintf(stderr, "[wrapper] rack normalized: '%s' (blanks: %d)\n", rackStr.c_str(), blank_count);
+}
+
+static void validate_board_cell(int row, int col, const std::string &cell) {
+    if (row < 0 || row > 14 || col < 0 || col > 14) {
+        std::fprintf(stderr, "[wrapper] ERROR: invalid cell coordinates: (%d,%d)\n", row, col);
+        throw std::runtime_error("invalid cell coordinates");
+    }
+    
+    if (cell.empty()) return; // empty cell is valid
+    
+    char ch = std::toupper(static_cast<unsigned char>(cell[0]));
+    if (!is_upper_letter(ch)) {
+        std::fprintf(stderr, "[wrapper] ERROR: invalid board letter at (%d,%d): '%c'\n", row, col, ch);
+        throw std::runtime_error("invalid board letter");
+    }
+}
+
+static void log_lexicon_diagnostics(const std::string &ruleset,
+                                   const std::string &alpha_path,
+                                   const std::string &lexicon_path,
+                                   const std::string &lexicon_type) {
+    std::fprintf(stderr, "[wrapper] === LEXICON DIAGNOSTICS ===\n");
+    std::fprintf(stderr, "[wrapper] RULESET=%s\n", ruleset.c_str());
+    std::fprintf(stderr, "[wrapper] QUACKLE_ALPHABET=%s\n", alpha_path.c_str());
+    std::fprintf(stderr, "[wrapper] LEXICON_PATH=%s\n", lexicon_path.c_str());
+    std::fprintf(stderr, "[wrapper] LEXICON_TYPE=%s\n", lexicon_type.c_str());
+    
+    // Check alphabet file
+    if (!alpha_path.empty() && std::filesystem::exists(alpha_path)) {
+        auto alpha_size = std::filesystem::file_size(alpha_path);
+        std::fprintf(stderr, "[wrapper] alphabet file size: %zu bytes\n", alpha_size);
+    } else {
+        std::fprintf(stderr, "[wrapper] alphabet file: default English (no file)\n");
+    }
+    
+    // Check lexicon file
+    if (std::filesystem::exists(lexicon_path)) {
+        auto lexicon_size = std::filesystem::file_size(lexicon_path);
+        std::fprintf(stderr, "[wrapper] %s file size: %zu bytes\n", lexicon_type.c_str(), lexicon_size);
+        
+        // Show first 16 bytes
+        std::ifstream lexicon_file(lexicon_path, std::ios::binary);
+        if (lexicon_file) {
+            char header[16] = {0};
+            lexicon_file.read(header, 16);
+            std::fprintf(stderr, "[wrapper] %s header (first 16 bytes): ", lexicon_type.c_str());
+            for (int i = 0; i < 16; i++) {
+                std::fprintf(stderr, "%02x ", (unsigned char)header[i]);
+            }
+            std::fprintf(stderr, "\n");
+        }
+    }
+    
+    std::fprintf(stderr, "[wrapper] lexicon type: %s\n", lexicon_type.c_str());
+    std::fprintf(stderr, "[wrapper] ================================\n");
+}
+
 static bool json_board_is_empty(const nlohmann::json& grid) {
     if (!grid.is_array() || grid.size() != 15) return false;
     for (const auto& row : grid) {
@@ -131,17 +219,43 @@ int main(int argc, char** argv) {
     for (int i=1; i<argc; ++i) {
         std::string a = argv[i];
         if (a == "--gaddag" && i+1 < argc) cfg.gaddag_path = argv[++i];
+        else if (a == "--dawg" && i+1 < argc) cfg.dawg_path = argv[++i];
         else if (a == "--ruleset" && i+1 < argc) cfg.ruleset = argv[++i];
+        else if (a == "--use" && i+1 < argc) cfg.use_lexicon = argv[++i];
     }
 
-    if (cfg.gaddag_path.empty()) {
+    if (cfg.gaddag_path.empty() && cfg.dawg_path.empty()) {
         std::fprintf(stderr, "[wrapper] start pid=%d\n", getpid());
-        std::fprintf(stderr, "[wrapper] gaddag_load_error path=<empty> errno=%d msg=%s\n", errno, std::strerror(errno));
+        std::fprintf(stderr, "[wrapper] lexicon_load_error both paths empty\n");
         return 1;
     }
 
     std::fprintf(stderr, "[wrapper] start pid=%d\n", getpid());
-    std::fprintf(stderr, "[wrapper] loading gaddag path=%s\n", cfg.gaddag_path.c_str());
+    std::fprintf(stderr, "[wrapper] use_lexicon=%s\n", cfg.use_lexicon.c_str());
+    
+    // Validate ruleset - must be English
+    if (cfg.ruleset != "en") {
+        std::fprintf(stderr, "[wrapper] ERROR: ruleset must be 'en', got '%s'\n", cfg.ruleset.c_str());
+        return 1;
+    }
+    std::fprintf(stderr, "[wrapper] ruleset validated: %s\n", cfg.ruleset.c_str());
+    
+    // Determine which lexicon to use
+    std::string lexicon_path;
+    std::string lexicon_type;
+    if (cfg.use_lexicon == "dawg" && !cfg.dawg_path.empty()) {
+        lexicon_path = cfg.dawg_path;
+        lexicon_type = "DAWG";
+    } else if (cfg.use_lexicon == "gaddag" && !cfg.gaddag_path.empty()) {
+        lexicon_path = cfg.gaddag_path;
+        lexicon_type = "GADDAG";
+    } else {
+        std::fprintf(stderr, "[wrapper] ERROR: cannot use lexicon type '%s' - paths: gaddag='%s', dawg='%s'\n", 
+                    cfg.use_lexicon.c_str(), cfg.gaddag_path.c_str(), cfg.dawg_path.c_str());
+        return 1;
+    }
+    
+    std::fprintf(stderr, "[wrapper] loading %s path=%s\n", lexicon_type.c_str(), lexicon_path.c_str());
 
     // Check for --check-gaddag mode
     if (argc >= 3 && std::string(argv[1]) == "--check-gaddag") {
@@ -227,48 +341,48 @@ int main(int argc, char** argv) {
         QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
     }
 
-    // Load GADDAG lexicon once with robust error handling
+    // Load lexicon (GADDAG or DAWG) with robust error handling
     auto *lexParams = new Quackle::LexiconParameters();
-    bool gaddag_loaded = false;
+    bool lexicon_loaded = false;
     auto t0_load = std::chrono::steady_clock::now();
     
     try {
         // Check file exists and is readable
-        if (!std::filesystem::exists(cfg.gaddag_path)) {
-            std::fprintf(stderr, "[wrapper] ERROR: GADDAG file not found: %s\n", cfg.gaddag_path.c_str());
+        if (!std::filesystem::exists(lexicon_path)) {
+            std::fprintf(stderr, "[wrapper] ERROR: %s file not found: %s\n", lexicon_type.c_str(), lexicon_path.c_str());
             return 2;
         }
         
-        std::ifstream test_file(cfg.gaddag_path, std::ios::binary);
+        std::ifstream test_file(lexicon_path, std::ios::binary);
         if (!test_file.good()) {
-            std::fprintf(stderr, "[wrapper] ERROR: cannot open GADDAG file: %s\n", cfg.gaddag_path.c_str());
+            std::fprintf(stderr, "[wrapper] ERROR: cannot open %s file: %s\n", lexicon_type.c_str(), lexicon_path.c_str());
             return 3;
         }
         
-        // Robust GADDAG loading with detailed diagnostics
-        std::fprintf(stderr, "[wrapper] Attempting GADDAG load: %s\n", cfg.gaddag_path.c_str());
+        // Robust lexicon loading with detailed diagnostics
+        std::fprintf(stderr, "[wrapper] Attempting %s load: %s\n", lexicon_type.c_str(), lexicon_path.c_str());
         
         // Pre-load diagnostics
         std::error_code ec;
-        auto file_size = std::filesystem::file_size(cfg.gaddag_path, ec);
+        auto file_size = std::filesystem::file_size(lexicon_path, ec);
         if (ec) {
             std::fprintf(stderr, "[wrapper] FATAL: Cannot get file size: %s\n", ec.message().c_str());
             return 2;
         }
         
-        std::fprintf(stderr, "[wrapper] GADDAG file size: %zu bytes\n", file_size);
+        std::fprintf(stderr, "[wrapper] %s file size: %zu bytes\n", lexicon_type.c_str(), file_size);
         
         // Show first 16 bytes for format validation and alphabet info
-        std::ifstream gaddag_file(cfg.gaddag_path, std::ios::binary);
-        if (gaddag_file) {
+        std::ifstream lexicon_file(lexicon_path, std::ios::binary);
+        if (lexicon_file) {
             char header[16] = {0};
-            gaddag_file.read(header, 16);
-            std::fprintf(stderr, "[wrapper] GADDAG header (first 16 bytes): ");
+            lexicon_file.read(header, 16);
+            std::fprintf(stderr, "[wrapper] %s header (first 16 bytes): ", lexicon_type.c_str());
             for (int i = 0; i < 16; i++) {
                 std::fprintf(stderr, "%02x ", (unsigned char)header[i]);
             }
             std::fprintf(stderr, "\n");
-            gaddag_file.close();
+            lexicon_file.close();
         }
         
         // Log alphabet information
@@ -283,16 +397,21 @@ int main(int argc, char** argv) {
         } else {
             std::fprintf(stderr, "[wrapper] Using default English alphabet (no QUACKLE_ALPHABET env)\n");
         }
-        // Load GADDAG (no fallbacks allowed)
+        
+        // Load lexicon (no fallbacks allowed)
         try {
-            lexParams->loadGaddag(cfg.gaddag_path);
-            std::fprintf(stderr, "[wrapper] ✓ GADDAG loaded successfully\n");
-            gaddag_loaded = true;
+            if (lexicon_type == "GADDAG") {
+                lexParams->loadGaddag(lexicon_path);
+            } else {
+                lexParams->loadDawg(lexicon_path);
+            }
+            std::fprintf(stderr, "[wrapper] ✓ %s loaded successfully\n", lexicon_type.c_str());
+            lexicon_loaded = true;
         } catch (const std::exception& e) {
-            std::fprintf(stderr, "[wrapper] ✗ GADDAG loading failed: %s\n", e.what());
+            std::fprintf(stderr, "[wrapper] ✗ %s loading failed: %s\n", lexicon_type.c_str(), e.what());
             return 4;
         } catch (...) {
-            std::fprintf(stderr, "[wrapper] ✗ GADDAG loading failed: unknown exception\n");
+            std::fprintf(stderr, "[wrapper] ✗ %s loading failed: unknown exception\n", lexicon_type.c_str());
             return 5;
         }
         
@@ -304,8 +423,11 @@ int main(int argc, char** argv) {
         return 6;
     }
     auto ms_load = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0_load).count();
-    std::fprintf(stderr, "[wrapper] gaddag_loaded ms=%lld\n", static_cast<long long>(ms_load));
+    std::fprintf(stderr, "[wrapper] lexicon_loaded ms=%lld\n", static_cast<long long>(ms_load));
     QUACKLE_DATAMANAGER->setLexiconParameters(lexParams);
+    
+    // Log comprehensive lexicon diagnostics
+    log_lexicon_diagnostics(cfg.ruleset, alphabet_path, lexicon_path, lexicon_type);
 
     // Initialize strategy tables
     if (QUACKLE_DATAMANAGER->strategyParameters()) {
@@ -334,15 +456,16 @@ int main(int argc, char** argv) {
             }
             if (op == "probe_lexicon") {
                 json out;
-                out["lexicon_ok"] = gaddag_loaded;
-                out["gaddag_ok"] = gaddag_loaded;
-                out["gaddag_path"] = cfg.gaddag_path;
+                out["lexicon_ok"] = lexicon_loaded;
+                out["lexicon_type"] = lexicon_type;
+                out["lexicon_path"] = lexicon_path;
                 struct stat st{};
                 long long size = -1;
-                if (::stat(cfg.gaddag_path.c_str(), &st) == 0) size = static_cast<long long>(st.st_size);
+                if (::stat(lexicon_path.c_str(), &st) == 0) size = static_cast<long long>(st.st_size);
                 out["size"] = size;
                 std::string alphabet_path2 = std::getenv("QUACKLE_ALPHABET") ? std::getenv("QUACKLE_ALPHABET") : "";
                 out["alphabet"] = alphabet_path2.empty() ? "default_english" : alphabet_path2;
+                out["ruleset"] = cfg.ruleset;
                 std::cout << out.dump() << "\n";
                 std::cout.flush();
                 continue;
@@ -382,6 +505,15 @@ int main(int argc, char** argv) {
         const bool is_board_empty = json_board_is_empty(board_in);
         std::string rackStr = in.value("rack", std::string());
         rackStr = to_upper(rackStr);
+        
+        // Validate and normalize input
+        try {
+            validate_and_normalize_rack(rackStr);
+        } catch (const std::exception& e) {
+            json out = { {"moves", json::array()}, {"error", "invalid_input"}, {"reason", e.what()} };
+            std::cout << out.dump() << "\n"; std::cout.flush();
+            continue;
+        }
 
         // Build position
         Quackle::PlayerList players;
@@ -405,20 +537,33 @@ int main(int argc, char** argv) {
         // Bag (optional, not fully modeled here)
         pos.setBag(Quackle::Bag());
 
-        // Place existing tiles from 15x15 matrix
+        // Place existing tiles from 15x15 matrix with validation
+        int board_tiles_placed = 0;
         for (int r = 0; r < 15; ++r) {
             const auto &row = board_in[r];
             for (int c = 0; c < 15; ++c) {
                 std::string cell = "";
                 try { cell = row[c].get<std::string>(); } catch (...) { cell.clear(); }
                 if (cell.empty()) continue;
+                
+                // Validate board cell
+                try {
+                    validate_board_cell(r, c, cell);
+                } catch (const std::exception& e) {
+                    json out = { {"moves", json::array()}, {"error", "invalid_board"}, {"reason", e.what()} };
+                    std::cout << out.dump() << "\n"; std::cout.flush();
+                    continue;
+                }
+                
                 char ch = std::toupper(static_cast<unsigned char>(cell[0]));
                 Quackle::LetterString single;
                 single.push_back(ch);
                 Quackle::Move m = Quackle::Move::createPlaceMove(r, c, true /*horizontal unused for single*/ , single);
                 board.makeMove(m);
+                board_tiles_placed++;
             }
         }
+        std::fprintf(stderr, "[wrapper] board tiles placed: %d\n", board_tiles_placed);
 
         // Hard timebox via async (also include heavy cross computation here)
         auto t_compute_start = std::chrono::steady_clock::now();
@@ -449,16 +594,125 @@ int main(int argc, char** argv) {
             }
 
             Quackle::Generator gen(pos);
+            
+            // Log anchor analysis
+            std::fprintf(stderr, "[wrapper] === ANCHOR & CROSS-SET ANALYSIS ===\n");
+            std::fprintf(stderr, "[wrapper] board empty: %s\n", is_board_empty ? "YES" : "NO");
+            if (is_board_empty) {
+                std::fprintf(stderr, "[wrapper] empty board - center anchor at (7,7)\n");
+            } else {
+                // Count anchors on non-empty board
+                int anchor_count = 0;
+                for (int r = 0; r < 15; ++r) {
+                    for (int c = 0; c < 15; ++c) {
+                        if (board.letter(r, c) != 0) { // non-empty cell
+                            // Check if this cell is an anchor (adjacent to empty cells)
+                            bool is_anchor = false;
+                            for (int dr = -1; dr <= 1; dr += 2) {
+                                int nr = r + dr;
+                                if (nr >= 0 && nr < 15 && board.letter(nr, c) == 0) {
+                                    is_anchor = true;
+                                    break;
+                                }
+                            }
+                            if (!is_anchor) {
+                                for (int dc = -1; dc <= 1; dc += 2) {
+                                    int nc = c + dc;
+                                    if (nc >= 0 && nc < 15 && board.letter(r, nc) == 0) {
+                                        is_anchor = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (is_anchor) anchor_count++;
+                        }
+                    }
+                }
+                std::fprintf(stderr, "[wrapper] anchors found: %d\n", anchor_count);
+            }
+            
             gen.allCrosses();
-            gen.kibitz(std::max(5, top_n));
+            std::fprintf(stderr, "[wrapper] cross-set analysis: %s\n", is_board_empty ? "0 (empty board)" : "calculated");
+            
+            // Generate moves with detailed logging
+            std::fprintf(stderr, "[wrapper] generating moves with kibitz...\n");
+            
+            // SURGICAL TELEMETRY: Log every tile passed to counting system
+            auto log_tile = [&](char c, const char* where){
+                std::fprintf(stderr, "[telemetry] tile='%c' code=%u where=%s\n",
+                        (c >= 32 && c <= 126) ? c : '?', (unsigned)(unsigned char)c, where);
+            };
+            
+            // Log rack tiles (normalized and validated)
+            std::fprintf(stderr, "[telemetry] === RACK TILES ===\n");
+            for (char c : rackStr) {
+                char C = std::toupper(static_cast<unsigned char>(c));
+                if (C == '?') { 
+                    std::fprintf(stderr, "[telemetry] tile='?' code=%u where=rack_blank\n", (unsigned)(unsigned char)C);
+                    continue; 
+                }
+                if (C < 'A' || C > 'Z') {
+                    std::fprintf(stderr, "[error] invalid rack tile code=%u\n", (unsigned)(unsigned char)C);
+                    throw std::runtime_error("invalid rack tile");
+                }
+                log_tile(C, "rack");
+            }
+            
+            // Log board tiles (normalized and validated)
+            std::fprintf(stderr, "[telemetry] === BOARD TILES ===\n");
+            for (int r = 0; r < 15; ++r) {
+                const auto &row = board_in[r];
+                for (int c = 0; c < 15; ++c) {
+                    std::string cell = "";
+                    try { cell = row[c].get<std::string>(); } catch (...) { cell.clear(); }
+                    if (cell.empty()) continue;
+                    
+                    char C = std::toupper(static_cast<unsigned char>(cell[0]));
+                    if (C < 'A' || C > 'Z') {
+                        std::fprintf(stderr, "[error] invalid board tile code=%u at r=%d c=%d\n",
+                                (unsigned)(unsigned char)C, r, c);
+                        throw std::runtime_error("invalid board tile");
+                    }
+                    log_tile(C, "board");
+                }
+            }
+            
+            // Log lexicon choice and expected alphabet size
+            std::fprintf(stderr, "[diag] ruleset=en use_lexicon=%s alpha_expected=26\n",
+                    cfg.use_lexicon.c_str());
+            
+            std::fprintf(stderr, "[wrapper] calling gen.kibitz(%d)...\n", std::max(5, top_n));
+            
+            try {
+                gen.kibitz(std::max(5, top_n));
+                std::fprintf(stderr, "[wrapper] gen.kibitz() completed successfully\n");
+            } catch (const std::exception& e) {
+                std::fprintf(stderr, "[wrapper] gen.kibitz() exception: %s\n", e.what());
+                throw;
+            } catch (...) {
+                std::fprintf(stderr, "[wrapper] gen.kibitz() unknown exception\n");
+                throw;
+            }
+            
+            std::fprintf(stderr, "[wrapper] getting kibitz list...\n");
             const auto &kmoves = gen.kibitzList();
+            std::fprintf(stderr, "[wrapper] kibitz list retrieved, size: %zu\n", kmoves.size());
+            
+            std::fprintf(stderr, "[wrapper] move generation complete - nodes processed: %zu, moves found: %zu\n", 
+                        kmoves.size(), kmoves.size());
+            
             json moves = json::array();
             int count = 0;
+            int top_score = 0;
             for (const auto &mv : kmoves) {
                 if (count >= top_n) break;
                 Quackle::LetterString tls = mv.tiles();
                 std::string word;
                 for (size_t i = 0; i < tls.length(); ++i) word.push_back(tls[i]);
+                
+                if (mv.score > top_score) {
+                    top_score = mv.score;
+                }
 
                 // Enforce center rule on first move: must cross (7,7)
                 if (is_board_empty) {
@@ -489,6 +743,8 @@ int main(int argc, char** argv) {
                 moves.push_back(jmv);
                 ++count;
             }
+            
+            std::fprintf(stderr, "[wrapper] moves processed: %d, top_score: %d\n", count, top_score);
             return moves;
         };
 
@@ -496,23 +752,11 @@ int main(int argc, char** argv) {
         auto status = fut.wait_for(std::chrono::milliseconds(limit_ms + 50));
         json moves;
         if (status == std::future_status::timeout) {
-            // Timed out: return fallback safe move (never timeout outward)
-            std::fprintf(stderr, "[wrapper] compute timeout limit_ms=%d truncated=true\n", limit_ms);
-            // Simple fallback: PASS (or a single-letter center drop on empty board)
-            json jmv;
-            if (is_board_empty && !rackStr.empty()) {
-                // place first rack letter at center
-                char ch = std::toupper(static_cast<unsigned char>(rackStr[0]));
-                json pos_arr = json::array({ json::array({7, 7}) });
-                jmv = {
-                    {"word", std::string(1, ch)},
-                    {"row", 7}, {"col", 7}, {"dir", "H"}, {"score", 0}, {"positions", pos_arr}
-                };
-            } else {
-                jmv = { {"word","PASS"}, {"row",7}, {"col",7}, {"dir","H"}, {"score",0}, {"positions", json::array()} };
-            }
-            moves = json::array();
-            moves.push_back(jmv);
+            // Timed out: return explicit error instead of fallback
+            std::fprintf(stderr, "[wrapper] compute timeout limit_ms=%d - no fallback allowed\n", limit_ms);
+            json out = { {"moves", json::array()}, {"error", "timeout"}, {"reason", "move generation exceeded time limit"} };
+            std::cout << out.dump() << "\n"; std::cout.flush();
+            continue;
         } else {
             moves = fut.get();
         }

@@ -51,12 +51,24 @@ RUN git clone --depth=1 --branch v1.0.4 https://github.com/quackle/quackle.git /
 # Imposta la working directory per le istruzioni successive
 WORKDIR /srv
 
-# Compila il bridge semplice (temporaneo per testing)
-COPY bridge/simple_bridge.cpp /srv/bridge/simple_bridge.cpp
-RUN g++ -O3 -std=c++17 \
-      /srv/bridge/simple_bridge.cpp \
+# Compila il vero bridge C++ linkando la libquackle 
+COPY bridge/quackle_bridge.cpp /srv/bridge/quackle_bridge.cpp
+RUN LIBQ=$(find /tmp/quackle/build \( -name "libquackle.a" -o -name "liblibquackle.a" \) -print -quit) && \
+    [ -n "$LIBQ" ] || { echo "libquackle library not found"; exit 1; } && \
+    echo "Using libquackle at: $LIBQ" && \
+    g++ -O1 -g -fno-omit-frame-pointer -fsanitize=address -std=c++17 \
+      -I/tmp/quackle \
+      -I/tmp/quackle/src/libquackle/include \
+      -I/tmp/quackle/src/libquackle \
+      -I/tmp/quackle/src \
+      /srv/bridge/quackle_bridge.cpp \
+      "$LIBQ" \
       -o /usr/local/bin/quackle_bridge \
-      -lboost_system
+      -lboost_system -lboost_filesystem -lboost_regex \
+      -licuuc -licui18n -lpthread
+
+# Enable ASAN runtime diagnostics at runtime
+ENV ASAN_OPTIONS="detect_leaks=0:abort_on_error=1:use_sigaltstack=1:malloc_context_size=20"
 
 # Rimuovi i sorgenti temporanei
 # Copia dati (alphabets, strategy, lexica) nell'immagine dalla build di Quackle
