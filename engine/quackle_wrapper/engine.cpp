@@ -568,30 +568,8 @@ int main(int argc, char** argv) {
         // Hard timebox via async (also include heavy cross computation here)
         auto t_compute_start = std::chrono::steady_clock::now();
         auto worker = [&]() {
-            // Fast path: empty board anagram via signature index
-            if (is_board_empty) {
-                ensure_signature_index();
-                std::vector<std::string> sigs = subset_signatures(rackStr);
-                json moves = json::array();
-                for (const auto &sig : sigs) {
-                    // handle blank-marked signatures: here we rely on GADDAG later; keep simple to avoid explosion
-                    auto it = g_sig_index.find(sig);
-                    if (it == g_sig_index.end()) continue;
-                    for (const auto &w : it->second) {
-                        // Place across center horizontally
-                        int len = (int)w.size();
-                        int startc = 7 - (len-1); // ensure covers 7
-                        if (startc < 0) startc = 0;
-                        if (startc + len <= 15) {
-                            json pos_arr = json::array();
-                            for (int i=0;i<len;++i) pos_arr.push_back(json::array({7, startc+i}));
-                            moves.push_back({{"word", w},{"row",7},{"col",startc},{"dir","H"},{"score",0},{"positions",pos_arr}});
-                        }
-                    }
-                    if (moves.size() >= (size_t)top_n) break;
-                }
-                return moves;
-            }
+            // REMOVED: Fast path fallback to force gen.kibitz() call and catch segfault
+            // if (is_board_empty) { ... }
 
             Quackle::Generator gen(pos);
             
