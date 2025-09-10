@@ -326,20 +326,49 @@ int main(int argc, char** argv) {
         QUACKLE_DATAMANAGER->setStrategyParameters(new Quackle::StrategyParameters());
     }
 
-    // Alphabet selection: prefer provided QUACKLE_ALPHABET when available
+    // CRITICAL FIX: Force alphabet initialization FIRST, before any lexicon load
     std::string alphabet_path = std::getenv("QUACKLE_ALPHABET") ? std::getenv("QUACKLE_ALPHABET") : "";
     if (!alphabet_path.empty()) {
         std::fprintf(stderr, "[wrapper] alphabet file specified: %s\n", alphabet_path.c_str());
-        try {
-            // Try flexible alphabet if available in this build
-            // Fallback to English if not supported
-            QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
-        } catch (...) {
-            QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
+        if (!std::filesystem::exists(alphabet_path)) {
+            std::fprintf(stderr, "[wrapper][fatal] QUACKLE_ALPHABET file not found: %s\n", alphabet_path.c_str());
+            return 2;
         }
     } else {
-        std::fprintf(stderr, "[wrapper] using default English alphabet\n");
-        QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
+        std::fprintf(stderr, "[wrapper] using default English alphabet (no QUACKLE_ALPHABET env)\n");
+    }
+    
+    // Always use EnglishAlphabetParameters for consistent mapping
+    QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
+    
+    // Verify alphabet mapping is correct
+    auto* alphabet = QUACKLE_DATAMANAGER->alphabetParameters();
+    if (alphabet) {
+        std::fprintf(stderr, "[wrapper] alphabet initialized: name=%s size=%d firstLetter=%d lastLetter=%d\n",
+                alphabet->alphabetName().c_str(), alphabet->length(), 
+                (int)alphabet->firstLetter(), (int)alphabet->lastLetter());
+        
+        // Verify A-Z mapping works correctly
+        bool mapping_ok = true;
+        for (char c = 'A'; c <= 'Z'; ++c) {
+            // Convert ASCII to Quackle internal letter
+            Quackle::Letter internal_letter = (Quackle::Letter)(c - 'A' + QUACKLE_FIRST_LETTER);
+            if (internal_letter < alphabet->firstLetter() || internal_letter > alphabet->lastLetter()) {
+                std::fprintf(stderr, "[wrapper][fatal] alphabet mapping OOB for '%c': internal=%d first=%d last=%d\n",
+                        c, (int)internal_letter, (int)alphabet->firstLetter(), (int)alphabet->lastLetter());
+                mapping_ok = false;
+            }
+        }
+        if (mapping_ok) {
+            std::fprintf(stderr, "[wrapper] alphabet mapping verified: A-Z -> %d-%d\n", 
+                    (int)alphabet->firstLetter(), (int)alphabet->lastLetter());
+        } else {
+            std::fprintf(stderr, "[wrapper][fatal] alphabet mapping failed\n");
+            return 2;
+        }
+    } else {
+        std::fprintf(stderr, "[wrapper][fatal] failed to initialize alphabet\n");
+        return 2;
     }
 
     // Load lexicon (GADDAG or DAWG) with robust error handling
@@ -639,7 +668,7 @@ int main(int argc, char** argv) {
 
         // Set rack - SEPARATE blanks from letters to avoid OOB in counts
         Quackle::Rack rack;
-        Quackle::LetterString rackLetters;
+        std::string rackLettersStr;
         int blankCount = 0;
         
         for (char c : rackStr) {
@@ -651,19 +680,19 @@ int main(int argc, char** argv) {
             if (ch < 'A' || ch > 'Z') {
                 throw std::runtime_error("invalid rack tile: " + std::string(1, ch));
             }
-            rackLetters.push_back(ch);
+            rackLettersStr.push_back(ch);
         }
         
-        std::fprintf(stderr, "[wrapper] rack processing: letters=%u blanks=%d\n", (unsigned)rackLetters.size(), blankCount);
-        
-        // Verify that rackLetters contains no '?' characters
-        for (size_t i = 0; i < rackLetters.size(); ++i) {
-            if (rackLetters[i] == '?') {
-                std::fprintf(stderr, "[wrapper] ERROR: '?' found in rackLetters at position %zu\n", i);
-                throw std::runtime_error("blank character found in rack letters");
-            }
+        // CRITICAL FIX: Use alphabet encode to convert ASCII to internal letters
+        auto* alphabet = QUACKLE_DATAMANAGER->alphabetParameters();
+        if (!alphabet) {
+            std::fprintf(stderr, "[wrapper] ERROR: alphabet not initialized\n");
+            return json{{"error", "alphabet_not_initialized"}, {"moves", json::array()}};
         }
-        std::fprintf(stderr, "[wrapper] rackLetters verified: no blanks present\n");
+        
+        Quackle::LetterString rackLetters = alphabet->encode(rackLettersStr);
+        std::fprintf(stderr, "[wrapper] rack processing: letters=%u blanks=%d (encoded from '%s')\n", 
+                (unsigned)rackLetters.size(), blankCount, rackLettersStr.c_str());
         
         rack.setTiles(rackLetters);
         
@@ -696,8 +725,9 @@ int main(int argc, char** argv) {
                 }
                 
                 char ch = std::toupper(static_cast<unsigned char>(cell[0]));
-                Quackle::LetterString single;
-                single.push_back(ch);
+                // CRITICAL FIX: Use alphabet encode to convert ASCII to internal letters
+                std::string singleStr(1, ch);
+                Quackle::LetterString single = alphabet->encode(singleStr);
                 Quackle::Move m = Quackle::Move::createPlaceMove(r, c, true /*horizontal unused for single*/ , single);
                 board.makeMove(m);
                 board_tiles_placed++;
@@ -839,8 +869,8 @@ int main(int argc, char** argv) {
             for (const auto &mv : kmoves) {
                 if (count >= top_n) break;
                 Quackle::LetterString tls = mv.tiles();
-                std::string word;
-                for (size_t i = 0; i < tls.length(); ++i) word.push_back(tls[i]);
+                // CRITICAL FIX: Use alphabet userVisible to convert internal letters to ASCII
+                std::string word = alphabet->userVisible(tls);
                 
                 if (mv.score > top_score) {
                     top_score = mv.score;
