@@ -32,7 +32,7 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(RequestLoggerMiddleware)
 
-BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", "/usr/local/bin/quackle_bridge").strip()
+BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", "./bridge/engine_wrapper").strip()
 QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "enable1").strip()
 QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/data/quackle/lexica/enable1").strip()
 
@@ -162,10 +162,12 @@ def _startup_log():
 
 def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
-        print(f"[DEBUG] Calling bridge with payload: {json.dumps(payload, indent=2)[:500]}...")
+        # Add the 'op' field that the wrapper expects
+        wrapper_payload = {"op": "compute", **payload}
+        print(f"[DEBUG] Calling bridge with payload: {json.dumps(wrapper_payload, indent=2)[:500]}...")
         proc = subprocess.run(
-            [BRIDGE_BIN, "--lexicon", QUACKLE_LEXICON, "--lexdir", QUACKLE_LEXDIR],
-            input=json.dumps(payload).encode("utf-8"),
+            [BRIDGE_BIN, "--gaddag", f"{QUACKLE_LEXDIR}/enable1.gaddag", "--ruleset", "en"],
+            input=json.dumps(wrapper_payload).encode("utf-8"),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=8,
@@ -196,7 +198,48 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
             
         out = proc.stdout.decode("utf-8").strip()
         print(f"[DEBUG] Bridge stdout: {out}")
-        return json.loads(out) if out else {}
+        
+        if not out:
+            return {}
+            
+        try:
+            result = json.loads(out)
+            
+            # Convert wrapper format to service format
+            if "moves" in result and "meta" in result:
+                moves = result["moves"]
+                if moves:
+                    # Take the first (best) move
+                    best_move = moves[0]
+                    return {
+                        "tiles": best_move.get("positions", []),
+                        "score": best_move.get("score", 0),
+                        "words": [best_move.get("word", "")],
+                        "move_type": "play",
+                        "engine_fallback": False,
+                        "raw_move": best_move
+                    }
+                else:
+                    return {
+                        "tiles": [],
+                        "score": 0,
+                        "words": [],
+                        "move_type": "pass",
+                        "engine_fallback": False
+                    }
+            else:
+                # Fallback for other formats
+                return result
+        except json.JSONDecodeError as e:
+            print(f"[ERROR] JSON decode error: {e}")
+            return {
+                "tiles": [],
+                "score": 0,
+                "words": [],
+                "move_type": "pass",
+                "engine_fallback": True,
+                "error": f"json_decode_error: {e}"
+            }
     except Exception as e:
         print(f"[ERROR] Bridge error: {repr(e)}")
         return {
@@ -257,5 +300,10 @@ async def best_move(req: Request):
             "error": str(e),
             "raw_head": raw_head
         }
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 

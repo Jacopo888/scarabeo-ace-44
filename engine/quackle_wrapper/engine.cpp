@@ -877,15 +877,16 @@ int main(int argc, char** argv) {
                 }
 
                 // Enforce center rule on first move: must cross (7,7)
-                if (is_board_empty) {
-                    bool crossesCenter = false;
-                    for (size_t i = 0; i < tls.length(); ++i) {
-                        int rr = mv.startrow + (mv.horizontal ? 0 : static_cast<int>(i));
-                        int cc = mv.startcol + (mv.horizontal ? static_cast<int>(i) : 0);
-                        if (rr == 7 && cc == 7) { crossesCenter = true; break; }
-                    }
-                    if (!crossesCenter) continue;
-                }
+                // TEMPORARILY DISABLED: Allow all moves to see what's generated
+                // if (is_board_empty) {
+                //     bool crossesCenter = false;
+                //     for (size_t i = 0; i < tls.length(); ++i) {
+                //         int rr = mv.startrow + (mv.horizontal ? 0 : static_cast<int>(i));
+                //         int cc = mv.startcol + (mv.horizontal ? static_cast<int>(i) : 0);
+                //         if (rr == 7 && cc == 7) { crossesCenter = true; break; }
+                //     }
+                //     if (!crossesCenter) continue;
+                // }
 
                 json pos_arr = json::array();
                 for (size_t i = 0; i < tls.length(); ++i) {

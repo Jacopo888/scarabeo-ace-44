@@ -1,4 +1,4 @@
-# Install script for directory: /src/quackle_wrapper/build/_deps/nlohmann_json-subbuild
+# Install script for directory: /home/jacopo/Progetti-github/scarabeo-ace-44/engine/quackle_wrapper/build/_deps/nlohmann_json-subbuild
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -45,5 +45,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/src/quackle_wrapper/build/_deps/nlohmann_json-subbuild/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/jacopo/Progetti-github/scarabeo-ace-44/engine/quackle_wrapper/build/_deps/nlohmann_json-subbuild/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
