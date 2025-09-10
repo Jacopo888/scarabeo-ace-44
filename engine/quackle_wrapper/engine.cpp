@@ -430,25 +430,64 @@ int main(int argc, char** argv) {
     log_lexicon_diagnostics(cfg.ruleset, alphabet_path, lexicon_path, lexicon_type);
 
     // Initialize strategy tables
+    std::fprintf(stderr, "[wrapper] Initializing strategy parameters...\n");
     if (QUACKLE_DATAMANAGER->strategyParameters()) {
+        std::fprintf(stderr, "[wrapper] Strategy parameters found, initializing...\n");
         QUACKLE_DATAMANAGER->strategyParameters()->initialize("default");
+        std::fprintf(stderr, "[wrapper] Default strategy initialized\n");
         QUACKLE_DATAMANAGER->strategyParameters()->initialize("default_english");
+        std::fprintf(stderr, "[wrapper] Default English strategy initialized\n");
+    } else {
+        std::fprintf(stderr, "[wrapper] No strategy parameters found\n");
     }
 
+    std::fprintf(stderr, "[wrapper] Setting up I/O...\n");
     std::ios::sync_with_stdio(false);
     std::cin.tie(nullptr);
 
+    std::fprintf(stderr, "[loop] entering main loop\n");
     std::string line;
-    while (std::getline(std::cin, line)) {
-        if (line.empty()) continue;
-        json in;
-        try { in = json::parse(line); }
-        catch (...) { continue; }
+    while (true) {
+        if (!std::cin.good()) {
+            std::fprintf(stderr, "[loop] cin !good (eof=%d fail=%d bad=%d) -> break\n",
+                    (int)std::cin.eof(), (int)std::cin.fail(), (int)std::cin.bad());
+            break;
+        }
+        if (!std::getline(std::cin, line)) {
+            std::fprintf(stderr, "[loop] getline returned false (eof=%d fail=%d bad=%d) -> break\n",
+                    (int)std::cin.eof(), (int)std::cin.fail(), (int)std::cin.bad());
+            break;
+        }
+        std::fprintf(stderr, "[loop] got line len=%zu: %.*s\n", line.size(),
+                (int)std::min<size_t>(line.size(), 200), line.c_str());
 
-        const std::string op = in.value("op", "");
-        std::fprintf(stderr, "[wrapper] recv op=%s\n", op.c_str());
+        if (line.empty()) {
+            std::fprintf(stderr, "[loop] empty line -> continue\n");
+            continue;
+        }
+
+        json in;
+        try { 
+            in = json::parse(line); 
+            std::fprintf(stderr, "[loop] json parse ok\n");
+        } catch (const nlohmann::json::parse_error& e) {
+            std::fprintf(stderr, "[loop] json parse_error: %s; line len=%zu\n", e.what(), line.size());
+            continue;
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "[loop] exception in parse: %s\n", e.what());
+            continue;
+        }
+
+        auto opIt = in.find("op");
+        if (opIt == in.end() || !opIt->is_string()) {
+            std::fprintf(stderr, "[loop] parse ok but missing 'op' string -> continue\n");
+            continue;
+        }
+        const std::string op = *opIt;
+        std::fprintf(stderr, "[loop] op='%s'\n", op.c_str());
         try {
             if (op == "ping") {
+                std::fprintf(stderr, "[loop] dispatch ping\n");
                 json out = { {"pong", true} };
                 std::cout << out.dump() << "\n";
                 std::cout.flush();
@@ -472,9 +511,20 @@ int main(int argc, char** argv) {
             }
             // no test_move op; only compute is supported
             
-            if (op != "compute") continue;
+            if (op == "compute" || op == "move") {
+                std::fprintf(stderr, "[loop] dispatch compute\n");
+            } else {
+                std::fprintf(stderr, "[loop] unknown op '%s'\n", op.c_str());
+                continue;
+            }
 
         // Validate and parse input
+        std::fprintf(stderr, "[compute] raw rack=%s limit_ms=%d board_has=%d cells_len=%zu\n",
+                in.contains("rack") && in["rack"].is_string() ? in["rack"].get_ref<const std::string&>().c_str() : "<none>",
+                in.value("limit_ms", -1),
+                (int)in.contains("board"),
+                (in.contains("board") && in["board"].contains("cells") && in["board"]["cells"].is_array()) ? in["board"]["cells"].size() : 0);
+
         int limit_ms = in.value("limit_ms", 1500);
         int top_n = in.value("top_n", 10);
         if (top_n < 1) top_n = 1;
@@ -489,22 +539,55 @@ int main(int argc, char** argv) {
             continue;
         }
 
-        const auto &board_in = in["board"];
-        if (!board_in.is_array() || board_in.size() != 15) {
+        if (!in.contains("board") || !in["board"].is_object()) {
+            std::fprintf(stderr, "[compute] invalid: missing board object\n");
             json out = { {"moves", json::array()}, {"error", "invalid_board"} };
             std::cout << out.dump() << "\n"; std::cout.flush();
             continue;
         }
-        for (const auto &row : board_in) {
+        if (!in.contains("rack") || !in["rack"].is_string()) {
+            std::fprintf(stderr, "[compute] invalid: rack must be string\n");
+            json out = { {"moves", json::array()}, {"error", "invalid_rack"} };
+            std::cout << out.dump() << "\n"; std::cout.flush();
+            continue;
+        }
+
+        const auto &board_in = in["board"];
+        if (!board_in.contains("cells") || !board_in["cells"].is_array() || board_in["cells"].size() != 15) {
+            std::fprintf(stderr, "[compute] invalid: board.cells must be array of 15 rows\n");
+            json out = { {"moves", json::array()}, {"error", "invalid_board"} };
+            std::cout << out.dump() << "\n"; std::cout.flush();
+            continue;
+        }
+        for (const auto &row : board_in["cells"]) {
             if (!row.is_array() || row.size() != 15) {
                 json out = { {"moves", json::array()}, {"error", "invalid_board"} };
                 std::cout << out.dump() << "\n"; std::cout.flush();
                 continue;
             }
         }
-        const bool is_board_empty = json_board_is_empty(board_in);
+        const bool is_board_empty = json_board_is_empty(board_in["cells"]);
         std::string rackStr = in.value("rack", std::string());
         rackStr = to_upper(rackStr);
+        
+        // Rack normalization (no ? into letters; count blanks)
+        Quackle::FixedLengthString letters;
+        int blanks = 0;
+        for (unsigned char uc : rackStr) {
+            char C = (char)std::toupper(uc);
+            if (C == '?') { 
+                ++blanks; 
+                continue; 
+            }
+            if (C < 'A' || C > 'Z') { 
+                std::fprintf(stderr, "[compute] invalid rack char=%u\n", (unsigned)uc); 
+                json out = { {"moves", json::array()}, {"error", "invalid_rack_char"} };
+                std::cout << out.dump() << "\n"; std::cout.flush();
+                continue;
+            }
+            letters.push_back(C);
+        }
+        std::fprintf(stderr, "[compute] rack norm: letters_len=%zu blanks=%d\n", (size_t)letters.length(), blanks);
         
         // Validate and normalize input
         try {
@@ -523,13 +606,34 @@ int main(int argc, char** argv) {
         Quackle::Board &board = pos.underlyingBoardReference();
         board.prepareEmptyBoard();
 
-        // Set rack
+        // Set rack - SEPARATE blanks from letters to avoid OOB in counts
         Quackle::Rack rack;
         Quackle::LetterString rackLetters;
+        int blankCount = 0;
+        
         for (char c : rackStr) {
             char ch = std::toupper(static_cast<unsigned char>(c));
+            if (ch == '?') {
+                blankCount++; // count blanks separately
+                continue; // DO NOT add '?' to rackLetters
+            }
+            if (ch < 'A' || ch > 'Z') {
+                throw std::runtime_error("invalid rack tile: " + std::string(1, ch));
+            }
             rackLetters.push_back(ch);
         }
+        
+        std::fprintf(stderr, "[wrapper] rack processing: letters=%u blanks=%d\n", (unsigned)rackLetters.size(), blankCount);
+        
+        // Verify that rackLetters contains no '?' characters
+        for (size_t i = 0; i < rackLetters.size(); ++i) {
+            if (rackLetters[i] == '?') {
+                std::fprintf(stderr, "[wrapper] ERROR: '?' found in rackLetters at position %zu\n", i);
+                throw std::runtime_error("blank character found in rack letters");
+            }
+        }
+        std::fprintf(stderr, "[wrapper] rackLetters verified: no blanks present\n");
+        
         rack.setTiles(rackLetters);
         pos.setCurrentPlayerRack(rack, false);
         pos.setCurrentPlayer(0);
@@ -540,7 +644,7 @@ int main(int argc, char** argv) {
         // Place existing tiles from 15x15 matrix with validation
         int board_tiles_placed = 0;
         for (int r = 0; r < 15; ++r) {
-            const auto &row = board_in[r];
+            const auto &row = board_in["cells"][r];
             for (int c = 0; c < 15; ++c) {
                 std::string cell = "";
                 try { cell = row[c].get<std::string>(); } catch (...) { cell.clear(); }
@@ -572,6 +676,17 @@ int main(int argc, char** argv) {
             // if (is_board_empty) { ... }
 
             Quackle::Generator gen(pos);
+            
+            // Verify alphabet consistency between Lexicon and Generator
+            auto* alphabet = QUACKLE_DATAMANAGER->alphabetParameters();
+            std::fprintf(stderr, "[wrapper] alphabet consistency check: alphabet=%p name=%s\n", 
+                    (void*)alphabet, alphabet ? alphabet->alphabetName().c_str() : "null");
+            
+            // Log alphabet size for verification
+            if (alphabet) {
+                std::fprintf(stderr, "[wrapper] alphabet size: length=%d firstLetter=%d lastLetter=%d\n",
+                        alphabet->length(), (int)alphabet->firstLetter(), (int)alphabet->lastLetter());
+            }
             
             // Log anchor analysis
             std::fprintf(stderr, "[wrapper] === ANCHOR & CROSS-SET ANALYSIS ===\n");
@@ -639,7 +754,7 @@ int main(int argc, char** argv) {
             // Log board tiles (normalized and validated)
             std::fprintf(stderr, "[telemetry] === BOARD TILES ===\n");
             for (int r = 0; r < 15; ++r) {
-                const auto &row = board_in[r];
+                const auto &row = board_in["cells"][r];
                 for (int c = 0; c < 15; ++c) {
                     std::string cell = "";
                     try { cell = row[c].get<std::string>(); } catch (...) { cell.clear(); }
@@ -662,7 +777,7 @@ int main(int argc, char** argv) {
             std::fprintf(stderr, "[wrapper] calling gen.kibitz(%d)...\n", std::max(5, top_n));
             
             try {
-                gen.kibitz(std::max(5, top_n));
+            gen.kibitz(std::max(5, top_n));
                 std::fprintf(stderr, "[wrapper] gen.kibitz() completed successfully\n");
             } catch (const std::exception& e) {
                 std::fprintf(stderr, "[wrapper] gen.kibitz() exception: %s\n", e.what());

@@ -33,7 +33,7 @@ RUN set -euo pipefail; \
   CXXFLAGS="-O3 -std=c++17 -fPIC"; \
   LATE_LIBS="-lpthread -lboost_regex -lboost_filesystem -lboost_system $ICU_LIBS $QT_LIBS"; \
   mkdir -p /tmp/quackle_bin /tmp/quackle_obj; \
-  QIO_SRCS="quackleio/dawgfactory.cpp quackleio/dict.cpp quackleio/dictfactory.cpp quackleio/dictimplementation.cpp quackleio/flexiblealphabet.cpp quackleio/froggetopt.cpp quackleio/gaddagfactory.cpp quackleio/gcgio.cpp quackleio/queenie.cpp quackleio/streamingreporter.cpp quackleio/util.cpp alphabetparameters.cpp"; \
+  QIO_SRCS="quackleio/dawgfactory.cpp quackleio/dict.cpp quackleio/dictfactory.cpp quackleio/dictimplementation.cpp quackleio/flexiblealphabet.cpp quackleio/froggetopt.cpp quackleio/gcgio.cpp quackleio/queenie.cpp quackleio/streamingreporter.cpp quackleio/util.cpp alphabetparameters.cpp"; \
   for f in $QIO_SRCS; do \
     base="$(basename "$f" .cpp)"; \
     g++ $CXXFLAGS $INCS $ICU_CFLAGS $QT_CFLAGS -c "$f" -o "/tmp/quackle_obj/${base}.o"; \
@@ -89,10 +89,10 @@ RUN cmake -S /src/quackle_wrapper -B /build \
     -DQUACKLE_ROOT=/src/third_party/quackle \
     -DQUACKLE_BUILD_DIR=/src/third_party/quackle/build \
     -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_CXX_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS" \
-    -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" && \
+    -DCMAKE_CXX_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address" \
+    -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address" && \
     cmake --build /build -j && \
-    echo "ASAN+UBSan wrapper built"
+    echo "ASAN wrapper built"
 
 # ---------- STAGE 4: runtime (copia da quackle-base + wrapper-normal) ----------
 FROM ubuntu:22.04 AS runtime
@@ -186,8 +186,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8080 RULESET=en \
     QUACKLE_ALPHABET=/app/alphabets/english.quackle_alphabet \
     QUACKLE_APPDATA_DIR=/usr/share/quackle/data \
     GADDAG_PATH=/app/lexica/enable1.gaddag \
-    ASAN_OPTIONS=abort_on_error=1:halt_on_error=1:detect_leaks=0:symbolize=1:malloc_context_size=50 \
-    UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
+    ASAN_OPTIONS=abort_on_error=1:halt_on_error=1:detect_leaks=0:symbolize=1:malloc_context_size=50
 
 COPY pyproject.toml /app/pyproject.toml
 RUN pip install --no-cache-dir -e .
@@ -206,3 +205,5 @@ COPY --from=wrapper-asan /build/engine_wrapper /app/bin/engine_wrapper
 EXPOSE 8080
 ENTRYPOINT ["/usr/bin/tini","--"]
 CMD ["python3","-m","uvicorn","app.main:app","--host","0.0.0.0","--port","8080","--workers","1","--timeout-keep-alive","5"]
+
+
