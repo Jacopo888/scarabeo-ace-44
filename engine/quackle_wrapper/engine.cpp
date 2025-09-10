@@ -16,6 +16,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <algorithm>
+// #include "debug/memwrap.h"  // Disabled
 
 // Quackle headers (core only, no Qt)
 #include "game.h"
@@ -600,9 +601,39 @@ int main(int argc, char** argv) {
 
         // Build position
         Quackle::PlayerList players;
-        players.push_back( Quackle::Player("A") );
-        players.push_back( Quackle::Player("B") );
+        players.push_back( Quackle::Player("A", 1, 0) );  // HumanPlayerType = 1
+        players.push_back( Quackle::Player("B", 1, 1) );  // HumanPlayerType = 1
         Quackle::GamePosition pos(players);
+        
+        // Verify players are properly initialized
+        std::fprintf(stderr, "[wrapper] players count: %zu\n", players.size());
+        std::fprintf(stderr, "[wrapper] position players count: %zu\n", pos.players().size());
+        std::fprintf(stderr, "[wrapper] position turnNumber: %d\n", pos.turnNumber());
+        for (size_t i = 0; i < players.size(); i++) {
+            std::fprintf(stderr, "[wrapper] player[%zu] id=%d name=%s\n", i, players[i].id(), players[i].name().c_str());
+        }
+        
+        // CRITICAL FIX: Set current player to first player (0)
+        if (!pos.setCurrentPlayer(0)) {
+            std::fprintf(stderr, "[wrapper] ERROR: Failed to set current player to 0\n");
+            json out = { {"moves", json::array()}, {"error", "internal_error"} };
+            std::cout << out.dump() << "\n"; std::cout.flush();
+            continue;
+        }
+        std::fprintf(stderr, "[wrapper] current player set to 0\n");
+        std::fprintf(stderr, "[wrapper] position turnNumber after setCurrentPlayer: %d\n", pos.turnNumber());
+        
+        // Verify that currentPlayer() is accessible
+        try {
+            const Quackle::Player& currentPlayer = pos.currentPlayer();
+            std::fprintf(stderr, "[wrapper] current player id: %d, name: %s\n", currentPlayer.id(), currentPlayer.name().c_str());
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "[wrapper] ERROR: Cannot access currentPlayer(): %s\n", e.what());
+        }
+        
+        // CRITICAL FIX: Use setPosition() instead of copy constructor to avoid iterator issues
+        std::fprintf(stderr, "[wrapper] using setPosition() to avoid copy constructor issues\n");
+        
         Quackle::Board &board = pos.underlyingBoardReference();
         board.prepareEmptyBoard();
 
@@ -635,8 +666,13 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "[wrapper] rackLetters verified: no blanks present\n");
         
         rack.setTiles(rackLetters);
+        
+        // CRITICAL: Set watch range for memory operations
+        std::fprintf(stderr, "[rack.watch] base=%p size=%zu tiles.len=%d\n", 
+                &rack, sizeof(rack), (int)rack.tiles().length());
+        // memwrap_set_watch_range(&rack, sizeof(rack));  // Disabled
+        
         pos.setCurrentPlayerRack(rack, false);
-        pos.setCurrentPlayer(0);
 
         // Bag (optional, not fully modeled here)
         pos.setBag(Quackle::Bag());
@@ -675,7 +711,8 @@ int main(int argc, char** argv) {
             // REMOVED: Fast path fallback to force gen.kibitz() call and catch segfault
             // if (is_board_empty) { ... }
 
-            Quackle::Generator gen(pos);
+            Quackle::Generator gen;
+            gen.setPosition(pos);
             
             // Verify alphabet consistency between Lexicon and Generator
             auto* alphabet = QUACKLE_DATAMANAGER->alphabetParameters();
@@ -776,6 +813,8 @@ int main(int argc, char** argv) {
             
             std::fprintf(stderr, "[wrapper] calling gen.kibitz(%d)...\n", std::max(5, top_n));
             
+            // About to call kibitz
+            
             try {
             gen.kibitz(std::max(5, top_n));
                 std::fprintf(stderr, "[wrapper] gen.kibitz() completed successfully\n");
@@ -841,24 +880,15 @@ int main(int argc, char** argv) {
             return moves;
         };
 
-        auto fut = std::async(std::launch::async, worker);
-        auto status = fut.wait_for(std::chrono::milliseconds(limit_ms + 50));
-        json moves;
-        if (status == std::future_status::timeout) {
-            // Timed out: return explicit error instead of fallback
-            std::fprintf(stderr, "[wrapper] compute timeout limit_ms=%d - no fallback allowed\n", limit_ms);
-            json out = { {"moves", json::array()}, {"error", "timeout"}, {"reason", "move generation exceeded time limit"} };
-            std::cout << out.dump() << "\n"; std::cout.flush();
-            continue;
-        } else {
-            moves = fut.get();
-        }
+        // CRITICAL FIX: Call worker() directly instead of using std::async to avoid copy constructor issues
+        std::fprintf(stderr, "[wrapper] calling gen.kibitz() directly (no thread)\n");
+        json moves = worker();
         auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - t_compute_start).count();
         json meta = {
             {"time_ms", static_cast<long long>(elapsed_ms)},
             {"board_empty", is_board_empty},
-            {"truncated", status == std::future_status::timeout},
+            {"truncated", false},  // No timeout since we're not using async
             {"moves_returned", static_cast<int>(moves.size())}
         };
         json out = { {"moves", moves}, {"meta", meta} };

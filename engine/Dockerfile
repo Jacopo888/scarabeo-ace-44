@@ -6,19 +6,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Qt5 + ICU + Boost per tool di build stile Colab (Piano C)
     qtbase5-dev qtchooser qtbase5-dev-tools \
     libicu-dev libboost-all-dev \
+    gdb \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 
 # Porta dentro il submodule e compila la static lib
-COPY third_party/quackle/ /src/third_party/quackle/
+COPY engine/third_party/quackle/ /src/third_party/quackle/
 # Build della static lib del submodule in /src/third_party/quackle/build
-RUN cmake -S /src/third_party/quackle -B /src/third_party/quackle/build -DCMAKE_BUILD_TYPE=RelWithDebInfo \
- && cmake --build /src/third_party/quackle/build -j
+RUN cmake -S /src/third_party/quackle -B /src/third_party/quackle/build \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_CXX_FLAGS="-O0 -g -fno-omit-frame-pointer -fsanitize=address -D_GLIBCXX_ASSERTIONS -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC" \
+    -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address" && \
+    cmake --build /src/third_party/quackle/build -j
 
 # ==== costruisci SOLO makegaddag_tool (stile Colab) e genera GADDAG ====
 # Copia la wordlist sorgente (testo, uppercase)
-COPY lexica_src/enable1.txt /src/enable1.txt
+COPY engine/lexica_src/enable1.txt /src/enable1.txt
 
 # Manually build makegaddag_tool (no CMake target provided upstream)
 RUN set -euo pipefail; \
@@ -70,7 +74,7 @@ FROM quackle-base AS wrapper-normal
 WORKDIR /src
 
 # Build del wrapper normale (ottimizzato per produzione)
-COPY quackle_wrapper/ /src/quackle_wrapper/
+COPY engine/quackle_wrapper/ /src/quackle_wrapper/
 RUN cmake -S /src/quackle_wrapper -B /build \
       -DQUACKLE_ROOT=/src/third_party/quackle \
       -DQUACKLE_BUILD_DIR=/src/third_party/quackle/build \
@@ -84,15 +88,17 @@ FROM quackle-base AS wrapper-asan
 WORKDIR /src
 
 # Build del wrapper ASAN (ottimizzato per debug)
-COPY quackle_wrapper/ /src/quackle_wrapper/
+# Copia solo i file che cambiano spesso
+COPY engine/quackle_wrapper/CMakeLists.txt /src/quackle_wrapper/
+COPY engine/quackle_wrapper/engine.cpp /src/quackle_wrapper/
 RUN cmake -S /src/quackle_wrapper -B /build \
     -DQUACKLE_ROOT=/src/third_party/quackle \
     -DQUACKLE_BUILD_DIR=/src/third_party/quackle/build \
     -DCMAKE_BUILD_TYPE=Debug \
-    -DCMAKE_CXX_FLAGS="-O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS" \
+    -DCMAKE_CXX_FLAGS="-O0 -g -fno-omit-frame-pointer -fsanitize=address,undefined -D_GLIBCXX_ASSERTIONS -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC" \
     -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" && \
     cmake --build /build -j && \
-    echo "ASAN+UBSan wrapper built"
+    echo "ASAN+UBSan+libstdc++ debug wrapper built"
 
 # ---------- STAGE 4: runtime (copia da quackle-base + wrapper-normal) ----------
 FROM ubuntu:22.04 AS runtime
@@ -186,7 +192,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8080 RULESET=en \
     QUACKLE_ALPHABET=/app/alphabets/english.quackle_alphabet \
     QUACKLE_APPDATA_DIR=/usr/share/quackle/data \
     GADDAG_PATH=/app/lexica/enable1.gaddag \
-    ASAN_OPTIONS=abort_on_error=1:halt_on_error=1:detect_leaks=0:symbolize=1:malloc_context_size=50 \
+    ASAN_OPTIONS=abort_on_error=1:halt_on_error=1:detect_leaks=0:detect_stack_use_after_return=1:alloc_dealloc_mismatch=1:symbolize=1:malloc_context_size=50 \
     UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
 
 COPY pyproject.toml /app/pyproject.toml
