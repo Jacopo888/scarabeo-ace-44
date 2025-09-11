@@ -18,35 +18,31 @@ export const useQuackle = () => {
     try {
       // Add artificial thinking time for better UX
       const thinkingTime = getThinkingTime(difficulty)
-      const boardObject: Record<string, any> = {}
+      
+      // Create 15x15 board array for Quackle engine wrapper
+      const boardCells: (string | null)[][] = Array(15).fill(null).map(() => Array(15).fill(null))
       gameState.board.forEach((tile) => {
-        const row = tile.row + 1
-        const col = tile.col + 1
-        const newKey = `${row},${col}`
-        boardObject[newKey] = {
-          letter: tile.letter,
-          points: tile.points,
-          row,
-          col,
-          isBlank: tile.isBlank || false
+        const row = tile.row
+        const col = tile.col
+        if (row >= 0 && row < 15 && col >= 0 && col < 15) {
+          boardCells[row][col] = tile.isBlank ? '?' : tile.letter
         }
       })
 
-      console.log('[useQuackle] Sending board keys:', Object.keys(boardObject))
+      console.log('[useQuackle] Board cells with tiles:', boardCells.flat().filter(cell => cell !== null).length)
 
-      // Filter out blank tiles or format them properly for Quackle
-      const formatRackForQuackle = (rack: Tile[]) => {
+      // Format rack as string for Quackle engine wrapper
+      const formatRackForQuackle = (rack: Tile[]): string => {
         return rack
           .filter(tile => tile.letter !== '' || tile.isBlank) // Keep non-blank tiles and proper blank tiles
-          .map(tile => ({
-            letter: tile.letter === '' && tile.isBlank ? '?' : tile.letter, // Convert empty string blanks to '?'
-            points: tile.points,
-            isBlank: tile.isBlank || false
-          }))
+          .map(tile => tile.letter === '' && tile.isBlank ? '?' : tile.letter) // Convert empty string blanks to '?'
+          .join('')
       }
 
       const payload = {
-        board: boardObject,
+        board: {
+          cells: boardCells
+        },
         rack: formatRackForQuackle(playerRack),
         difficulty
       }

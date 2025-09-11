@@ -211,8 +211,19 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
                 if moves:
                     # Take the first (best) move
                     best_move = moves[0]
+                    # Convert positions from [row, col] arrays to {row, col} objects
+                    tiles = []
+                    for pos in best_move.get("positions", []):
+                        if len(pos) >= 2:
+                            tiles.append({
+                                "row": pos[0],
+                                "col": pos[1],
+                                "letter": best_move.get("word", "")[len(tiles)] if len(tiles) < len(best_move.get("word", "")) else "",
+                                "points": 0,  # Will be calculated by frontend
+                                "isBlank": False
+                            })
                     return {
-                        "tiles": best_move.get("positions", []),
+                        "tiles": tiles,
                         "score": best_move.get("score", 0),
                         "words": [best_move.get("word", "")],
                         "move_type": "play",
