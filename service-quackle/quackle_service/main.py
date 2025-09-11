@@ -33,8 +33,8 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
 app.add_middleware(RequestLoggerMiddleware)
 
 BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", "./bridge/engine_wrapper").strip()
-QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "enable1").strip()
-QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/data/quackle/lexica/enable1").strip()
+QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "en-enable").strip()
+QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/usr/share/quackle/lexica").strip()
 
 # Additional envs used for preflight/diagnostics (align with Dockerfile defaults)
 LEXICON_NAME = os.getenv("LEXICON_NAME", QUACKLE_LEXICON).strip()
@@ -166,7 +166,7 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
         wrapper_payload = {"op": "compute", **payload}
         print(f"[DEBUG] Calling bridge with payload: {json.dumps(wrapper_payload, indent=2)[:500]}...")
         proc = subprocess.run(
-            [BRIDGE_BIN, "--gaddag", f"{QUACKLE_LEXDIR}/enable1.gaddag", "--ruleset", "en"],
+            [BRIDGE_BIN, "--gaddag", f"{QUACKLE_LEXDIR}/{QUACKLE_LEXICON}.gaddag", "--ruleset", "en"],
             input=json.dumps(wrapper_payload).encode("utf-8"),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

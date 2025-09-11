@@ -86,11 +86,11 @@ COPY quackle_service /srv/quackle_service
 
 # Variabili di default (modificabili in deploy)
 ENV CORS_ORIGINS="https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app"
-ENV QUACKLE_LEXICON="enable1"
-ENV QUACKLE_LEXDIR="/data/quackle/lexica/enable1"
+ENV QUACKLE_LEXICON="en-enable"
+ENV QUACKLE_LEXDIR="/usr/share/quackle/lexica"
 ENV QUACKLE_APPDATA_DIR="/usr/share/quackle/data"
-ENV LEXICON_NAME="enable1"
-ENV LEX_DIR="/data/quackle/lexica/enable1"
+ENV LEXICON_NAME="en-enable"
+ENV LEX_DIR="/usr/share/quackle/lexica"
 
 # Copy lexicon files from project directly
 COPY lexica/enable1.dawg /usr/share/quackle/lexica/enable1.dawg
