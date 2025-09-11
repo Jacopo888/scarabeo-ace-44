@@ -63,6 +63,61 @@ def health():
         "version": "v104-debug"
     }
 
+@app.get("/debug/config")
+async def debug_config():
+    """Debug endpoint to return configuration"""
+    dawg_path, gaddag_path = _lex_paths()
+    dawg_exists = os.path.exists(dawg_path)
+    gaddag_exists = os.path.exists(gaddag_path)
+    
+    return {
+        "lexicon": LEXICON_NAME,
+        "dawg_exists": dawg_exists,
+        "gaddag_exists": gaddag_exists,
+        "dawg_path": dawg_path,
+        "gaddag_path": gaddag_path,
+        "board_width": 15,
+        "board_height": 15,
+        "center_x": 7,
+        "center_y": 7,
+        "bridge_bin": BRIDGE_BIN,
+        "lex_dir": LEX_DIR,
+        "appdata_dir": APPDATA_DIR
+    }
+
+@app.post("/debug/probe")
+async def debug_probe(request: BestMoveRequest):
+    """Debug endpoint to analyze a game state without executing a full turn"""
+    try:
+        # Call the bridge with debug mode
+        payload = {
+            "op": "compute",
+            "board": {"cells": request.board.cells},
+            "rack": request.rack,
+            "difficulty": request.difficulty,
+            "debug": True
+        }
+        
+        result = _call_bridge(payload)
+        
+        # Extract debug information from the result
+        debug_info = {
+            "took_ms": result.get("time_ms", 0),
+            "timeout_hit": False,  # We don't have timeout info in current implementation
+            "board_empty": result.get("board_empty", False),
+            "center_anchor_ok": True,  # Will be determined by bridge logs
+            "generated_count": len(result.get("moves", [])),
+            "legal_count": len([m for m in result.get("moves", []) if m.get("score", 0) > 0]),
+            "top_5_moves": result.get("moves", [])[:5]
+        }
+        
+        return debug_info
+        
+    except Exception as e:
+        logger.error(f"Debug probe failed: {e}")
+        return {"error": str(e), "took_ms": 0, "timeout_hit": False, "board_empty": False, 
+                "center_anchor_ok": False, "generated_count": 0, "legal_count": 0, "top_5_moves": []}
+
 @app.get("/health/lexicon")
 def health_lexicon():
     ok, dawg, gaddag = ensure_lexicon_ready()

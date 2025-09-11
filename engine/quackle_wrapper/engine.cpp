@@ -605,7 +605,9 @@ int main(int argc, char** argv) {
         }
         const bool is_board_empty = json_board_is_empty(board_in["cells"]);
         std::string rackStr = in.value("rack", std::string());
+        std::fprintf(stderr, "[wrapper] DEBUG: Rack received: '%s'\n", rackStr.c_str());
         rackStr = to_upper(rackStr);
+        std::fprintf(stderr, "[wrapper] DEBUG: Rack after normalization: '%s'\n", rackStr.c_str());
         
         // Rack normalization (no ? into letters; count blanks)
         Quackle::FixedLengthString letters;
@@ -803,8 +805,16 @@ int main(int argc, char** argv) {
             // Log anchor analysis
             std::fprintf(stderr, "[wrapper] === ANCHOR & CROSS-SET ANALYSIS ===\n");
             std::fprintf(stderr, "[wrapper] board empty: %s\n", is_board_empty ? "YES" : "NO");
+            
+            // DEBUG: Log board dimensions and center
+            std::fprintf(stderr, "[wrapper] DEBUG: Board dimensions: %dx%d\n", 15, 15);
+            std::fprintf(stderr, "[wrapper] DEBUG: Expected center square: (7, 7)\n");
+            
             if (is_board_empty) {
                 std::fprintf(stderr, "[wrapper] empty board - center anchor at (7,7)\n");
+                // DEBUG: Verify center square is empty
+                char center_letter = board.letter(7, 7);
+                std::fprintf(stderr, "[wrapper] DEBUG: Center square (7,7) letter: %d (0=empty)\n", (int)center_letter);
             } else {
                 // Count anchors on non-empty board
                 int anchor_count = 0;
@@ -829,7 +839,10 @@ int main(int argc, char** argv) {
                                     }
                                 }
                             }
-                            if (is_anchor) anchor_count++;
+                            if (is_anchor) {
+                                anchor_count++;
+                                std::fprintf(stderr, "[wrapper] DEBUG: Anchor found at (%d, %d)\n", r, c);
+                            }
                         }
                     }
                 }
@@ -851,6 +864,9 @@ int main(int argc, char** argv) {
             
             // Generate moves with detailed logging
             std::fprintf(stderr, "[wrapper] generating moves with kibitz...\n");
+            
+            // DEBUG: Measure move generation time
+            auto start_gen = std::chrono::high_resolution_clock::now();
             
             // SURGICAL TELEMETRY: Log every tile passed to counting system
             auto log_tile = [&](char c, const char* where){
@@ -902,7 +918,10 @@ int main(int argc, char** argv) {
             
             try {
             gen.kibitz(std::max(5, top_n));
+                auto stop_gen = std::chrono::high_resolution_clock::now();
+                auto duration_gen = std::chrono::duration_cast<std::chrono::milliseconds>(stop_gen - start_gen);
                 std::fprintf(stderr, "[wrapper] gen.kibitz() completed successfully\n");
+                std::fprintf(stderr, "[wrapper] DEBUG: Move generation took: %ld ms\n", duration_gen.count());
             } catch (const std::exception& e) {
                 std::fprintf(stderr, "[wrapper] gen.kibitz() exception: %s\n", e.what());
                 throw;
@@ -917,6 +936,9 @@ int main(int argc, char** argv) {
             
             std::fprintf(stderr, "[wrapper] move generation complete - nodes processed: %zu, moves found: %zu\n", 
                         kmoves.size(), kmoves.size());
+            
+            // DEBUG: Log move counts
+            std::fprintf(stderr, "[wrapper] DEBUG: Generated moves count: %zu\n", kmoves.size());
             
             json moves = json::array();
             int count = 0;
