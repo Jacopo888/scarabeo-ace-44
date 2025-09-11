@@ -207,9 +207,16 @@ static bool json_board_is_empty(const nlohmann::json& grid) {
     for (const auto& row : grid) {
         if (!row.is_array() || row.size() != 15) return false;
         for (const auto& cell : row) {
-            if (!cell.is_string()) return false;
-            const std::string s = cell.get<std::string>();
-            if (!s.empty() && s != " ") return false;
+            // Check if cell is not null (empty) and not empty string
+            if (!cell.is_null()) {
+                if (cell.is_string()) {
+                    const std::string s = cell.get<std::string>();
+                    if (!s.empty() && s != " ") return false;
+                } else {
+                    // Non-null, non-string cell means not empty
+                    return false;
+                }
+            }
         }
     }
     return true;
@@ -694,7 +701,21 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "[wrapper] rack processing: letters=%u blanks=%d (encoded from '%s')\n", 
                 (unsigned)rackLetters.size(), blankCount, rackLettersStr.c_str());
         
+        // DEBUG: Log encoded letters
+        std::fprintf(stderr, "[wrapper] DEBUG: encoded rack letters: ");
+        for (size_t i = 0; i < rackLetters.size(); ++i) {
+            std::fprintf(stderr, "[%zu]=%d ", i, (int)rackLetters[i]);
+        }
+        std::fprintf(stderr, "\n");
+        
         rack.setTiles(rackLetters);
+        
+        // DEBUG: Verify rack was set correctly
+        std::fprintf(stderr, "[wrapper] DEBUG: rack after setTiles: ");
+        for (size_t i = 0; i < rack.tiles().size(); ++i) {
+            std::fprintf(stderr, "[%zu]=%d ", i, (int)rack.tiles()[i]);
+        }
+        std::fprintf(stderr, "\n");
         
         // CRITICAL: Set watch range for memory operations
         std::fprintf(stderr, "[rack.watch] base=%p size=%zu tiles.len=%d\n", 
@@ -743,6 +764,30 @@ int main(int argc, char** argv) {
 
             Quackle::Generator gen;
             gen.setPosition(pos);
+            
+            // DEBUG: Verify the position has the correct rack
+            const Quackle::Rack& currentRack = pos.currentPlayer().rack();
+            std::fprintf(stderr, "[wrapper] DEBUG: position rack: ");
+            for (size_t i = 0; i < currentRack.tiles().size(); ++i) {
+                std::fprintf(stderr, "[%zu]=%d ", i, (int)currentRack.tiles()[i]);
+            }
+            std::fprintf(stderr, "\n");
+            
+            // CRITICAL FIX: Configure game parameters for scoring
+            auto* gameParams = QUACKLE_DATAMANAGER->parameters();
+            if (gameParams) {
+                std::fprintf(stderr, "[wrapper] Game parameters configured\n");
+            } else {
+                std::fprintf(stderr, "[wrapper] WARNING: No game parameters found\n");
+            }
+            
+            // CRITICAL FIX: Configure strategy parameters for scoring
+            auto* strategyParams = QUACKLE_DATAMANAGER->strategyParameters();
+            if (strategyParams) {
+                std::fprintf(stderr, "[wrapper] Strategy parameters configured\n");
+            } else {
+                std::fprintf(stderr, "[wrapper] WARNING: No strategy parameters found\n");
+            }
             
             // Verify alphabet consistency between Lexicon and Generator
             auto* alphabet = QUACKLE_DATAMANAGER->alphabetParameters();
@@ -793,6 +838,16 @@ int main(int argc, char** argv) {
             
             gen.allCrosses();
             std::fprintf(stderr, "[wrapper] cross-set analysis: %s\n", is_board_empty ? "0 (empty board)" : "calculated");
+            
+            // CRITICAL FIX: Configure generator for scoring
+            // The generator should use DataManager automatically
+            // But let's verify the board has multipliers configured
+            auto* boardParams = QUACKLE_DATAMANAGER->boardParameters();
+            if (boardParams) {
+                std::fprintf(stderr, "[wrapper] Board parameters configured\n");
+            } else {
+                std::fprintf(stderr, "[wrapper] WARNING: No board parameters found\n");
+            }
             
             // Generate moves with detailed logging
             std::fprintf(stderr, "[wrapper] generating moves with kibitz...\n");
@@ -872,21 +927,34 @@ int main(int argc, char** argv) {
                 // CRITICAL FIX: Use alphabet userVisible to convert internal letters to ASCII
                 std::string word = alphabet->userVisible(tls);
                 
-                if (mv.score > top_score) {
-                    top_score = mv.score;
+                // CRITICAL FIX: Force score calculation if score is 0
+                int moveScore = mv.score;
+                if (moveScore == 0 && !word.empty()) {
+                    // Calculate score manually using the position
+                    Quackle::Move scoredMove = mv;
+                    pos.scoreMove(scoredMove);
+                    moveScore = scoredMove.score;
+                    std::fprintf(stderr, "[wrapper] DEBUG: Calculated score for %s: %d\n", word.c_str(), moveScore);
+                }
+                
+                if (moveScore > top_score) {
+                    top_score = moveScore;
                 }
 
                 // Enforce center rule on first move: must cross (7,7)
-                // TEMPORARILY DISABLED: Allow all moves to see what's generated
-                // if (is_board_empty) {
-                //     bool crossesCenter = false;
-                //     for (size_t i = 0; i < tls.length(); ++i) {
-                //         int rr = mv.startrow + (mv.horizontal ? 0 : static_cast<int>(i));
-                //         int cc = mv.startcol + (mv.horizontal ? static_cast<int>(i) : 0);
-                //         if (rr == 7 && cc == 7) { crossesCenter = true; break; }
-                //     }
-                //     if (!crossesCenter) continue;
-                // }
+                if (is_board_empty) {
+                    bool crossesCenter = false;
+                    for (size_t i = 0; i < tls.length(); ++i) {
+                        int rr = mv.startrow + (mv.horizontal ? 0 : static_cast<int>(i));
+                        int cc = mv.startcol + (mv.horizontal ? static_cast<int>(i) : 0);
+                        if (rr == 7 && cc == 7) { crossesCenter = true; break; }
+                    }
+                    if (!crossesCenter) { 
+                        std::fprintf(stderr, "[wrapper] DEBUG: Skipping move %s (doesn't cross center)\n", word.c_str());
+                        continue; 
+                    }
+                    std::fprintf(stderr, "[wrapper] DEBUG: Move %s crosses center - valid\n", word.c_str());
+                }
 
                 json pos_arr = json::array();
                 for (size_t i = 0; i < tls.length(); ++i) {
@@ -900,7 +968,7 @@ int main(int argc, char** argv) {
                     {"row", mv.startrow},
                     {"col", mv.startcol},
                     {"dir", mv.horizontal ? "H" : "V"},
-                    {"score", mv.score},
+                    {"score", moveScore},
                     {"positions", pos_arr}
                 };
                 moves.push_back(jmv);
