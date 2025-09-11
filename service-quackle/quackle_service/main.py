@@ -1,10 +1,23 @@
 import os, json, subprocess
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
-import os
+from pydantic import BaseModel
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Pydantic models
+class BoardModel(BaseModel):
+    cells: list[list[Optional[str]]]
+
+class BestMoveRequest(BaseModel):
+    board: BoardModel
+    rack: str
+    difficulty: Optional[str] = None
 
 ORIGINS = os.getenv("CORS_ORIGINS", "").split(",")
 app = FastAPI()
@@ -62,6 +75,11 @@ def health():
         "lexdir": QUACKLE_LEXDIR,
         "version": "v104-debug"
     }
+
+@app.get("/healthz")
+def healthz():
+    """Railway healthcheck endpoint"""
+    return {"ok": True}
 
 @app.get("/debug/config")
 async def debug_config():
