@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { quackleHealth, quackleCors } from '@/services/quackleClient'
-import { checkLexiconHealth } from '@/config'
+import { quackleHealth, quackleCors, quackleLexiconHealth } from '@/services/quackleClient'
 import { AlertTriangle, CheckCircle } from 'lucide-react'
 
 export const QuackleHealthCheck = () => {
   const [isHealthy, setIsHealthy] = useState<boolean | null>(null)
   const [corsOrigins, setCorsOrigins] = useState<string[] | null>(null)
   const [isChecking, setIsChecking] = useState(true)
+  const [lexOk, setLexOk] = useState<boolean | null>(null)
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -17,6 +17,8 @@ export const QuackleHealthCheck = () => {
         setIsHealthy(healthy.ok)
         const cors = await quackleCors()
         setCorsOrigins(cors.allow_origins)
+        const lex = await quackleLexiconHealth()
+        setLexOk(lex.ok)
       } catch (error) {
         setIsHealthy(false)
         setLexOk(false)
