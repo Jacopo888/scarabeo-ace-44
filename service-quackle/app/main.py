@@ -173,10 +173,12 @@ def debug_generate_gaddag(lex: str | None = None):
 
 def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
+        payload_json = json.dumps(payload).encode("utf-8")
+        print(f"[CURSOR_DEBUG] Input inviato al bridge C++: {payload_json.decode('utf-8')}")
         print(f"[DEBUG] Calling bridge with payload: {json.dumps(payload, indent=2)[:500]}...")
         proc = subprocess.run(
             [BRIDGE_BIN, "--lexicon", QUACKLE_LEXICON, "--lexdir", QUACKLE_LEXDIR],
-            input=json.dumps(payload).encode("utf-8"),
+            input=payload_json,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             timeout=8,
@@ -218,6 +220,9 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
 @app.post("/best-move")
 async def best_move(req_model: BestMoveRequest):
     try:
+        body_dict = req_model.dict()
+        print(f"[CURSOR_DEBUG] Payload ricevuto dal frontend: {json.dumps(body_dict, indent=2)}")
+        
         # Preflight: ensure lexicon assets exist to avoid segfault in the bridge
         ok, dawg, gaddag = ensure_lexicon_ready()
         if not ok:

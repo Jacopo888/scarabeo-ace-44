@@ -48,6 +48,7 @@ export const useQuackle = () => {
       }
 
       console.log('[useQuackle] Formatted rack for Quackle:', payload.rack)
+      console.log("CURSOR_DEBUG: Payload inviato a Quackle:", JSON.stringify(payload, null, 2))
 
       const [move] = await Promise.all([
         quackleBestMove(payload),

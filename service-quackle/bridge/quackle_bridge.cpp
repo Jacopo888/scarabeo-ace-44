@@ -46,7 +46,17 @@ void debugLog(const std::string& message) {
   std::cerr << "[DEBUG] " << message << std::endl;
 }
 
+// Cursor debug logging function
+void cursorDebugLog(const std::string& message) {
+    std::cerr << "[CURSOR_C++] " << message << std::endl;
+    std::ofstream debugFile("/tmp/quackle_bridge_debug.log", std::ios::app);
+    if (debugFile.is_open()) {
+        debugFile << "[CURSOR_C++] " << message << std::endl;
+    }
+}
+
 int main(int argc, char** argv){
+  cursorDebugLog("Bridge avviato.");
   debugLog("=== Quackle Bridge Started (v1.0.4 with correct API) ===");
   
   const std::string lexicon = arg(argc, argv, "--lexicon", "en-enable");
@@ -55,10 +65,11 @@ int main(int argc, char** argv){
   debugLog("Lexicon: " + lexicon + ", LexDir: " + lexdir);
 
   std::ostringstream ss; ss<<std::cin.rdbuf(); std::string input=ss.str();
+  cursorDebugLog("Input ricevuto da stdin: " + input.substr(0, 500));
   debugLog("Input length: " + std::to_string(input.length()));
   debugLog("Input content: " + input.substr(0, 500)); // First 500 chars
   
-  json req; try{ req = json::parse(input.empty()?"{}":input); }catch(const std::exception& e){
+  json req; try{ req = json::parse(input.empty()?"{}":input); cursorDebugLog("JSON parsato con successo."); }catch(const std::exception& e){
     debugLog("JSON parse error: " + std::string(e.what()));
     std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"json_parse"})"; return 0;
   }
@@ -188,6 +199,7 @@ int main(int argc, char** argv){
     }
     
     debugLog("Final dawg file path: '" + dawgFile + "'");
+    cursorDebugLog("Caricamento del dizionario DAWG da: " + dawgFile);
     
     // Check if file exists before loading
     debugLog("Checking if file exists...");
@@ -219,6 +231,7 @@ int main(int argc, char** argv){
     
     debugLog("Loading DAWG lexicon...");
     lexParams->loadDawg(dawgFile);
+    cursorDebugLog("Dizionario DAWG caricato.");
     debugLog("DAWG lexicon loaded successfully");
     
     // Verify lexicon is actually loaded
@@ -227,6 +240,7 @@ int main(int argc, char** argv){
     // Also load GADDAG file if it exists
     std::string gaddagFile = lexdir + "/" + lexicon + ".gaddag";
     debugLog("Looking for GADDAG file: " + gaddagFile);
+    cursorDebugLog("Controllo e caricamento GADDAG da: " + gaddagFile);
     std::ifstream gaddagFileCheck(gaddagFile);
     if (gaddagFileCheck.good()) {
         gaddagFileCheck.close();
@@ -250,6 +264,7 @@ int main(int argc, char** argv){
         debugLog("GADDAG file path (absolute): " + std::filesystem::absolute(gaddagFile).string());
         debugLog("GADDAG file found, loading...");
         lexParams->loadGaddag(gaddagFile);
+        cursorDebugLog("Controllo GADDAG completato.");
         debugLog("GADDAG lexicon loaded successfully");
         
         // Verify GADDAG is actually loaded
@@ -306,6 +321,7 @@ int main(int argc, char** argv){
 
     // Build rack
     debugLog("Building rack...");
+    cursorDebugLog("Costruzione della plancia e del rack...");
     Quackle::Rack rr;
     Quackle::LetterString rackString;
     
@@ -337,6 +353,7 @@ int main(int argc, char** argv){
     
     rr.setTiles(rackString);
     debugLog("Rack string: " + std::string(rackString.begin(), rackString.end()));
+    cursorDebugLog("Plancia e rack creati.");
 
     // Create game position with proper initialization 
     debugLog("Creating game position...");
@@ -401,6 +418,7 @@ int main(int argc, char** argv){
     // Generate best move using Quackle's AI
     debugLog("Generating best move...");
     debugLog("Creating generator...");
+    cursorDebugLog("Chiamata a findBestMove/kibitz...");
     Quackle::Generator gen(pos);
     debugLog("Generator created successfully");
     
@@ -549,11 +567,15 @@ int main(int argc, char** argv){
       debugLog("Unknown exception in DAWG-based generation");
     }
     
+    cursorDebugLog("Chiamata a findBestMove/kibitz completata.");
+    
     // Final fallback: pass if nothing worked
     if (!foundValidMove) {
         debugLog("No valid moves found after all attempts - creating pass move");
         best = Quackle::Move::createPassMove();
     }
+    
+    cursorDebugLog("Mossa migliore trovata: score=" + std::to_string(best.score));
     
     try {
         // Convert the move to JSON
