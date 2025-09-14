@@ -13,7 +13,7 @@ name = "service-quackle"
 internal_port = 5000
 
 [variables]
-CORS_ORIGINS = "https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app"
+CORS_ORIGINS = "https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app,http://localhost:5173,http://127.0.0.1:5173"
 QUACKLE_LEXICON = "en-enable"
 QUACKLE_LEXDIR = "/usr/share/quackle/lexica"
 QUACKLE_APPDATA_DIR = "/usr/share/quackle/data"

@@ -23,10 +23,29 @@ class BestMoveRequest(BaseModel):
 
 ENV_MODE = os.getenv("ENV", "").lower()
 _origins_raw = os.getenv("CORS_ORIGINS", "").strip()
+
+# Default origins for development
+default_dev_origins = [
+    "http://localhost:3000",
+    "http://localhost:5173", 
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080"
+]
+
 if not _origins_raw and ENV_MODE in ("dev", "development"):
     ALLOW_ORIGINS = ["*"]
+elif not _origins_raw:
+    # If no CORS_ORIGINS is set, use default dev origins
+    ALLOW_ORIGINS = default_dev_origins
 else:
-    ALLOW_ORIGINS = [o.strip() for o in _origins_raw.split(",") if o.strip()]
+    # Parse configured origins and add dev origins if in dev mode
+    configured_origins = [o.strip() for o in _origins_raw.split(",") if o.strip()]
+    if ENV_MODE in ("dev", "development"):
+        ALLOW_ORIGINS = list(set(configured_origins + default_dev_origins))
+    else:
+        ALLOW_ORIGINS = configured_origins
 
 app = FastAPI()
 app.add_middleware(
@@ -111,6 +130,15 @@ def health_cors():
 @app.get("/debug/config")
 async def debug_config():
     """Debug endpoint to return configuration"""
+    return {
+        "cors_origins": ALLOW_ORIGINS,
+        "env_mode": ENV_MODE,
+        "cors_origins_raw": _origins_raw,
+        "quackle_lexicon": os.getenv("QUACKLE_LEXICON", ""),
+        "quackle_lexdir": os.getenv("QUACKLE_LEXDIR", ""),
+        "lexicon_name": os.getenv("LEXICON_NAME", ""),
+        "lex_dir": os.getenv("LEX_DIR", "")
+    }
     dawg_path, gaddag_path = _lex_paths()
     dawg_exists = os.path.exists(dawg_path)
     gaddag_exists = os.path.exists(gaddag_path)
