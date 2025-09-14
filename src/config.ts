@@ -10,24 +10,16 @@ console.log('[Quackle Config] Environment details:', {
   isLocalhost
 });
 
-// Force Railway URL unless we're explicitly on localhost in development
+// Resolve API base: prefer localhost in dev on local machine
 let resolvedUrl = raw;
-if (!raw || (!isLocalhost && raw?.includes('localhost'))) {
+const isDevLocal = mode === 'development' && isLocalhost;
+if (isDevLocal) {
+  resolvedUrl = raw && raw.trim() ? raw : 'http://localhost:5000';
+  console.warn('[Quackle Config] Dev on localhost: using', resolvedUrl);
+} else if (!resolvedUrl) {
+  // Fallbacks
   resolvedUrl = 'https://service-quackle-production.up.railway.app';
-  console.warn('[Quackle Config] Forcing Railway URL:', resolvedUrl);
-}
-
-// Final fallback for true local development
-if (!resolvedUrl) {
-  const isDev = mode === 'development' && isLocalhost;
-  if (isDev) {
-    resolvedUrl = 'http://localhost:5000';
-    console.warn('[Quackle Config] Using localhost fallback for local dev');
-  } else {
-    // For production, use Railway URL as fallback
-    resolvedUrl = 'https://service-quackle-production.up.railway.app';
-    console.warn('[Quackle Config] Using Railway fallback for production');
-  }
+  console.warn('[Quackle Config] Using Railway fallback');
 }
 
 export const API_BASE = resolvedUrl.replace(/\/+$/, '');

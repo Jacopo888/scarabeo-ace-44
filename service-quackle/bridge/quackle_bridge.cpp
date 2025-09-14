@@ -95,7 +95,7 @@ int main(int argc, char** argv){
       std::istringstream sscoord(it.key());
       if (!(sscoord >> r >> comma >> c) || comma != ',') {
         debugLog("ERROR: Invalid board coordinate format: " + std::string(it.key()));
-        std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_board_coordinate","reason":"malformed_coordinate"})" << std::endl;
+        std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"malformed_coordinate"})" << std::endl;
         return 1;
       }
       // Convert from 1-based to 0-based
@@ -492,7 +492,7 @@ int main(int argc, char** argv){
             response["score"] = 0;
             response["words"] = json::array();
             response["move_type"] = "pass";
-            response["engine_fallback"] = !foundValidMove;
+            response["engine_fallback"] = false;
             std::cout << response.dump() << std::endl;
         } else if (!best.tiles().empty()) {
           debugLog("Processing place move...");
@@ -556,7 +556,7 @@ int main(int argc, char** argv){
           response["score"] = best.score;
           response["words"] = words;
           response["move_type"] = "play";
-          response["engine_fallback"] = !foundValidMove; // True only if we used fallback
+          response["engine_fallback"] = false;
           
           std::cout << response.dump() << std::endl;
         } else {
