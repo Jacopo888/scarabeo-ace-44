@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python venv and caches
+service-quackle/.venv/
+service-quackle/**/__pycache__/
