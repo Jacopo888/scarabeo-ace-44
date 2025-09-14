@@ -67,9 +67,17 @@ export async function quackleBestMove(payload: any): Promise<QuackleMove> {
 
   if (!r.ok) {
     const txt = await r.text().catch(() => '');
+    // Surface server-side validation/network errors to the caller
     throw new Error(`best-move failed: ${r.status} ${txt.slice(0,180)}`);
   }
-  return await r.json();
+  const data = await r.json();
+  if (data && (data.engine_fallback === true) && data.error) {
+    // Do not mask engine/bridge errors as a pass
+    const errMsg = `[bridge] ${data.error}`;
+    console.error('[quackleClient] Engine fallback with error:', data);
+    throw new Error(errMsg);
+  }
+  return data;
 }
 
 export function getQuackleBase() { return API_BASE; }

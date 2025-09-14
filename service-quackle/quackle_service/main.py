@@ -1,4 +1,4 @@
-import os, json, subprocess
+import os, json, subprocess, sys
 from typing import Any, Dict, Optional
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,7 +7,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import logging
 
-# Configure logging
+# Configure logging to stderr
+logging.basicConfig(stream=sys.stderr, level=logging.INFO, format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
 # Pydantic models
@@ -68,12 +69,27 @@ def ensure_lexicon_ready():
 
 @app.get("/health")
 def health():
+    ok, dawg, gaddag = ensure_lexicon_ready()
+    appdata = APPDATA_DIR
+    strat_en = os.path.join(appdata, "strategy", "default_english")
+    strat_def = os.path.join(appdata, "strategy", "default")
+    def exists(p):
+        return os.path.isfile(p)
     return {
         "status": "ok",
         "engine": "quackle-bridge",
         "bridge_path": BRIDGE_BIN,
         "lexicon": QUACKLE_LEXICON,
         "lexdir": QUACKLE_LEXDIR,
+        "dawg_exists": os.path.isfile(dawg),
+        "gaddag_exists": os.path.isfile(gaddag),
+        "strategy": {
+            "syn2": exists(os.path.join(strat_en, "syn2")),
+            "vcplace": exists(os.path.join(strat_en, "vcplace")),
+            "superleaves": exists(os.path.join(strat_en, "superleaves")),
+            "worths": exists(os.path.join(strat_en, "worths")),
+            "bogowin": exists(os.path.join(strat_def, "bogowin")),
+        },
         "version": "v104-debug"
     }
 
@@ -140,13 +156,15 @@ async def debug_probe(request: BestMoveRequest):
 @app.get("/health/lexicon")
 def health_lexicon():
     ok, dawg, gaddag = ensure_lexicon_ready()
-    return {
+    status = 200 if ok else 503
+    body = {
         "lexicon_name": LEXICON_NAME,
         "lex_dir": LEX_DIR,
         "lexicon_ok": ok,
         "dawg_path": dawg,
         "gaddag_path": gaddag,
     }
+    return JSONResponse(body, status_code=status)
 
 @app.get("/debug/quackle")
 def debug_quackle():
@@ -271,8 +289,16 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
             print(f"[DEBUG] Bridge stderr: {stderr_output}")
         
         if proc.returncode != 0:
-            print(f"[ERROR] Bridge failed with return code {proc.returncode}")
-            print(f"[ERROR] Bridge stderr: {stderr_output[:2000]}")
+            logger.error(f"Bridge failed with return code {proc.returncode}")
+            logger.error(f"stderr: {stderr_output[:2000]}")
+            # Try to parse stdout for a structured error message from the bridge
+            out_try = proc.stdout.decode("utf-8", errors="replace").strip()
+            try:
+                parsed = json.loads(out_try) if out_try else {}
+            except Exception:
+                parsed = {}
+            if isinstance(parsed, dict) and parsed.get("engine_fallback"):
+                return parsed
             # Return structured error instead of raising to avoid 500
             return {
                 "tiles": [],
@@ -283,7 +309,7 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "error": f"bridge_failed_rc={proc.returncode}",
                 "stderr": stderr_output[:4000]
             }
-            
+
         out = proc.stdout.decode("utf-8").strip()
         print(f"[DEBUG] Bridge stdout: {out}")
         
@@ -374,6 +400,9 @@ async def best_move(req: Request):
             'score': result.get('score'),
             'engine_fallback': result.get('engine_fallback')
         })
+        # Validation errors from bridge -> 400
+        if result.get("engine_fallback") and result.get("error") in {"invalid_board_coordinate", "malformed_coordinate", "rack_empty", "invalid_rack_format"}:
+            return JSONResponse({"engine_fallback": True, "error": result.get("error")}, status_code=400)
         return {
             "tiles": result.get("tiles", []),
             "score": result.get("score", 0),
@@ -390,7 +419,7 @@ async def best_move(req: Request):
             raw_head = raw[:400].decode("utf-8", errors="replace")
         except Exception:
             raw_head = ""
-        return {
+        return JSONResponse({
             "tiles": [],
             "score": 0,
             "words": [],
@@ -398,11 +427,9 @@ async def best_move(req: Request):
             "engine_fallback": True,
             "error": str(e),
             "raw_head": raw_head
-        }
+        }, status_code=500)
 
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-

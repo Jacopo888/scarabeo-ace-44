@@ -615,41 +615,9 @@ export const useGame = () => {
         })
       }).catch(error => {
         console.error('Quackle move error:', error)
+        toast({ title: 'Quackle error', description: String((error as any)?.message || error), variant: 'destructive' })
         setIsBotTurn(false)
-        // Quackle passes on error
-        setGameState(prevState => {
-          const newPassCounts = [...(prevState.passCounts || Array(prevState.players.length).fill(0))]
-          newPassCounts[prevState.currentPlayerIndex] += 1
-          const totalPasses = newPassCounts.reduce((sum, c) => sum + c, 0)
-          const endGame = canEndGame(
-            prevState.players.map(p => ({ rack: p.rack })),
-            prevState.tileBag,
-            totalPasses
-          )
-          if (endGame) {
-            const p1Penalty = calculateEndGamePenalty(prevState.players[0].rack)
-            const p2Penalty = calculateEndGamePenalty(prevState.players[1].rack)
-            let p1Score = prevState.players[0].score - p1Penalty
-            let p2Score = prevState.players[1].score - p2Penalty
-            if (p1Score > p2Score) p1Score += p2Penalty
-            else if (p2Score > p1Score) p2Score += p1Penalty
-            const finalPlayers: Player[] = [
-              { ...prevState.players[0], score: p1Score },
-              { ...prevState.players[1], score: p2Score }
-            ]
-            return {
-              ...prevState,
-              players: finalPlayers,
-              gameStatus: 'finished',
-              passCounts: newPassCounts
-            }
-          }
-          return {
-            ...prevState,
-            currentPlayerIndex: (prevState.currentPlayerIndex + 1) % prevState.players.length,
-            passCounts: newPassCounts
-          }
-        })
+        // Do NOT convert to a pass on error; keep turn state unchanged
       })
       
       return prev // Return current state while bot is thinking
@@ -762,7 +730,8 @@ export const useGame = () => {
           }
         } catch (error) {
           console.error('[useGame] Bot move error:', error)
-          passTurn()
+          toast({ title: 'Quackle error', description: String((error as any)?.message || error), variant: 'destructive' })
+          // Do not call passTurn; surface error and keep turn
         } finally {
           setIsBotTurn(false)
         }

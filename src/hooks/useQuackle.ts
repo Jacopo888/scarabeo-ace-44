@@ -1,7 +1,38 @@
 import { useState, useCallback } from 'react'
 import { Difficulty } from '@/components/DifficultyModal'
-import { GameState, Tile } from '@/types/game'
+import { GameState, Tile, PlacedTile } from '@/types/game'
 import { quackleBestMove, QuackleMove } from '@/services/quackleClient'
+
+// Build a Quackle board mapping using 1-based indices and stabilized tiles only
+// Output: { "r,c": { letter: string, isBlank: boolean } }
+export function buildQuackleBoard(gameState: GameState): Record<string, { letter: string; isBlank: boolean }> {
+  const out: Record<string, { letter: string; isBlank: boolean }> = {}
+  // gameState.board is a Map of stabilized tiles only; pending tiles live elsewhere
+  gameState.board.forEach((tile: PlacedTile) => {
+    const r1 = tile.row + 1
+    const c1 = tile.col + 1
+    if (r1 >= 1 && r1 <= 15 && c1 >= 1 && c1 <= 15) {
+      const isBlank = !!tile.isBlank
+      // If blank with assigned letter, send that letter uppercase, isBlank true
+      const letter = (tile.letter || (isBlank ? '?' : '')).toUpperCase()
+      out[`${r1},${c1}`] = { letter, isBlank }
+    }
+  })
+  return out
+}
+
+// Normalize rack for Quackle: array of { letter, points, isBlank }
+export function formatRackForQuackle(rack: Tile[]): Array<{ letter: string; points: number; isBlank: boolean }> {
+  return rack
+    .filter(t => t && (t.letter !== undefined))
+    .map(t => {
+      const isBlank = !!t.isBlank
+      // If blank and letter is empty/unassigned, keep '?' as letter
+      const letter = isBlank ? (t.letter && t.letter.trim() ? t.letter.toUpperCase() : '?') : (t.letter || '').toUpperCase()
+      const points = typeof t.points === 'number' ? t.points : (isBlank ? 0 : 0)
+      return { letter, points, isBlank }
+    })
+}
 
 export const useQuackle = () => {
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
@@ -19,37 +50,22 @@ export const useQuackle = () => {
       // Add artificial thinking time for better UX
       const thinkingTime = getThinkingTime(difficulty)
       
-      // Convert board tiles to "r,c" mapping for Quackle bridge (1-based coordinates)
-      const boardCells: Record<string, { letter: string; isBlank: boolean }> = {}
-      gameState.board.forEach((tile) => {
-        const row = tile.row + 1
-        const col = tile.col + 1
-        if (row >= 1 && row <= 15 && col >= 1 && col <= 15) {
-          boardCells[`${row},${col}`] = {
-            letter: tile.letter,
-            isBlank: tile.isBlank
-          }
-        }
-      })
+      // Build board and rack payloads for bridge
+      const board = buildQuackleBoard(gameState)
+      const rackArr = formatRackForQuackle(playerRack)
 
-      console.log('[useQuackle] Board cells with tiles:', Object.keys(boardCells).length)
+      const payload = { board, rack: rackArr, difficulty }
 
-      // Format rack as string for Quackle engine wrapper
-      const formatRackForQuackle = (rack: Tile[]): string => {
-        return rack
-          .filter(tile => tile.letter !== '' || tile.isBlank) // Keep non-blank tiles and proper blank tiles
-          .map(tile => tile.letter === '' && tile.isBlank ? '?' : tile.letter) // Convert empty string blanks to '?'
-          .join('')
-      }
-
-      const payload = {
-        board: boardCells,
-        rack: formatRackForQuackle(playerRack),
+      // Structured debug log
+      const bkeys = Object.keys(board)
+      console.log({
+        tag: 'quackle_payload',
+        boardCellCount: bkeys.length,
+        sampleKeys: bkeys.slice(0, 3),
+        rack: playerRack.map(t => t.letter).join(''),
+        rackLen: playerRack.length,
         difficulty
-      }
-
-      console.log('[useQuackle] Formatted rack for Quackle:', payload.rack)
-      console.log("CURSOR_DEBUG: Payload inviato a Quackle:", JSON.stringify(payload, null, 2))
+      })
 
       const [move] = await Promise.all([
         quackleBestMove(payload),
