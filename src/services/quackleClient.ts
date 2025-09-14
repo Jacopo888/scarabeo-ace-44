@@ -88,4 +88,10 @@ export async function quackleCors(): Promise<{ allow_origins: string[]; status: 
   return { allow_origins: Array.isArray(json.allow_origins) ? json.allow_origins : [], status: r.status };
 }
 
+export async function quackleLexiconHealth(): Promise<{ ok: boolean; status: number; data: any }> {
+  const r = await fetchWithTimeout(quackleApi('/health/lexicon'), { method: 'GET' }, 5000);
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data };
+}
+
 export function getQuackleBase() { return QUACKLE_SERVICE_URL; }
