@@ -11,11 +11,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Pydantic models
-class BoardModel(BaseModel):
-    cells: list[list[Optional[str]]]
+class BoardCell(BaseModel):
+    letter: str
+    isBlank: bool = False
 
 class BestMoveRequest(BaseModel):
-    board: BoardModel
+    board: Dict[str, BoardCell]
     rack: str
     difficulty: Optional[str] = None
 
@@ -110,7 +111,7 @@ async def debug_probe(request: BestMoveRequest):
         # Call the bridge with debug mode
         payload = {
             "op": "compute",
-            "board": {"cells": request.board.cells},
+            "board": request.board,
             "rack": request.rack,
             "difficulty": request.difficulty,
             "debug": True

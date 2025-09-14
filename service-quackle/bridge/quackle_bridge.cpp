@@ -9,7 +9,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iomanip>
-#include <nlohmann/json.hpp>
+#include "nlohmann/json.hpp"
 using json = nlohmann::json;
 
 // Quackle headers
@@ -452,129 +452,31 @@ int main(int argc, char** argv){
     }
     debugLog("Cross-set analysis: " + std::string(board.isEmpty() ? "0 (empty board)" : "calculated"));
     debugLog("=====================================");
-    
+
     // Generate moves with the complete Quackle engine
-    debugLog("Generating moves with Quackle engine...");
+    debugLog("Generating moves with Quackle engine via kibitz...");
     Quackle::Move best;
     bool foundValidMove = false;
-    
-    // CRITICAL WORKAROUND: Quackle v1.0.4 has a critical bug in kibitz() that causes SEGV
-    // in Quackle::String::counts. We must avoid calling kibitz() entirely.
-    debugLog("WARNING: Using DAWG-only workaround for Quackle kibitz() SEGV bug");
-    
+
     try {
-      // Since kibitz() is broken, we'll implement a simple word generation
-      // using common English words that can be formed from the rack
-      debugLog("Implementing common word generation (kibitz() workaround)");
-      
-      // Get the rack as a string
-      Quackle::LetterString rackLetters = rr.alphaTiles();
-      std::string rackStr(rackLetters.begin(), rackLetters.end());
-      debugLog("Rack string for word generation: " + rackStr);
-      
-      // List of common English words that can be formed from typical Scrabble racks
-      std::vector<std::string> commonWords = {
-        "AT", "TA", "ET", "TE", "AL", "LA", "AM", "MA", "AG", "GA",
-        "ATE", "EAT", "TEA", "TAG", "GAT", "LAT", "MAT", "LAM", "MAL",
-        "MATE", "TEAM", "MEAT", "TAME", "GAME", "MAGE", "LAME", "MALE",
-        "MAGET", "GAMET", "TAMEL", "LAMET", "MAGEL", "GAMEL",
-        "MAGELT", "GAMELT", "TAMELG", "LAMETG", "MAGELT", "GAMELT"
-      };
-      
-      // For board empty, try to place words starting from center (7,7)
-      if (board.isEmpty()) {
-        debugLog("Empty board - trying center placement");
-        
-        int nodesProcessed = 0;
-        int validWordsFound = 0;
-        
-        // Try each common word to see if it can be formed from the rack
-        for (const std::string& word : commonWords) {
-          nodesProcessed++;
-          if (word.length() <= rackStr.length()) {
-            debugLog("Trying common word: " + word);
-            
-            // Check if we can form this word from the rack
-            std::string remainingRack = rackStr;
-            bool canForm = true;
-            
-            for (char c : word) {
-              size_t pos = remainingRack.find(c);
-              if (pos == std::string::npos) {
-                canForm = false;
-                break;
-              }
-              remainingRack.erase(pos, 1);
-            }
-            
-            if (canForm) {
-              validWordsFound++;
-              debugLog("Can form word: " + word);
-              
-              // Create a move for this word
-              Quackle::LetterString letters;
-              for (char c : word) {
-                letters.push_back(c);
-              }
-              
-              // Place horizontally at center
-              Quackle::Move move = Quackle::Move::createPlaceMove(7, 7, false, letters);
-              
-              // Calculate basic score (simplified)
-              int score = 0;
-              for (char c : word) {
-                // Basic letter scoring (simplified)
-                if (c == 'A' || c == 'E' || c == 'I' || c == 'O' || c == 'U' || c == 'L' || c == 'N' || c == 'S' || c == 'T' || c == 'R') {
-                  score += 1;
-                } else if (c == 'D' || c == 'G') {
-                  score += 2;
-                } else if (c == 'B' || c == 'C' || c == 'M' || c == 'P') {
-                  score += 3;
-                } else if (c == 'F' || c == 'H' || c == 'V' || c == 'W' || c == 'Y') {
-                  score += 4;
-                } else if (c == 'K') {
-                  score += 5;
-                } else if (c == 'J' || c == 'X') {
-                  score += 8;
-                } else if (c == 'Q' || c == 'Z') {
-                  score += 10;
-                }
-              }
-              
-              // Bonus for 7-letter words (bingo)
-              if (word.length() == 7) {
-                score += 50;
-              }
-              
-              debugLog("Word " + word + " has score: " + std::to_string(score));
-              
-              if (!foundValidMove || score > best.score) {
-                best = move;
-                best.score = score;
-                foundValidMove = true;
-                debugLog("New best move: " + word + " with score " + std::to_string(score));
-              }
-            }
-          }
+        gen.kibitz(kibitzLen);
+        const Quackle::MoveList &moves = gen.kibitzList();
+        if (!moves.empty()) {
+            best = moves.front();
+            foundValidMove = best.action != Quackle::Move::Pass;
+        } else {
+            debugLog("kibitz returned no moves");
+            best = Quackle::Move::createPassMove();
         }
-        
-        debugLog("Move generation complete - nodes processed: " + std::to_string(nodesProcessed) + ", valid words found: " + std::to_string(validWordsFound));
-      }
-      
     } catch (const std::exception &e) {
-      debugLog(std::string("Exception in DAWG-based generation: ") + e.what());
+        debugLog(std::string("Exception during kibitz: ") + e.what());
+        best = Quackle::Move::createPassMove();
     } catch (...) {
-      debugLog("Unknown exception in DAWG-based generation");
-    }
-    
-    cursorDebugLog("Chiamata a findBestMove/kibitz completata.");
-    
-    // Final fallback: pass if nothing worked
-    if (!foundValidMove) {
-        debugLog("No valid moves found after all attempts - creating pass move");
+        debugLog("Unknown exception during kibitz");
         best = Quackle::Move::createPassMove();
     }
-    
+
+    cursorDebugLog("Chiamata a findBestMove/kibitz completata.");
     cursorDebugLog("Mossa migliore trovata: score=" + std::to_string(best.score));
     
     try {
