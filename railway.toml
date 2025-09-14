@@ -1,0 +1,25 @@
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "service-quackle/Dockerfile"
+
+[deploy]
+numReplicas = 1
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+
+[service]
+name = "service-quackle"
+internal_port = 5000
+
+[variables]
+CORS_ORIGINS = "https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app"
+QUACKLE_LEXICON = "en-enable"
+QUACKLE_LEXDIR = "/usr/share/quackle/lexica"
+QUACKLE_APPDATA_DIR = "/usr/share/quackle/data"
+LEXICON_NAME = "enable1"
+LEX_DIR = "/data/quackle/lexica/enable1"
+DAWG_URL = "https://raw.githubusercontent.com/quackle/quackle/master/data/lexica/enable1.dawg"
+GADDAG_URL = "https://raw.githubusercontent.com/quackle/quackle/master/data/lexica/enable1.gaddag"
+
+
