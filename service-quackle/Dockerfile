@@ -63,9 +63,11 @@ RUN LIBQ=$(find /tmp/quackle/build \( -name "libquackle.a" -o -name "liblibquack
       -I/tmp/quackle/src \
       /srv/bridge/quackle_bridge.cpp \
       "$LIBQ" \
-      -o /usr/local/bin/quackle_bridge \
+      -o /srv/bridge/engine_wrapper \
       -lboost_system -lboost_filesystem -lboost_regex \
-      -licuuc -licui18n -lpthread
+      -licuuc -licui18n -lpthread && \
+    chmod +x /srv/bridge/engine_wrapper && \
+    echo "Bridge compiled successfully at /srv/bridge/engine_wrapper"
 
 # Enable ASAN runtime diagnostics at runtime
 ENV ASAN_OPTIONS="detect_leaks=0:abort_on_error=1:use_sigaltstack=1:malloc_context_size=20"
