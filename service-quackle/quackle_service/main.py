@@ -21,11 +21,17 @@ class BestMoveRequest(BaseModel):
     rack: str
     difficulty: Optional[str] = None
 
-ORIGINS = os.getenv("CORS_ORIGINS", "").split(",")
+ENV_MODE = os.getenv("ENV", "").lower()
+_origins_raw = os.getenv("CORS_ORIGINS", "").strip()
+if not _origins_raw and ENV_MODE in ("dev", "development"):
+    ALLOW_ORIGINS = ["*"]
+else:
+    ALLOW_ORIGINS = [o.strip() for o in _origins_raw.split(",") if o.strip()]
+
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in ORIGINS if o.strip()],
+    allow_origins=ALLOW_ORIGINS or [],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -97,6 +103,10 @@ def health():
 def healthz():
     """Railway healthcheck endpoint"""
     return {"ok": True}
+
+@app.get("/health/cors")
+def health_cors():
+    return {"allow_origins": ALLOW_ORIGINS}
 
 @app.get("/debug/config")
 async def debug_config():
