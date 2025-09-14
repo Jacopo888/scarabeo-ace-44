@@ -103,9 +103,9 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Porta esposta e healthcheck
-EXPOSE 5000
-HEALTHCHECK --interval=30s --timeout=3s CMD sh -c 'curl -fsS http://localhost:${PORT:-5000}/health || exit 1'
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s CMD sh -c 'curl -fsS http://localhost:${PORT:-8080}/health || exit 1'
 
 # Avvio del microservizio (PORT espanso via shell)
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["sh", "-c", "uvicorn quackle_service.main:app --host 0.0.0.0 --port ${PORT:-5000}"]
+CMD ["sh", "-c", "uvicorn quackle_service.main:app --host 0.0.0.0 --port ${PORT:-8080}"]

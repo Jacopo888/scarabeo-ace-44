@@ -67,7 +67,7 @@ export default function QuackleDebug() {
       <pre style={{ whiteSpace: 'pre-wrap' }}>{health}</pre>
       <hr />
       <button onClick={doBestMove} disabled={loading}>POST /best-move (smoke)</button>
-      <button onClick={doEmptyBoardSmoke} disabled={loading} style={{ marginLeft: 8 }}>POST /best-move (empty board smoke)</button>
+      <button onClick={doEmptyBoardSmoke} disabled={loading} style={{ marginLeft: 8 }}>Smoke /best-move (empty board, AEINRS?)</button>
       <pre style={{ whiteSpace: 'pre-wrap' }}>{result}</pre>
     </div>
   );
