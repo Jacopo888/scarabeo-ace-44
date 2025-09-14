@@ -85,7 +85,7 @@ COPY app /srv/app
 COPY quackle_service /srv/quackle_service
 
 # Variabili di default (modificabili in deploy)
-ENV CORS_ORIGINS="https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app"
+ENV CORS_ORIGINS="https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app,http://localhost:5173,http://127.0.0.1:5173"
 ENV QUACKLE_LEXICON="en-enable"
 ENV QUACKLE_LEXDIR="/usr/share/quackle/lexica"
 ENV QUACKLE_APPDATA_DIR="/usr/share/quackle/data"
