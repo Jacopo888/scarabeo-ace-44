@@ -62,7 +62,23 @@ describe('Smoke vs bridge (mocked)', () => {
       engine_fallback: false
     }
     const originalFetch = globalThis.fetch as any
-    globalThis.fetch = vi.fn(async () => ({ ok: true, json: async () => mockMove }))
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => mockMove,
+      headers: new Headers(),
+      redirected: false,
+      status: 200,
+      statusText: 'OK',
+      type: 'basic' as ResponseType,
+      url: '',
+      clone: vi.fn(),
+      text: async () => '',
+      blob: async () => new Blob(),
+      arrayBuffer: async () => new ArrayBuffer(0),
+      formData: async () => new FormData(),
+      body: null,
+      bodyUsed: false
+    } as Response))
     try {
       const mv = await quackleBestMove(payload)
       expect(mv.move_type).not.toBe('pass')
