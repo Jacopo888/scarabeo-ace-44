@@ -19,17 +19,20 @@ export const useQuackle = () => {
       // Add artificial thinking time for better UX
       const thinkingTime = getThinkingTime(difficulty)
       
-      // Create 15x15 board array for Quackle engine wrapper
-      const boardCells: (string | null)[][] = Array(15).fill(null).map(() => Array(15).fill(null))
+      // Convert board tiles to "r,c" mapping for Quackle bridge (1-based coordinates)
+      const boardCells: Record<string, { letter: string; isBlank: boolean }> = {}
       gameState.board.forEach((tile) => {
-        const row = tile.row
-        const col = tile.col
-        if (row >= 0 && row < 15 && col >= 0 && col < 15) {
-          boardCells[row][col] = tile.isBlank ? '?' : tile.letter
+        const row = tile.row + 1
+        const col = tile.col + 1
+        if (row >= 1 && row <= 15 && col >= 1 && col <= 15) {
+          boardCells[`${row},${col}`] = {
+            letter: tile.letter,
+            isBlank: tile.isBlank
+          }
         }
       })
 
-      console.log('[useQuackle] Board cells with tiles:', boardCells.flat().filter(cell => cell !== null).length)
+      console.log('[useQuackle] Board cells with tiles:', Object.keys(boardCells).length)
 
       // Format rack as string for Quackle engine wrapper
       const formatRackForQuackle = (rack: Tile[]): string => {
@@ -40,9 +43,7 @@ export const useQuackle = () => {
       }
 
       const payload = {
-        board: {
-          cells: boardCells
-        },
+        board: boardCells,
         rack: formatRackForQuackle(playerRack),
         difficulty
       }
