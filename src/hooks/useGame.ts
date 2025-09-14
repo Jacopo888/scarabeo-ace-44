@@ -10,6 +10,7 @@ import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
 import type { GameMove } from './useGameAnalysis'
 import { Difficulty } from '@/components/DifficultyModal'
+import { toastOnce } from '@/lib/toastOnce'
 
 const shuffleArray = <T,>(array: T[]): T[] => {
   const shuffled = [...array]
@@ -615,7 +616,9 @@ export const useGame = () => {
         })
       }).catch(error => {
         console.error('Quackle move error:', error)
-        toast({ title: 'Quackle error', description: String((error as any)?.message || error), variant: 'destructive' })
+        const msg = String((error as any)?.message || error)
+        // De-duplicate noisy CORS/network errors
+        toastOnce(toast, 'quackle-error', msg, { title: 'Quackle error', variant: 'destructive', cooldownMs: 5000 })
         setIsBotTurn(false)
         // Do NOT convert to a pass on error; keep turn state unchanged
       })
@@ -730,7 +733,8 @@ export const useGame = () => {
           }
         } catch (error) {
           console.error('[useGame] Bot move error:', error)
-          toast({ title: 'Quackle error', description: String((error as any)?.message || error), variant: 'destructive' })
+          const msg = String((error as any)?.message || error)
+          toastOnce(toast, 'quackle-error', msg, { title: 'Quackle error', variant: 'destructive', cooldownMs: 5000 })
           // Do not call passTurn; surface error and keep turn
         } finally {
           setIsBotTurn(false)
