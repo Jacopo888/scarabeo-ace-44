@@ -90,6 +90,12 @@ cp .env.example .env
 
 ## Quackle AI – Setup rapido
 
+### Configurazione FE (Vite)
+- `.env.development`: `VITE_QUACKLE_SERVICE_URL=http://localhost:5000`
+- `.env.production`: `VITE_QUACKLE_SERVICE_URL=https://service-quackle-production.up.railway.app`
+
+Il build su Lovable legge `.env.production`. In dev locale Vite userà `.env.development`.
+
 ### Variabili frontend
 `VITE_QUACKLE_SERVICE_URL=` (URL pubblico del servizio)
 
@@ -98,7 +104,7 @@ cp .env.example .env
 `QUACKLE_BASE=https://<railway-app>.up.railway.app  npm run quackle:test`
 
 ### Diagnostica
-Visita /debug/quackle per testare /health e /best-move dal browser.
+Visita `/__debug/quackle` per testare `/health` e `/best-move` dal browser.
 
 #### NOTE (Operatore umano – Railway)
 - Imposta CORS_ORIGINS includendo tutti i domini del frontend (preview/prod).
