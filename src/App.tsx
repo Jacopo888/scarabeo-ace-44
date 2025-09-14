@@ -26,7 +26,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { NotificationSystem } from "./components/NotificationSystem";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { checkHealth } from "@/config";
+import { quackleHealth } from "@/services/quackleClient";
 
 const queryClient = new QueryClient();
 
@@ -56,7 +56,7 @@ const AppRoutes = () => {
           } />
           <Route path="/daily" element={<Daily />} />
           <Route path="/daily-challenge" element={<DailyChallengePage />} />
-            <Route path="/debug/quackle" element={<QuackleDebug />} />
+            <Route path="/__debug/quackle" element={<QuackleDebug />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -67,13 +67,17 @@ const AppRoutes = () => {
 
 const AppContent = () => {
   const { user } = useAuth();
-  const [quackleDown, setQuackleDown] = useState(false);
+  const [quackleError, setQuackleError] = useState<string | null>(null);
 
   useEffect(() => {
-    checkHealth().then((h) => {
+    quackleHealth().then((h) => {
       if (!h.ok) {
-        setQuackleDown(true);
-        toast.error("Quackle AI non raggiungibile – controlla variabili e CORS");
+        let msg = "Quackle AI non raggiungibile";
+        if (h.error === 'CORS_ERROR') msg += " – controlla CORS_ORIGINS e l’URL del servizio";
+        else if (h.error === 'TIMEOUT_ERROR') msg += " – timeout: verifica che il servizio sia up";
+        else if (h.status) msg += ` – HTTP ${h.status}`;
+        setQuackleError(msg);
+        toast.error(msg);
       }
     });
   }, []);
@@ -95,9 +99,9 @@ const AppContent = () => {
               <ThemeToggle />
             </div>
           </header>
-            {quackleDown && (
+            {quackleError && (
               <div className="bg-red-500 text-white text-center text-xs py-1">
-                Quackle AI non raggiungibile – controlla variabili e CORS
+                {quackleError}
               </div>
             )}
 
