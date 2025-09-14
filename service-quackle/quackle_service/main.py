@@ -46,8 +46,8 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(RequestLoggerMiddleware)
 
-BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", "./bridge/engine_wrapper").strip()
-QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "en-enable").strip()
+BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bridge", "engine_wrapper"))).strip()
+QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "enable1").strip()
 QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/usr/share/quackle/lexica").strip()
 
 # Additional envs used for preflight/diagnostics (align with Dockerfile defaults)
@@ -230,9 +230,23 @@ def debug_lexicon():
 @app.on_event("startup")
 def _startup_log():
     print(f"[startup] Lexicon: {LEXICON_NAME}, LexDir: {LEX_DIR}, AppData: {APPDATA_DIR}")
+    print(f"[startup] Bridge binary: {BRIDGE_BIN}")
+    print(f"[startup] Bridge exists: {os.path.exists(BRIDGE_BIN)}")
+    print(f"[startup] Bridge executable: {os.access(BRIDGE_BIN, os.X_OK) if os.path.exists(BRIDGE_BIN) else False}")
+    
     ok, dawg, gaddag = ensure_lexicon_ready()
     print(f"[startup] DAWG present? {os.path.isfile(dawg)} path={dawg}")
     print(f"[startup] GADDAG present? {os.path.isfile(gaddag)} path={gaddag}")
+    
+    if not ok:
+        print(f"[startup] ERROR: Lexicon files missing!")
+        print(f"[startup] Expected DAWG: {dawg}")
+        print(f"[startup] Expected GADDAG: {gaddag}")
+        print(f"[startup] LexDir exists: {os.path.exists(LEX_DIR)}")
+        if os.path.exists(LEX_DIR):
+            print(f"[startup] LexDir contents: {os.listdir(LEX_DIR)}")
+    else:
+        print(f"[startup] SUCCESS: All lexicon files found and ready!")
 
 def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:

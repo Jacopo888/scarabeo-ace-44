@@ -24,7 +24,9 @@ if (!resolvedUrl) {
     resolvedUrl = 'http://localhost:5000';
     console.warn('[Quackle Config] Using localhost fallback for local dev');
   } else {
-    throw new Error('VITE_QUACKLE_SERVICE_URL not defined and no valid fallback');
+    // For production, use Railway URL as fallback
+    resolvedUrl = 'https://service-quackle-production.up.railway.app';
+    console.warn('[Quackle Config] Using Railway fallback for production');
   }
 }
 
@@ -39,5 +41,15 @@ export async function checkHealth() {
     return { ok: res.ok, status: res.status, body: text };
   } catch (error) {
     return { ok: false, status: 0, body: String(error) };
+  }
+}
+
+export async function checkLexiconHealth() {
+  try {
+    const res = await fetch(api('/health/lexicon'), { method: 'GET' });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  } catch (error) {
+    return { ok: false, status: 0, data: { error: String(error) } };
   }
 }
