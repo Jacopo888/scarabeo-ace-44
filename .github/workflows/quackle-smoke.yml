@@ -1,0 +1,101 @@
+name: quackle-smoke
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build service image
+        run: |
+          docker compose build quackle-service
+
+      - name: Start service
+        run: |
+          docker compose up -d quackle-service
+
+      - name: Wait for service
+        run: |
+          for i in {1..60}; do
+            if curl -sf http://localhost:8080/health >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "Service didn't become ready" >&2
+          docker compose logs quackle-service >&2 || true
+          exit 1
+
+      - name: Dump health
+        run: |
+          curl -sf http://localhost:8080/health | tee health.json
+          curl -sf http://localhost:8080/health/lexicon | tee health_lexicon.json || true
+
+      - name: Smoke A - empty board + AEIRSTZ
+        run: |
+          cat > bodyA.json <<'JSON'
+          {"rack":"AEIRSTZ","board":{"rows":15,"cols":15,"center_x":7,"center_y":7,"grid":["...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","..............."]}}
+          JSON
+          curl -s -D respA.hdr -o respA.json -X POST http://localhost:8080/best-move -H 'content-type: application/json' --data-binary @bodyA.json || true
+          status=$(awk 'NR==1{print $2}' respA.hdr)
+          echo status=$status
+          test "$status" = 200 || (echo "Expected 200" && cat respA.json && exit 1)
+          jq '.' respA.json
+          jq -e '.move_type != "pass"' respA.json >/dev/null
+
+      - name: Smoke B - center A + HELLO??
+        run: |
+          cat > bodyB.json <<'JSON'
+          {"rack":"HELLO??","board":{"rows":15,"cols":15,"center_x":7,"center_y":7,"grid":["...............","...............","...............","...............","...............","...............","...............",".......A.......","...............","...............","...............","...............","...............","...............","..............."]}}
+          JSON
+          curl -s -D respB.hdr -o respB.json -X POST http://localhost:8080/best-move -H 'content-type: application/json' --data-binary @bodyB.json || true
+          status=$(awk 'NR==1{print $2}' respB.hdr)
+          echo status=$status
+          test "$status" = 200 || (echo "Expected 200" && cat respB.json && exit 1)
+          jq '.' respB.json
+          jq -e '.move_type != "pass"' respB.json >/dev/null
+
+      - name: Smoke C - legacy B format
+        run: |
+          cat > bodyC.json <<'JSON'
+          {"rack":"AEIRSTZ","board":["...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","..............."]}
+          JSON
+          curl -s -D respC.hdr -o respC.json -X POST http://localhost:8080/best-move -H 'content-type: application/json' --data-binary @bodyC.json || true
+          status=$(awk 'NR==1{print $2}' respC.hdr)
+          echo status=$status
+          # Accept either a real move (200 play) or a 400 error for malformed input
+          if [ "$status" = 200 ]; then jq -e '.move_type != "pass"' respC.json >/dev/null; else test "$status" = 400; fi
+
+      - name: Negative - missing GADDAG => 500
+        run: |
+          cid=$(docker compose ps -q quackle-service)
+          docker exec "$cid" bash -lc 'mv /usr/share/quackle/lexica/enable1.gaddag /usr/share/quackle/lexica/enable1.gaddag.bak'
+          curl -s -D respNeg.hdr -o respNeg.json -X POST http://localhost:8080/best-move -H 'content-type: application/json' --data-binary @bodyA.json || true
+          status=$(awk 'NR==1{print $2}' respNeg.hdr)
+          echo status=$status
+          test "$status" = 500 || (echo "Expected 500 when GADDAG missing" && cat respNeg.json && exit 1)
+
+      - name: Collect logs and artifacts
+        if: always()
+        run: |
+          docker compose logs quackle-service > service.log || true
+          cid=$(docker compose ps -q quackle-service)
+          docker exec "$cid" bash -lc 'ldd /srv/bridge/engine_wrapper || true' > ldd.txt || true
+          mkdir -p artifacts
+          mv -f *.json *.hdr *.log *.txt artifacts/ 2>/dev/null || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quackle-smoke-artifacts
+          path: artifacts

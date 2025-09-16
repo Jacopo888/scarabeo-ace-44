@@ -41,11 +41,18 @@ services:
       timeout: 5s
       retries: 5
   quackle-service:
-    build: ./service-quackle
+    build:
+      context: .
+      dockerfile: service-quackle/Dockerfile
     ports:
-      - "5000:5000"
+      - "8080:8080"
+    environment:
+      PORT: 8080
+      QUACKLE_LEXICON: enable1
+      QUACKLE_LEXDIR: /usr/share/quackle/lexica
+      QUACKLE_APPDATA_DIR: /usr/share/quackle/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 5

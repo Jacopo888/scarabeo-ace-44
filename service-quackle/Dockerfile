@@ -56,7 +56,7 @@ COPY bridge/quackle_bridge.cpp /srv/bridge/quackle_bridge.cpp
 RUN LIBQ=$(find /tmp/quackle/build \( -name "libquackle.a" -o -name "liblibquackle.a" \) -print -quit) && \
     [ -n "$LIBQ" ] || { echo "libquackle library not found"; exit 1; } && \
     echo "Using libquackle at: $LIBQ" && \
-    g++ -O1 -g -fno-omit-frame-pointer -fsanitize=address -std=c++17 \
+    g++ -O2 -DNDEBUG -fno-omit-frame-pointer -std=c++17 \
       -I/tmp/quackle \
       -I/tmp/quackle/src/libquackle/include \
       -I/tmp/quackle/src/libquackle \
@@ -69,8 +69,9 @@ RUN LIBQ=$(find /tmp/quackle/build \( -name "libquackle.a" -o -name "liblibquack
     chmod +x /srv/bridge/engine_wrapper && \
     echo "Bridge compiled successfully at /srv/bridge/engine_wrapper"
 
-# Enable ASAN runtime diagnostics at runtime
-ENV ASAN_OPTIONS="detect_leaks=0:abort_on_error=1:use_sigaltstack=1:malloc_context_size=20"
+## Note: The bridge is built without ASan. If you want AddressSanitizer
+## in a debug image, add -fsanitize=address at compile time AND install
+## the matching libasan runtime in the image. We keep the runtime clean.
 
 # Rimuovi i sorgenti temporanei
 # Copia dati (alphabets, strategy, lexica) nell'immagine dalla build di Quackle
@@ -88,15 +89,20 @@ COPY quackle_service /srv/quackle_service
 
 # Variabili di default (modificabili in deploy)
 ENV CORS_ORIGINS="https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app,http://localhost:5173,http://127.0.0.1:5173"
-ENV QUACKLE_LEXICON="en-enable"
+ENV QUACKLE_LEXICON="enable1"
 ENV QUACKLE_LEXDIR="/usr/share/quackle/lexica"
 ENV QUACKLE_APPDATA_DIR="/usr/share/quackle/data"
-ENV LEXICON_NAME="en-enable"
+ENV LEXICON_NAME="enable1"
 ENV LEX_DIR="/usr/share/quackle/lexica"
 
 # Copy lexicon files from project directly
 COPY lexica/enable1.dawg /usr/share/quackle/lexica/enable1.dawg
 COPY lexica/enable1.gaddag /usr/share/quackle/lexica/enable1.gaddag
+# Provide full ENABLE1 wordlist for health word_count and diagnostics
+COPY public/enable.txt /usr/share/quackle/lexica/enable1.txt
+
+# Quick self-test to validate runtime and dictionary availability (after lexica present)
+RUN /srv/bridge/engine_wrapper --selftest --lexicon enable1 --lexdir /usr/share/quackle/lexica || (echo "[SELFTEST] Bridge selftest failed" && ldd /srv/bridge/engine_wrapper || true && exit 1)
 
 # Setup script and entrypoint for lexicon initialization on Volume
 COPY ops/bootstrap_lexicon.sh /usr/local/bin/bootstrap_lexicon.sh
