@@ -1,0 +1,19 @@
+# Keep only necessary build context
+.git
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.*
+*.log
+node_modules/
+dist/
+
+# Do NOT ignore these: they are required by the Dockerfile
+!Dockerfile
+!requirements.txt
+!entrypoint.sh
+!bridge/**
+!quackle_service/**
+!app/**

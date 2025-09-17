@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     qt5-qmake qtbase5-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Cartella dizionari (ENABLE incluso)
+# Cartella dizionari (ENABLE incluso) – nota: runtime volume-first su /data
 RUN mkdir -p /usr/share/quackle/lexica
 
 # Clona e compila Quackle v1.0.4 (versione stabile) con tutti gli strumenti
@@ -73,8 +73,7 @@ RUN LIBQ=$(find /tmp/quackle/build \( -name "libquackle.a" -o -name "liblibquack
 ## in a debug image, add -fsanitize=address at compile time AND install
 ## the matching libasan runtime in the image. We keep the runtime clean.
 
-# Rimuovi i sorgenti temporanei
-# Copia dati (alphabets, strategy, lexica) nell'immagine dalla build di Quackle
+# Copia dati (alphabets, strategy) nell'immagine dalla build di Quackle
 RUN mkdir -p /usr/share/quackle/data && \
     cp -r /tmp/quackle/data/* /usr/share/quackle/data/
 
@@ -90,23 +89,14 @@ COPY quackle_service /srv/quackle_service
 # Variabili di default (modificabili in deploy)
 ENV CORS_ORIGINS="https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app,http://localhost:5173,http://127.0.0.1:5173"
 ENV QUACKLE_LEXICON="enable1"
-ENV QUACKLE_LEXDIR="/usr/share/quackle/lexica"
-ENV QUACKLE_APPDATA_DIR="/usr/share/quackle/data"
+ENV QUACKLE_LEXDIR="/data/lexica"
+ENV QUACKLE_APPDATA_DIR="/data/appdata"
 ENV LEXICON_NAME="enable1"
-ENV LEX_DIR="/usr/share/quackle/lexica"
 
-# Copy lexicon files from project directly
-COPY lexica/enable1.dawg /usr/share/quackle/lexica/enable1.dawg
-COPY lexica/enable1.gaddag /usr/share/quackle/lexica/enable1.gaddag
-# Provide full ENABLE1 wordlist for health word_count and diagnostics
-COPY public/enable.txt /usr/share/quackle/lexica/enable1.txt
+# Nota: Nessun lessico baked-in. I file saranno forniti via volume /data/lexica o
+# scaricati a runtime tramite le variabili GADDAG_URL/DAWG_URL.
 
-# Quick self-test to validate runtime and dictionary availability (after lexica present)
-RUN /srv/bridge/engine_wrapper --selftest --lexicon enable1 --lexdir /usr/share/quackle/lexica || (echo "[SELFTEST] Bridge selftest failed" && ldd /srv/bridge/engine_wrapper || true && exit 1)
-
-# Setup script and entrypoint for lexicon initialization on Volume
-COPY ops/bootstrap_lexicon.sh /usr/local/bin/bootstrap_lexicon.sh
-RUN chmod +x /usr/local/bin/bootstrap_lexicon.sh
+# Entrypoint
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -114,6 +104,6 @@ RUN chmod +x /entrypoint.sh
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s CMD sh -c 'curl -fsS http://localhost:${PORT:-8080}/health || exit 1'
 
-# Avvio del microservizio (PORT espanso via shell)
+# Avvio del microservizio con best practice ENTRYPOINT/CMD
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["sh", "-c", "uvicorn quackle_service.main:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["uvicorn", "quackle_service.main:app", "--host", "0.0.0.0", "--port", "${PORT:-8080}"]

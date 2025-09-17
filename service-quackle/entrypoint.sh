@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-set -e
-export QUACKLE_APPDATA_DIR="${QUACKLE_APPDATA_DIR:-/usr/share/quackle/data}"
+set -euo pipefail
 
-# Ensure lexicon files exist on the mounted volume, download if missing
-/usr/local/bin/bootstrap_lexicon.sh
+: "${QUACKLE_LEXDIR:=/data/lexica}"
+: "${QUACKLE_APPDATA_DIR:=/data/appdata}"
+
+mkdir -p "$QUACKLE_LEXDIR" "$QUACKLE_APPDATA_DIR"
+echo "[entrypoint] Ensured directories: QUACKLE_LEXDIR=$QUACKLE_LEXDIR QUACKLE_APPDATA_DIR=$QUACKLE_APPDATA_DIR"
 
 exec "$@"
-
 
