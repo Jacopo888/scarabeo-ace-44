@@ -1,5 +1,8 @@
 import os, json, subprocess, sys, re
 from typing import Any, Dict, Optional, List, Tuple
+from pathlib import Path
+from contextlib import asynccontextmanager
+from urllib.request import urlopen
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -24,39 +27,120 @@ class BestMoveRequest(BaseModel):
     difficulty: Optional[str] = None
 
 ENV_MODE = os.getenv("ENV", "").lower()
-_origins_raw = os.getenv("CORS_ORIGINS", "").strip()
+# CORS from env (comma-separated) → list
+ALLOW_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
 
-# Default origins for development
-default_dev_origins = [
-    "http://localhost:3000",
-    "http://localhost:5173", 
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://localhost:8080",
-    "http://127.0.0.1:8080"
-]
+# ------------------------------
+# Runtime configuration (volume-first)
+# ------------------------------
+LEXICON_NAME = os.getenv("LEXICON_NAME", os.getenv("QUACKLE_LEXICON", "enable1").strip()).strip()
+LEXDIR = os.getenv("QUACKLE_LEXDIR", "/data/lexica").strip()
+APPDATA = os.getenv("QUACKLE_APPDATA_DIR", "/data/appdata").strip()
+TIMEOUT_MS = int(os.getenv("QUACKLE_TIMEOUT_MS", "8000"))
 
-if not _origins_raw and ENV_MODE in ("dev", "development"):
-    ALLOW_ORIGINS = ["*"]
-elif not _origins_raw:
-    # If no CORS_ORIGINS is set, use default dev origins
-    ALLOW_ORIGINS = default_dev_origins
-else:
-    # Parse configured origins and add dev origins if in dev mode
-    configured_origins = [o.strip() for o in _origins_raw.split(",") if o.strip()]
-    if ENV_MODE in ("dev", "development"):
-        ALLOW_ORIGINS = list(set(configured_origins + default_dev_origins))
-    else:
-        ALLOW_ORIGINS = configured_origins
+BRIDGE_BIN = os.getenv(
+    "QUACKLE_BRIDGE_BIN",
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bridge", "engine_wrapper"))
+).strip()
+QUACKLE_LEXICON = LEXICON_NAME
+QUACKLE_LEXDIR = LEXDIR
+DEBUG_ENABLE_LDD = os.getenv("DEBUG_ENABLE_LDD", "").strip().lower() in {"1", "true", "yes", "y", "on", "dev"}
+BRIDGE_TIMEOUT_MS = TIMEOUT_MS
 
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOW_ORIGINS or [],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Track startup status for diagnostics
+STARTUP_STATUS: Dict[str, Any] = {
+    "lexicon_ok": False,
+    "gaddag_path": "",
+    "dawg_path": "",
+    "gaddag_size": 0,
+    "dawg_size": 0,
+    "errors": []
+}
+
+def _lex_paths():
+    base = os.path.normpath(LEXDIR)
+    dawg = os.path.join(base, f"{LEXICON_NAME}.dawg")
+    gaddag = os.path.join(base, f"{LEXICON_NAME}.gaddag")
+    return dawg, gaddag
+
+def ensure_lexicon_ready():
+    dawg, gaddag = _lex_paths()
+    try:
+        ok = (os.path.isfile(dawg) and os.path.getsize(dawg) > 0 and
+              os.path.isfile(gaddag) and os.path.getsize(gaddag) > 0)
+    except Exception:
+        ok = False
+    return ok, dawg, gaddag
+
+def _download_to(url: str, dest: Path, timeout: int = 60) -> Tuple[bool, Optional[str]]:
+    try:
+        tmp = dest.with_suffix(dest.suffix + ".part")
+        tmp.parent.mkdir(parents=True, exist_ok=True)
+        with urlopen(url, timeout=timeout) as r, open(tmp, "wb") as f:
+            chunk = r.read(8192)
+            while chunk:
+                f.write(chunk)
+                chunk = r.read(8192)
+        tmp.replace(dest)
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+def _ensure_lexicon_files() -> Dict[str, Any]:
+    """Optionally download lexicon files if URLs provided; validate sizes > 0.
+    Returns a dict with paths, sizes, and ok flag.
+    """
+    gaddag_url = os.getenv("GADDAG_URL", "").strip()
+    dawg_url = os.getenv("DAWG_URL", "").strip()
+    dawg_path_str, gaddag_path_str = _lex_paths()
+    dawg_p = Path(dawg_path_str)
+    gaddag_p = Path(gaddag_path_str)
+    errs: List[str] = []
+
+    # Ensure directories exist
+    Path(LEXDIR).mkdir(parents=True, exist_ok=True)
+    Path(APPDATA).mkdir(parents=True, exist_ok=True)
+
+    # Conditional downloads
+    if dawg_url:
+        ok, err = _download_to(dawg_url, dawg_p)
+        if not ok:
+            errs.append(f"dawg_download_failed: {err}")
+    if gaddag_url:
+        ok, err = _download_to(gaddag_url, gaddag_p)
+        if not ok:
+            errs.append(f"gaddag_download_failed: {err}")
+
+    dawg_sz = dawg_p.stat().st_size if dawg_p.exists() else 0
+    gaddag_sz = gaddag_p.stat().st_size if gaddag_p.exists() else 0
+    ok = (dawg_sz > 0 and gaddag_sz > 0)
+
+    return {
+        "ok": ok,
+        "dawg_path": str(dawg_p),
+        "gaddag_path": str(gaddag_p),
+        "dawg_size": dawg_sz,
+        "gaddag_size": gaddag_sz,
+        "errors": errs,
+    }
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 1) Create directories idempotently
+    Path(LEXDIR).mkdir(parents=True, exist_ok=True)
+    Path(APPDATA).mkdir(parents=True, exist_ok=True)
+    print(f"[startup] Created/verified LEXDIR={LEXDIR} APPDATA={APPDATA}")
+    # 2) Optional download and validation
+    st = _ensure_lexicon_files()
+    STARTUP_STATUS.update(st)
+    print(f"[startup] Lexicon ensure: ok={st['ok']} dawg={st['dawg_path']}({st['dawg_size']}) gaddag={st['gaddag_path']}({st['gaddag_size']})")
+    if st["errors"]:
+        print(f"[startup] Lexicon errors: {st['errors']}")
+    # 3) Block until completion of download/verification (done above synchronously)
+    yield
+
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=ALLOW_ORIGINS, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 # Simple request logger middleware
 class RequestLoggerMiddleware(BaseHTTPMiddleware):
@@ -73,32 +157,6 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
         return response
 
 app.add_middleware(RequestLoggerMiddleware)
-
-BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "bridge", "engine_wrapper"))).strip()
-QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "enable1").strip()
-QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/usr/share/quackle/lexica").strip()
-DEBUG_ENABLE_LDD = os.getenv("DEBUG_ENABLE_LDD", "").strip().lower() in {"1", "true", "yes", "y", "on", "dev"}
-BRIDGE_TIMEOUT_MS = int(os.getenv("QUACKLE_TIMEOUT_MS", "8000"))
-
-# Additional envs used for preflight/diagnostics (align with Dockerfile defaults)
-LEXICON_NAME = os.getenv("LEXICON_NAME", QUACKLE_LEXICON).strip()
-LEX_DIR = os.getenv("LEX_DIR", QUACKLE_LEXDIR).strip()
-APPDATA_DIR = os.getenv("QUACKLE_APPDATA_DIR", "/usr/share/quackle/data").strip()
-
-def _lex_paths():
-    base = os.path.normpath(LEX_DIR)
-    dawg = os.path.join(base, f"{LEXICON_NAME}.dawg")
-    gaddag = os.path.join(base, f"{LEXICON_NAME}.gaddag")
-    return dawg, gaddag
-
-def ensure_lexicon_ready():
-    dawg, gaddag = _lex_paths()
-    try:
-        ok = (os.path.isfile(dawg) and os.path.getsize(dawg) > 0 and
-              os.path.isfile(gaddag) and os.path.getsize(gaddag) > 0)
-    except Exception:
-        ok = False
-    return ok, dawg, gaddag
 
 # --------------------------
 # Input normalization helpers
@@ -293,7 +351,7 @@ def normalize_board(board_in: Any) -> Tuple[int, int, int, int, List[List[Option
 @app.get("/health")
 def health():
     ok, dawg, gaddag = ensure_lexicon_ready()
-    appdata = APPDATA_DIR
+    appdata = APPDATA
     strat_en = os.path.join(appdata, "strategy", "default_english")
     strat_def = os.path.join(appdata, "strategy", "default")
     def exists(p):
@@ -304,7 +362,7 @@ def health():
         except Exception:
             return 0
     # Try to count words if a wordlist is available
-    lex_words_path = os.getenv("QUACKLE_WORDLIST", os.path.join(LEX_DIR, f"{LEXICON_NAME}.txt"))
+    lex_words_path = os.getenv("QUACKLE_WORDLIST", os.path.join(LEXDIR, f"{LEXICON_NAME}.txt"))
     word_count = None
     try:
         if os.path.isfile(lex_words_path):
@@ -312,14 +370,13 @@ def health():
                 word_count = sum(1 for _ in f)
     except Exception:
         word_count = None
-    engine_ready = (os.path.exists(BRIDGE_BIN) and os.access(BRIDGE_BIN, os.X_OK)
-                    and ok)
+    engine_ready = (os.path.exists(BRIDGE_BIN) and os.access(BRIDGE_BIN, os.X_OK) and ok)
     return {
         "status": "ok",
         "engine": "quackle-bridge",
         "engine_ready": engine_ready,
         "bridge_path": BRIDGE_BIN,
-        "timeout_ms": BRIDGE_TIMEOUT_MS,
+        "timeout_ms": TIMEOUT_MS,
         "lexicon": QUACKLE_LEXICON,
         "lexdir": QUACKLE_LEXDIR,
         "dawg_exists": os.path.isfile(dawg),
@@ -352,30 +409,13 @@ async def debug_config():
     return {
         "cors_origins": ALLOW_ORIGINS,
         "env_mode": ENV_MODE,
-        "cors_origins_raw": _origins_raw,
+        "cors_origins_raw": os.getenv("CORS_ORIGINS", ""),
         "quackle_lexicon": os.getenv("QUACKLE_LEXICON", ""),
-        "quackle_lexdir": os.getenv("QUACKLE_LEXDIR", ""),
-        "lexicon_name": os.getenv("LEXICON_NAME", ""),
-        "lex_dir": os.getenv("LEX_DIR", "")
+        "quackle_lexdir": QUACKLE_LEXDIR,
+        "lexicon_name": LEXICON_NAME,
+        "lex_dir": LEXDIR
     }
-    dawg_path, gaddag_path = _lex_paths()
-    dawg_exists = os.path.exists(dawg_path)
-    gaddag_exists = os.path.exists(gaddag_path)
-    
-    return {
-        "lexicon": LEXICON_NAME,
-        "dawg_exists": dawg_exists,
-        "gaddag_exists": gaddag_exists,
-        "dawg_path": dawg_path,
-        "gaddag_path": gaddag_path,
-        "board_width": 15,
-        "board_height": 15,
-        "center_x": 7,
-        "center_y": 7,
-        "bridge_bin": BRIDGE_BIN,
-        "lex_dir": LEX_DIR,
-        "appdata_dir": APPDATA_DIR
-    }
+    # Note: code below was unreachable; removed for clarity.
 
 @app.get("/debug/ldd")
 def debug_ldd():
@@ -448,7 +488,7 @@ def health_lexicon():
     status = 200 if ok else 503
     body = {
         "lexicon_name": LEXICON_NAME,
-        "lex_dir": LEX_DIR,
+        "lex_dir": LEXDIR,
         "lexicon_ok": ok,
         "dawg_path": dawg,
         "gaddag_path": gaddag,
@@ -457,7 +497,7 @@ def health_lexicon():
 
 @app.get("/debug/quackle")
 def debug_quackle():
-    appdata = APPDATA_DIR
+    appdata = APPDATA
     lexdir = QUACKLE_LEXDIR
     lex = QUACKLE_LEXICON
     dawg = os.path.join(lexdir, f"{lex}.dawg")
@@ -491,19 +531,19 @@ def debug_ping():
 @app.get("/debug/lexicon")
 def debug_lexicon():
     dawg, gaddag = _lex_paths()
-    strat_en = os.path.join(APPDATA_DIR, "strategy", "default_english")
-    strat_def = os.path.join(APPDATA_DIR, "strategy", "default")
+    strat_en = os.path.join(APPDATA, "strategy", "default_english")
+    strat_def = os.path.join(APPDATA, "strategy", "default")
     def exists(p):
         return os.path.isfile(p)
     def join(*a):
         return os.path.join(*a)
     # Directory listing for diagnostics (names and sizes)
     listing = []
-    dir_exists = os.path.isdir(LEX_DIR)
+    dir_exists = os.path.isdir(LEXDIR)
     dir_error = None
     try:
-        for name in sorted(os.listdir(LEX_DIR)):
-            p = os.path.join(LEX_DIR, name)
+        for name in sorted(os.listdir(LEXDIR)):
+            p = os.path.join(LEXDIR, name)
             try:
                 size = os.path.getsize(p) if os.path.isfile(p) else None
             except Exception:
@@ -514,10 +554,10 @@ def debug_lexicon():
         dir_error = str(e)
     return {
         "lexicon_name": LEXICON_NAME,
-        "lex_dir": LEX_DIR,
+        "lex_dir": LEXDIR,
         "lex_dir_exists": dir_exists,
         "lex_dir_error": dir_error,
-        "app_data_dir": APPDATA_DIR,
+        "app_data_dir": APPDATA,
         "dawg_exists": exists(dawg),
         "gaddag_exists": exists(gaddag),
         "lex_dir_listing": listing,
@@ -534,26 +574,7 @@ def debug_lexicon():
         }
     }
 
-@app.on_event("startup")
-def _startup_log():
-    print(f"[startup] Lexicon: {LEXICON_NAME}, LexDir: {LEX_DIR}, AppData: {APPDATA_DIR}")
-    print(f"[startup] Bridge binary: {BRIDGE_BIN}")
-    print(f"[startup] Bridge exists: {os.path.exists(BRIDGE_BIN)}")
-    print(f"[startup] Bridge executable: {os.access(BRIDGE_BIN, os.X_OK) if os.path.exists(BRIDGE_BIN) else False}")
-    
-    ok, dawg, gaddag = ensure_lexicon_ready()
-    print(f"[startup] DAWG present? {os.path.isfile(dawg)} path={dawg}")
-    print(f"[startup] GADDAG present? {os.path.isfile(gaddag)} path={gaddag}")
-    
-    if not ok:
-        print(f"[startup] ERROR: Lexicon files missing!")
-        print(f"[startup] Expected DAWG: {dawg}")
-        print(f"[startup] Expected GADDAG: {gaddag}")
-        print(f"[startup] LexDir exists: {os.path.exists(LEX_DIR)}")
-        if os.path.exists(LEX_DIR):
-            print(f"[startup] LexDir contents: {os.listdir(LEX_DIR)}")
-    else:
-        print(f"[startup] SUCCESS: All lexicon files found and ready!")
+# on_event startup removed in favor of lifespan()
 
 def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
@@ -572,7 +593,7 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
                 input=json.dumps(wrapper_payload).encode("utf-8"),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                timeout=max(1, BRIDGE_TIMEOUT_MS // 1000),
+                timeout=max(1, TIMEOUT_MS // 1000),
             )
         except OSError as e:
             # Likely missing runtime dep (e.g., dynamic linker or libasan)
@@ -715,7 +736,7 @@ async def best_move(req: Request):
         # Preflight: ensure lexicon assets exist and >0 to avoid segfault in the bridge
         ok, dawg, gaddag = ensure_lexicon_ready()
         if not ok:
-            print(f"[lexicon] missing files: dawg={os.path.exists(dawg)} gaddag={os.path.exists(gaddag)} dir={LEX_DIR}")
+            print(f"[lexicon] missing files: dawg={os.path.exists(dawg)} gaddag={os.path.exists(gaddag)} dir={LEXDIR}")
             raise HTTPException(status_code=500, detail="lexicon_not_ready")
 
         # Build bridge payload from normalized inputs
