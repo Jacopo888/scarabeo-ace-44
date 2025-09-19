@@ -177,20 +177,62 @@ int main(int argc, char** argv){
     
     // Validate rack format
     int blankCount = 0;
-    for (const auto& tile : jrack) {
-      if (!tile.contains("letter") || !tile.contains("points")) {
-        debugLog("ERROR: Invalid rack tile format - missing letter or points");
-        std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_rack_format","reason":"missing_fields"})" << std::endl;
-        return 1;
+    int rackLen = 0;
+    auto emitRackError = [&]() {
+      debugLog("ERROR: Invalid rack format");
+      std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_rack_format"})" << std::endl;
+      return 1;
+    };
+
+    if (jrack.is_string()) {
+      std::string rackStr = jrack.get<std::string>();
+      rackLen = 0;
+      for (char rawCh : rackStr) {
+        if (std::isspace(static_cast<unsigned char>(rawCh))) {
+          continue;
+        }
+        char ch = static_cast<char>(std::toupper(static_cast<unsigned char>(rawCh)));
+        if (!(std::isalpha(static_cast<unsigned char>(ch)) || ch == '?' || ch == '*')) {
+          return emitRackError();
+        }
+        rackLen++;
+        if (ch == '?' || ch == '*') {
+          blankCount++;
+        }
       }
-      std::string letter = tile["letter"];
-      if (letter == "?" || letter == "BLANK") {
-        blankCount++;
+    } else if (jrack.is_array()) {
+      rackLen = static_cast<int>(jrack.size());
+      for (const auto& tile : jrack) {
+        if (!tile.contains("letter")) {
+          return emitRackError();
+        }
+        std::string letter = tile.value("letter", std::string());
+        if (letter.empty()) {
+          return emitRackError();
+        }
+        std::string letterUpper = letter;
+        for (char &c : letterUpper) {
+          c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        }
+        char ch = letterUpper.empty() ? '\0' : letterUpper[0];
+        bool isBlank = tile.value("isBlank", false) || letterUpper == "BLANK";
+        if (!(std::isalpha(static_cast<unsigned char>(ch)) || ch == '?' || ch == '*')) {
+          return emitRackError();
+        }
+        if (isBlank || ch == '?' || ch == '*') {
+          blankCount++;
+        }
       }
+    } else {
+      return emitRackError();
     }
-    
+
+    if (rackLen <= 0 || rackLen > 7) {
+      return emitRackError();
+    }
+
     debugLog("Board cells: " + std::to_string(boardCells) + ", bounds: (" + std::to_string(minRow) + "," + std::to_string(minCol) + ") to (" + std::to_string(maxRow) + "," + std::to_string(maxCol) + ")");
-    debugLog("Rack length: " + std::to_string(jrack.size()) + ", blanks: " + std::to_string(blankCount));
+    debugLog("Rack length: " + std::to_string(rackLen) + ", blanks: " + std::to_string(blankCount));
     debugLog("================================");
 
     // Prepare data manager and lexicon
