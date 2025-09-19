@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
     qt5-qmake qtbase5-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Cartella dizionari (ENABLE incluso) – nota: runtime volume-first su /data
+# Cartelle dati quackle (nota: lexica runtime via volume /data, non baked-in)
 RUN mkdir -p /usr/share/quackle/lexica
 
 # Clona e compila Quackle v1.0.4 (versione stabile) con tutti gli strumenti
@@ -22,7 +22,6 @@ RUN git clone --depth=1 --branch v1.0.4 https://github.com/quackle/quackle.git /
     cd /tmp/quackle && mkdir -p build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     make -j"$(nproc)" && \
-    cp -r /tmp/quackle/data/lexica/* /usr/share/quackle/lexica/ 2>/dev/null || true && \
     # Prima compila quackleio separatamente
     cd /tmp/quackle && \
     echo "Compilando quackleio..." && \
@@ -75,7 +74,9 @@ RUN LIBQ=$(find /tmp/quackle/build \( -name "libquackle.a" -o -name "liblibquack
 
 # Copia dati (alphabets, strategy) nell'immagine dalla build di Quackle
 RUN mkdir -p /usr/share/quackle/data && \
-    cp -r /tmp/quackle/data/* /usr/share/quackle/data/
+    cp -r /tmp/quackle/data/* /usr/share/quackle/data/ && \
+    # Non includere i lessici baked-in: volume-first o download runtime
+    rm -rf /usr/share/quackle/data/lexica || true
 
 # Rimuovi i sorgenti temporanei
 RUN rm -rf /tmp/quackle
@@ -106,4 +107,3 @@ HEALTHCHECK --interval=30s --timeout=3s CMD sh -c 'curl -fsS http://localhost:${
 
 # Avvio del microservizio con best practice ENTRYPOINT/CMD
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["uvicorn", "quackle_service.main:app", "--host", "0.0.0.0", "--port", "${PORT:-8080}"]

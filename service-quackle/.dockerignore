@@ -1,4 +1,3 @@
-# Keep only necessary build context
 .git
 __pycache__/
 *.pyc
@@ -10,7 +9,6 @@ __pycache__/
 node_modules/
 dist/
 
-# Do NOT ignore these: they are required by the Dockerfile
 !Dockerfile
 !requirements.txt
 !entrypoint.sh

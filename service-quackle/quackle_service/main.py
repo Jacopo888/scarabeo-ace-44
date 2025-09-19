@@ -14,6 +14,16 @@ import logging
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)
 
+# ------------------------------
+# Sanitization helpers
+# ------------------------------
+def _sanitize_none(obj):
+    if isinstance(obj, dict):
+        return {k: _sanitize_none(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [_sanitize_none(v) for v in obj]
+    return obj
+
 # Pydantic models
 class BoardCell(BaseModel):
     letter: str
@@ -348,6 +358,47 @@ def normalize_board(board_in: Any) -> Tuple[int, int, int, int, List[List[Option
 
     return rows, cols, cx, cy, squares, board_map
 
+def _normalize_board_for_bridge(board_input: Any) -> Dict[str, Any]:
+    """
+    Accepts:
+      - legacy grid: List[str] (15x15)
+      - object: {"rows":15, "cols":15, "grid":[...15 strings...]}
+        (may include extra metadata like center_x/center_y which are ignored)
+    Returns a sanitized object {"rows":15,"cols":15,"grid":[...]}.
+    Raises HTTPException(400) for invalid shapes.
+    """
+    # Extract grid depending on type
+    if isinstance(board_input, list):
+        grid = board_input
+    elif isinstance(board_input, dict):
+        if "grid" not in board_input:
+            raise HTTPException(status_code=400, detail="board.grid missing")
+        grid = board_input.get("grid")
+    else:
+        raise HTTPException(status_code=400, detail="board invalid type")
+
+    # Validate grid shape
+    if not (isinstance(grid, list) and len(grid) == 15 and all(isinstance(r, str) and len(r) == 15 for r in grid)):
+        raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
+
+    return {"rows": 15, "cols": 15, "grid": grid}
+
+def _grid_to_coordmap(grid: list[str]) -> dict[str, dict]:
+    """
+    Convert a 15x15 grid ('.' empty, letters placed) into a coordinate map:
+      "r,c" (1-based) -> {"letter": <A-Z>, "isBlank": False}
+    """
+    if not (isinstance(grid, list) and len(grid) == 15):
+        raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
+    out: dict[str, dict] = {}
+    for r, row in enumerate(grid, start=1):
+        if not isinstance(row, str) or len(row) != 15:
+            raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
+        for c, ch in enumerate(row, start=1):
+            if ch != '.':
+                out[f"{r},{c}"] = {"letter": str(ch).upper(), "isBlank": False}
+    return out
+
 @app.get("/health")
 def health():
     ok, dawg, gaddag = ensure_lexicon_ready()
@@ -379,6 +430,9 @@ def health():
         "timeout_ms": TIMEOUT_MS,
         "lexicon": QUACKLE_LEXICON,
         "lexdir": QUACKLE_LEXDIR,
+        "bridge_ruleset": "en",
+        "board_schema": "coord_map_1based",
+        "payload_sanitize": True,
         "dawg_exists": os.path.isfile(dawg),
         "gaddag_exists": os.path.isfile(gaddag),
         "dawg_size": size_or_zero(dawg),
@@ -452,17 +506,13 @@ async def debug_probe(request: Request):
         raw = await request.body()
         body = json.loads(raw.decode("utf-8")) if raw else {}
         rack_norm = normalize_rack(body.get("rack"))
-        rows, cols, cx, cy, squares, board_map = normalize_board(body.get("board"))
-        non_empty = any(any(cell is not None for cell in row) for row in squares)
-        center_anchor_ok = (rows == 15 and cols == 15 and cx == 7 and cy == 7)
-        logger.debug("board_norm rows=%s cols=%s center=(%s,%s) non_empty=%s", rows, cols, cx, cy, non_empty)
+        board_out = _normalize_board_for_bridge(body.get("board"))
+        non_empty = any(ch != '.' for row in board_out.get("grid", []) for ch in row)
+        center_anchor_ok = True
+        logger.debug("board_norm (grid) rows=%s cols=%s non_empty=%s", board_out.get("rows"), board_out.get("cols"), non_empty)
 
         # Optionally call the bridge to ensure it's reachable and to surface errors; not mandatory for probe
-        payload = {
-            "board": board_map,
-            "rack": rack_norm,
-            "difficulty": body.get("difficulty")
-        }
+        payload = {"board": board_out, "rack": rack_norm}
         result = _call_bridge(payload)
 
         return {
@@ -519,6 +569,9 @@ def debug_quackle():
         "appdata": appdata,
         "lexicon": lex,
         "lexdir": lexdir,
+        "bridge_ruleset": "en",
+        "board_schema": "coord_map_1based",
+        "payload_sanitize": True,
         "dawg": {"path": dawg, "size": size_or_none(dawg)},
         "gaddag": {"path": gaddag, "size": size_or_none(gaddag)},
         "strategy": {k: {"path": v, "size": size_or_none(v)} for k, v in paths.items()}
@@ -527,6 +580,18 @@ def debug_quackle():
 @app.get("/debug/ping")
 def debug_ping():
     return {"ok": True, "msg": "pong", "version": "v104-debug"}
+
+@app.post("/debug/bridge-payload")
+def debug_bridge_payload(req: Dict[str, Any]):
+    """Return the exact sanitized JSON that would be sent to the bridge,
+    without invoking the native binary."""
+    rack_str = (req.get("rack") or "").strip().upper()
+    if not (len(rack_str) == 7 and all(ch.isalpha() or ch in {"?","*"} for ch in rack_str)):
+        raise HTTPException(status_code=400, detail="invalid rack")
+    board_out = _normalize_board_for_bridge(req.get("board"))
+    # Preview exact payload (board as 1-based coordinate map)
+    bridge_payload = _sanitize_none({"rack": rack_str, "ruleset": "en", "board": _grid_to_coordmap(board_out["grid"])})
+    return {"bridge_payload": bridge_payload}
 
 @app.get("/debug/lexicon")
 def debug_lexicon():
@@ -578,9 +643,26 @@ def debug_lexicon():
 
 def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
-        # Add the 'op' field that the wrapper expects
-        wrapper_payload = {"op": "compute", **payload}
-        print(f"[DEBUG] Calling bridge with payload: {json.dumps(wrapper_payload, indent=2)[:500]}...")
+        # Build minimal, sanitized payload for the bridge
+        rack_str = (payload.get("rack") or "").strip().upper()
+        if not (len(rack_str) == 7 and all((c.isalpha() or c in {'?','*'}) for c in rack_str)):
+            raise HTTPException(status_code=400, detail="invalid_rack_format")
+
+        board_out = _normalize_board_for_bridge(payload.get("board"))
+
+        # Send board as a 1-based coordinate map object to the bridge
+        board_for_bridge = _grid_to_coordmap(board_out["grid"])
+        bridge_payload = {
+            "rack": rack_str,
+            "ruleset": "en",
+            "board": board_for_bridge,
+        }
+        bridge_payload = _sanitize_none(bridge_payload)
+        wrapper_payload = {"op": "compute", **bridge_payload}
+        stdin_str = json.dumps(wrapper_payload, separators=(",", ":"))
+
+        if os.getenv("DEBUG_BRIDGE_PAYLOAD", "").strip().lower() in {"1","true","yes","on"}:
+            print("[bridge.stdin]", stdin_str)
         try:
             proc = subprocess.run(
                 [
@@ -590,7 +672,7 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
                     "--gaddag", f"{QUACKLE_LEXDIR}/{QUACKLE_LEXICON}.gaddag",
                     "--ruleset", "en"
                 ],
-                input=json.dumps(wrapper_payload).encode("utf-8"),
+                input=stdin_str.encode("utf-8"),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=max(1, TIMEOUT_MS // 1000),
@@ -606,10 +688,6 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
             except Exception as _:
                 pass
             return {
-                "tiles": [],
-                "score": 0,
-                "words": [],
-                "move_type": "pass",
                 "engine_fallback": True,
                 "error": f"exec_failed: {e.strerror or str(e)}",
                 "ldd": ldd_out[:4000]
@@ -621,14 +699,18 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
         except UnicodeDecodeError:
             # Fallback to latin-1 for binary data or corrupted UTF-8
             stderr_output = proc.stderr.decode("latin-1", errors="replace")
-        if stderr_output:
-            print(f"[DEBUG] Bridge stderr: {stderr_output}")
+        out_try = proc.stdout.decode("utf-8", errors="replace").strip()
+        if os.getenv("DEBUG_BRIDGE_PAYLOAD", "").strip().lower() in {"1","true","yes","on"}:
+            print("[bridge.rc]", proc.returncode)
+            print("[bridge.stdout]", out_try[:2000])
+            if stderr_output:
+                print("[bridge.stderr]", stderr_output[:2000])
         
         if proc.returncode != 0:
             logger.error(f"Bridge failed with return code {proc.returncode}")
-            logger.error(f"stderr: {stderr_output[:2000]}")
+            if stderr_output:
+                logger.error(f"stderr: {stderr_output[:2000]}")
             # Try to parse stdout for a structured error message from the bridge
-            out_try = proc.stdout.decode("utf-8", errors="replace").strip()
             try:
                 parsed = json.loads(out_try) if out_try else {}
             except Exception:
@@ -637,19 +719,13 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
                 return parsed
             # Return structured error instead of raising to avoid 500
             return {
-                "tiles": [],
-                "score": 0,
-                "words": [],
-                "move_type": "pass",
                 "engine_fallback": True,
                 "error": f"bridge_failed_rc={proc.returncode}",
                 "rc": proc.returncode,
                 "stderr": stderr_output[:4000]
             }
 
-        out = proc.stdout.decode("utf-8").strip()
-        print(f"[DEBUG] Bridge stdout: {out}")
-        
+        out = out_try
         if not out:
             return {}
             
@@ -695,20 +771,12 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
         except json.JSONDecodeError as e:
             print(f"[ERROR] JSON decode error: {e}")
             return {
-                "tiles": [],
-                "score": 0,
-                "words": [],
-                "move_type": "pass",
                 "engine_fallback": True,
                 "error": f"json_decode_error: {e}"
             }
     except Exception as e:
         print(f"[ERROR] Bridge error: {repr(e)}")
         return {
-            "tiles": [],
-            "score": 0,
-            "words": [],
-            "move_type": "pass",
             "engine_fallback": True,
             "error": str(e)
         }
@@ -726,12 +794,12 @@ async def best_move(req: Request):
 
         # Normalize inputs
         rack_norm = normalize_rack(body.get("rack"))
-        rows, cols, cx, cy, squares, board_map = normalize_board(body.get("board"))
-        non_empty = any(any(cell is not None for cell in row) for row in squares)
+        board_out = _normalize_board_for_bridge(body.get("board"))
+        non_empty = any(ch != '.' for row in board_out.get("grid", []) for ch in row)
         logger.debug("rack_norm=%s (len=%s)", rack_norm, len(rack_norm))
-        logger.debug("board_norm rows=%s cols=%s center=(%s,%s) non_empty=%s", rows, cols, cx, cy, non_empty)
+        logger.debug("board_norm(grid) rows=%s cols=%s non_empty=%s", board_out.get("rows"), board_out.get("cols"), non_empty)
         print(f"[DEBUG] rack_norm len={len(rack_norm)} rack='{rack_norm}'")
-        print(f"[DEBUG] board_norm rows={rows} cols={cols} center=({cx},{cy}) non_empty={non_empty}")
+        print(f"[DEBUG] board_norm rows={board_out.get('rows')} cols={board_out.get('cols')} non_empty={non_empty}")
 
         # Preflight: ensure lexicon assets exist and >0 to avoid segfault in the bridge
         ok, dawg, gaddag = ensure_lexicon_ready()
@@ -741,9 +809,8 @@ async def best_move(req: Request):
 
         # Build bridge payload from normalized inputs
         payload = {
-            "board": board_map,
+            "board": board_out,
             "rack": rack_norm,
-            "difficulty": body.get("difficulty"),
         }
 
         # Call bridge
@@ -797,11 +864,10 @@ def debug_sample_moves():
     cases = []
     # Case 1: Empty board + AEIRSTZ
     try:
-        rows, cols, cx, cy, squares, board_map = normalize_board({
-            "rows": 15, "cols": 15, "center_x": 7, "center_y": 7,
-            "grid": ["."*15 for _ in range(15)]
+        board_out = _normalize_board_for_bridge({
+            "rows": 15, "cols": 15, "grid": ["."*15 for _ in range(15)]
         })
-        res = _call_bridge({"board": board_map, "rack": "AEIRSTZ", "difficulty": "medium"})
+        res = _call_bridge({"board": board_out, "rack": "AEIRSTZ"})
         cases.append({
             "name": "empty+AEIRSTZ",
             "ok": (not res.get("engine_fallback") and res.get("move_type") != "pass"),
@@ -814,10 +880,10 @@ def debug_sample_moves():
     try:
         grid = ["."*15 for _ in range(15)]
         grid[7] = ".......A......."
-        rows, cols, cx, cy, squares, board_map = normalize_board({
-            "rows": 15, "cols": 15, "center_x": 7, "center_y": 7, "grid": grid
+        board_out = _normalize_board_for_bridge({
+            "rows": 15, "cols": 15, "grid": grid
         })
-        res = _call_bridge({"board": board_map, "rack": "HELLO??", "difficulty": "medium"})
+        res = _call_bridge({"board": board_out, "rack": "HELLO??"})
         cases.append({
             "name": "centerA+HELLO??",
             "ok": (not res.get("engine_fallback") and res.get("move_type") != "pass"),
@@ -828,8 +894,8 @@ def debug_sample_moves():
 
     # Case 3: Legacy B format (15 strings grid)
     try:
-        rows, cols, cx, cy, squares, board_map = normalize_board(["."*15 for _ in range(15)])
-        res = _call_bridge({"board": board_map, "rack": "AEIRSTZ", "difficulty": "medium"})
+        board_out = _normalize_board_for_bridge(["."*15 for _ in range(15)])
+        res = _call_bridge({"board": board_out, "rack": "AEIRSTZ"})
         cases.append({
             "name": "legacyB+AEIRSTZ",
             "ok": (not res.get("engine_fallback") and res.get("move_type") != "pass"),

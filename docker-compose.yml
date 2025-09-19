@@ -46,15 +46,18 @@ services:
     ports:
       - "8080:8080"
     environment:
-      PORT: 8080
-      QUACKLE_LEXICON: enable1
       QUACKLE_LEXDIR: /data/lexica
       QUACKLE_APPDATA_DIR: /data/appdata
+      QUACKLE_LEXICON: enable1
       QUACKLE_TIMEOUT_MS: 8000
-      CORS_ORIGINS: "http://localhost:5173"
-      # Optional runtime download
-      # GADDAG_URL: "https://example.com/enable1.gaddag"
-      # DAWG_URL:   "https://example.com/enable1.dawg"
+      # CORS: override from .env.compose if provided
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:5173}"
+
+      # Lexicon URLs: interpolated from .env.compose via --env-file
+      GADDAG_URL: "${GADDAG_URL}"
+      DAWG_URL:   "${DAWG_URL}"
+      # DEBUG_BRIDGE_PAYLOAD: "true"   # opzionale: logga stdin/stdout/stderr del bridge
+      # DEBUG_ENABLE_LDD: "true"       # opzionale: abilita /debug/ldd
     volumes:
       - ./data:/data
     healthcheck:
