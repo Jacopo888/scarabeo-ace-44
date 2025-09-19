@@ -88,28 +88,70 @@ cp .env.example .env
 # then edit .env and provide values for SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY
 ```
 
-## Quackle AI – Setup rapido
+## Quackle Service – Runtime Setup (Zero‑Tolerance)
+
+Il microservizio `service-quackle` usa Quackle reale con GADDAG completo. Non ci sono fallback a dizionari ridotti o "pass" silenziosi. Se il lessico non è pronto si risponde con errore esplicito (HTTP 500/502).
+
+### Porte e URL
+- La porta è configurabile via `PORT` (default 8080). L'app espone gli endpoint su `http://<host>:8080` in locale o su Railway.
+- Frontend (Vite) usa `VITE_QUACKLE_SERVICE_URL` come base per le chiamate; impostalo al tuo URL pubblico o locale, ad es. `http://localhost:8080`.
+
+### Variabili ambiente (servizio Quackle)
+- `QUACKLE_LEXICON=enable1` (nome del lessico)
+- `QUACKLE_LEXDIR=/data/lexica` (cartella su volume per `*.gaddag` e `*.dawg`)
+- `QUACKLE_APPDATA_DIR=/data/appdata` (cartella runtime per dati Quackle)
+- `QUACKLE_TIMEOUT_MS=8000` (timeout generazione mossa)
+- `CORS_ORIGINS="https://a,https://b,http://localhost:5173"` (lista separata da virgole)
+- Opzionali per download a runtime (se assenti, si usano i file già presenti nel volume):
+  - `GADDAG_URL=https://.../enable1.gaddag`
+  - `DAWG_URL=https://.../enable1.dawg`
+
+All'avvio (lifespan FastAPI) il servizio:
+1) Crea le directory `QUACKLE_LEXDIR` e `QUACKLE_APPDATA_DIR` in modo idempotente.
+2) Scarica i file da `GADDAG_URL`/`DAWG_URL` se impostati, salvandoli in `QUACKLE_LEXDIR`.
+3) Verifica che `enable1.gaddag` e `enable1.dawg` esistano e abbiano dimensione > 0. In caso contrario, `engine_ready:false` e `/best-move` risponde 500 `lexicon_not_ready`.
+
+### Endpoint principali
+- `GET /health` restituisce:
+  - `engine_ready` (true solo se binario eseguibile + GADDAG/DAWG con size > 0)
+  - `gaddag_exists`, `dawg_exists`, `gaddag_size`, `dawg_size`
+  - `lexdir`, `lexicon`, `timeout_ms`, `word_count` (se `enable1.txt` presente)
+- `POST /best-move` richiede:
+  - `rack` stringa di 7 caratteri (A‑Z, `?` per blank)
+  - `board` in uno dei due formati supportati:
+    1) Formato A (ufficiale): mappa "r,c" (1‑based) → `{letter,isBlank}`
+    2) Formato B (legacy): array di 15 stringhe ('.' = vuoto)
+  - Errori di input → 400 con messaggio esplicito (mai 200 con `pass`).
+  - Lessico non pronto → 500 `lexicon_not_ready`.
+
+### Esempi rapidi (curl)
+```bash
+# Health
+curl -s http://localhost:8080/health | jq
+
+# Empty board + AEIRSTZ (legacy grid)
+curl -s -X POST http://localhost:8080/best-move \
+  -H 'content-type: application/json' \
+  --data-binary '{"rack":"AEIRSTZ","board":["...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","..............."]}' | jq
+
+# Centro occupato + HELLO?? (grid con A al centro)
+curl -s -X POST http://localhost:8080/best-move \
+  -H 'content-type: application/json' \
+  --data-binary '{"rack":"HELLO??","board":{"rows":15,"cols":15,"center_x":7,"center_y":7,"grid":["...............","...............","...............","...............","...............","...............","...............",".......A.......","...............","...............","...............","...............","...............","...............","..............."]}}' | jq
+```
+
+### Comportamento errori (Zero‑tolerance)
+- Nessun fallback a "mini‑lexicon" o mosse simulate.
+- In caso di errori del bridge/eseguibile: HTTP 502 con `engine_fallback:true`, `rc`, `stderr` e estratto `ldd` del binario.
+- In caso di input non valido: HTTP 400 (mai trasformare in `pass`).
 
 ### Configurazione FE (Vite)
-- `.env.development`: `VITE_QUACKLE_SERVICE_URL=http://localhost:5000`
+- `.env.development`: `VITE_QUACKLE_SERVICE_URL=http://localhost:8080`
 - `.env.production`: `VITE_QUACKLE_SERVICE_URL=https://service-quackle-production.up.railway.app`
 
-Il build su Lovable legge `.env.production`. In dev locale Vite userà `.env.development`.
-
-### Variabili frontend
-`VITE_QUACKLE_SERVICE_URL=` (URL pubblico del servizio)
-
-### Test locali
-`QUACKLE_BASE=http://localhost:5000  npm run quackle:health`
-`QUACKLE_BASE=https://<railway-app>.up.railway.app  npm run quackle:test`
-
-### Diagnostica
-Visita `/__debug/quackle` per testare `/health` e `/best-move` dal browser.
-
-#### NOTE (Operatore umano – Railway)
-- Imposta CORS_ORIGINS includendo tutti i domini del frontend (preview/prod).
-- Imposta la porta 5000 (il Dockerfile espone 5000).
-- Verifica /health pubblico dopo il deploy.
+Test rapidi lato FE:
+- `QUACKLE_BASE=http://localhost:8080 npm run quackle:health`
+- `QUACKLE_BASE=https://<railway-app>.up.railway.app npm run quackle:test`
 
 ## How can I deploy this project?
 
@@ -154,23 +196,19 @@ PORT=4000
 ```
 
 **Production deployment:** Set `VITE_RATING_API_URL` to your production API URL. If not set, the frontend will use local fallback puzzle generation.
-## Railway Lexicon Setup (ENABLE on Volume)
+## Railway – Setup Volume
 
-- Volume mount path consigliato: `/data`
-- Env service (Railway → Variables):
-  - `LEXICON_NAME=enable1`
-  - `LEX_DIR=/data/quackle/lexica/enable1`
-  - `QUACKLE_APPDATA_DIR=/usr/share/quackle/data`
-
-All'avvio il container esegue `setup_enable_lexicon.sh` che:
-- Scarica e normalizza ENABLE, genera `enable1.dawg` e `enable1.gaddag` se mancanti
-- Salva i file su Volume in `${LEX_DIR}` (persistenti tra i deploy)
-- Copia le alphabets e usa gli strategy di default (`default` + `default_english`)
+- Monta un volume su `/data`.
+- Imposta le variabili del servizio:
+  - `QUACKLE_LEXICON=enable1`
+  - `QUACKLE_LEXDIR=/data/lexica`
+  - `QUACKLE_APPDATA_DIR=/data/appdata`
+  - (opzionali) `GADDAG_URL`, `DAWG_URL` per auto‑download al primo avvio.
+- Verifica `GET /health`: deve mostrare `engine_ready:true` e dimensioni > 0 per GADDAG/DAWG.
 
 Comandi utili:
-- Logs: `railway logs -d | egrep 'Lexicon|DAWG|GADDAG|engine_fallback'`
-- Smoke test: `POST /best-move`
-- Diagnostica: `GET /debug/lexicon`
+- Logs: `railway logs -d | egrep 'startup|Lexicon|GADDAG|DAWG|engine_fallback'`
+- Diagnostica: `GET /debug/lexicon`, `GET /debug/quackle`, `GET /health/cors`
 
 
 Drizzle is used for database migrations:

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-set -e
-export QUACKLE_APPDATA_DIR="${QUACKLE_APPDATA_DIR:-/usr/share/quackle/data}"
+set -euo pipefail
 
-# Ensure lexicon files exist on the mounted volume, download if missing
-/usr/local/bin/bootstrap_lexicon.sh
+: "${QUACKLE_LEXDIR:=/data/lexica}"
+: "${QUACKLE_APPDATA_DIR:=/data/appdata}"
+: "${PORT:=8080}"  # default locale; PaaS può sovrascrivere
 
-exec "$@"
+mkdir -p "$QUACKLE_LEXDIR" "$QUACKLE_APPDATA_DIR"
+echo "[entrypoint] Ensured dirs LEXDIR=$QUACKLE_LEXDIR APPDATA=$QUACKLE_APPDATA_DIR PORT=$PORT"
 
-
+exec uvicorn quackle_service.main:app --host 0.0.0.0 --port "$PORT"

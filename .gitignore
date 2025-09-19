@@ -26,3 +26,4 @@ dist-ssr
 # Python venv and caches
 service-quackle/.venv/
 service-quackle/**/__pycache__/
+.env.compose

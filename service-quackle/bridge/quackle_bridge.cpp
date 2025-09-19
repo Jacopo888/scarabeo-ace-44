@@ -32,6 +32,10 @@ static std::string arg(int argc, char** argv, const std::string& k, const std::s
   for (int i=1;i<argc-1;++i) if (std::string(argv[i])==k) return std::string(argv[i+1]);
   return d;
 }
+static bool hasFlag(int argc, char** argv, const std::string& k) {
+  for (int i=1;i<argc;++i) if (std::string(argv[i])==k) return true;
+  return false;
+}
 // Kibitz length (number of top moves to generate and evaluate). Not simulations.
 static int kibitzLenFor(const std::string& d){ if(d=="easy")return 15; if(d=="hard")return 100; return 50; }
 
@@ -59,10 +63,69 @@ int main(int argc, char** argv){
   cursorDebugLog("Bridge avviato.");
   debugLog("=== Quackle Bridge Started (v1.0.4 with correct API) ===");
   
-  const std::string lexicon = arg(argc, argv, "--lexicon", "en-enable");
+  const std::string lexicon = arg(argc, argv, "--lexicon", "enable1");
   const std::string lexdir  = arg(argc, argv, "--lexdir",  "/usr/share/quackle/lexica");
+  const bool selftest = hasFlag(argc, argv, "--selftest");
   
   debugLog("Lexicon: " + lexicon + ", LexDir: " + lexdir);
+
+  if (selftest) {
+    try {
+      // Minimal DataManager and lexicon load to verify runtime + files
+      if (!QUACKLE_DATAMANAGER_EXISTS) {
+        new Quackle::DataManager();
+      }
+      const char* envAppData = std::getenv("QUACKLE_APPDATA_DIR");
+      std::string appDataDir = (envAppData && *envAppData)
+        ? std::string(envAppData)
+        : std::string("/usr/share/quackle/data");
+      QUACKLE_DATAMANAGER->setAppDataDirectory(appDataDir);
+      QUACKLE_DATAMANAGER->setBackupLexicon(lexicon);
+      QUACKLE_DATAMANAGER->setAlphabetParameters(new Quackle::EnglishAlphabetParameters());
+      if (!QUACKLE_DATAMANAGER->parameters()) {
+        QUACKLE_DATAMANAGER->setParameters(new Quackle::EnglishParameters());
+      }
+      if (!QUACKLE_DATAMANAGER->boardParameters()) {
+        QUACKLE_DATAMANAGER->setBoardParameters(new Quackle::EnglishBoard());
+      }
+      if (!QUACKLE_DATAMANAGER->strategyParameters()) {
+        QUACKLE_DATAMANAGER->setStrategyParameters(new Quackle::StrategyParameters());
+      }
+      auto *lexParams = new Quackle::LexiconParameters();
+
+      // Resolve paths and check existence
+      std::string dawgFile = QUACKLE_DATAMANAGER->findDataFile("", lexicon + ".dawg");
+      if (dawgFile.empty()) dawgFile = lexdir + "/" + lexicon + ".dawg";
+      std::string gaddagFile = lexdir + "/" + lexicon + ".gaddag";
+
+      bool dawgExists = false, gaddagExists = false;
+      {
+        std::ifstream f(dawgFile); dawgExists = f.good();
+      }
+      {
+        std::ifstream f(gaddagFile); gaddagExists = f.good();
+      }
+
+      if (!dawgExists) {
+        json out={{"selftest","fail"},{"dawg_exists",false},{"gaddag_exists",gaddagExists},{"dawg_path",dawgFile},{"gaddag_path",gaddagFile}};
+        std::cout<<out.dump()<<std::endl; return 2;
+      }
+
+      // Try load
+      lexParams->loadDawg(dawgFile);
+      if (gaddagExists) {
+        lexParams->loadGaddag(gaddagFile);
+      }
+      QUACKLE_DATAMANAGER->setLexiconParameters(lexParams);
+
+      json out={{"selftest","ok"},{"dawg_exists",true},{"gaddag_exists",gaddagExists},{"dawg_path",dawgFile},{"gaddag_path",gaddagFile}};
+      std::cout<<out.dump()<<std::endl; return 0;
+    } catch (const std::exception& e) {
+      json out={{"selftest","fail"},{"error",std::string(e.what())}}; std::cout<<out.dump()<<std::endl; return 3;
+    } catch (...) {
+      json out={{"selftest","fail"},{"error","unknown"}}; std::cout<<out.dump()<<std::endl; return 4;
+    }
+  }
 
   std::ostringstream ss; ss<<std::cin.rdbuf(); std::string input=ss.str();
   cursorDebugLog("Input ricevuto da stdin: " + input.substr(0, 500));
