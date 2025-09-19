@@ -178,6 +178,8 @@ int main(int argc, char** argv){
     // Validate rack format
     int blankCount = 0;
     int rackLen = 0;
+    std::vector<std::pair<char, bool>> rackTilesNormalized;
+    rackTilesNormalized.reserve(7);
     auto emitRackError = [&]() {
       debugLog("ERROR: Invalid rack format");
       std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_rack_format"})" << std::endl;
@@ -192,12 +194,16 @@ int main(int argc, char** argv){
           continue;
         }
         char ch = static_cast<char>(std::toupper(static_cast<unsigned char>(rawCh)));
-        if (!(std::isalpha(static_cast<unsigned char>(ch)) || ch == '?' || ch == '*')) {
+        bool isBlank = (ch == '?' || ch == '*');
+        if (!isBlank && !std::isalpha(static_cast<unsigned char>(ch))) {
           return emitRackError();
         }
         rackLen++;
-        if (ch == '?' || ch == '*') {
+        if (isBlank) {
           blankCount++;
+          rackTilesNormalized.emplace_back('?', true);
+        } else {
+          rackTilesNormalized.emplace_back(ch, false);
         }
       }
     } else if (jrack.is_array()) {
@@ -215,12 +221,15 @@ int main(int argc, char** argv){
           c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
         }
         char ch = letterUpper.empty() ? '\0' : letterUpper[0];
-        bool isBlank = tile.value("isBlank", false) || letterUpper == "BLANK";
-        if (!(std::isalpha(static_cast<unsigned char>(ch)) || ch == '?' || ch == '*')) {
+        bool isBlank = tile.value("isBlank", false) || letterUpper == "BLANK" || ch == '?' || ch == '*';
+        if (!isBlank && !std::isalpha(static_cast<unsigned char>(ch))) {
           return emitRackError();
         }
-        if (isBlank || ch == '?' || ch == '*') {
+        if (isBlank) {
           blankCount++;
+          rackTilesNormalized.emplace_back('?', true);
+        } else {
+          rackTilesNormalized.emplace_back(ch, false);
         }
       }
     } else {
@@ -428,36 +437,37 @@ int main(int argc, char** argv){
     debugLog("Building rack...");
     cursorDebugLog("Costruzione della plancia e del rack...");
     Quackle::Rack rr;
-    Quackle::LetterString rackString;
-    
-    // Handle both string and array formats for rack
-    if (jrack.is_string()) {
-        // If rack is a string like "CAT"
-        std::string rackStr = jrack.get<std::string>();
-        debugLog("Rack is string: " + rackStr);
-        for (char c : rackStr) {
-            char ch = std::toupper(c);
-            rackString.push_back(ch);
-            debugLog("Rack tile: letter='" + std::string(1, c) + "', final='" + std::string(1, ch) + "'");
-        }
-    } else if (jrack.is_array()) {
-        // If rack is an array of tile objects
-        for (const auto &tile : jrack) {
-            std::string letter = tile.value("letter","?");
-            bool isBlank = tile.value("isBlank", false);
-            char ch = std::toupper(letter[0]);
-            if (isBlank) ch = '?';
-            rackString.push_back(ch);
-            debugLog("Rack tile: letter='" + letter + "', isBlank=" + std::string(isBlank ? "true" : "false") + ", final='" + std::string(1,ch) + "'");
-        }
-    } else {
-        debugLog("ERROR: Invalid rack format");
-        std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid rack format"})" << std::endl;
-        return 1;
+    Quackle::LetterString rackLetters;
+
+    auto *alphabetParams = QUACKLE_DATAMANAGER->alphabetParameters();
+    if (!alphabetParams) {
+      debugLog("ERROR: Alphabet parameters unavailable while building rack");
+      std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"alphabet_unavailable"})" << std::endl;
+      return 1;
     }
-    
-    rr.setTiles(rackString);
-    debugLog("Rack string: " + std::string(rackString.begin(), rackString.end()));
+
+    for (const auto &tileInfo : rackTilesNormalized) {
+      char letterChar = tileInfo.first;
+      bool isBlank = tileInfo.second;
+      if (isBlank) {
+        rackLetters.push_back(QUACKLE_BLANK_MARK);
+        debugLog("Rack tile: blank (input marked blank)");
+        continue;
+      }
+
+      std::string letterStr(1, letterChar);
+      Quackle::LetterString encoded = alphabetParams->encode(letterStr);
+      if (encoded.empty()) {
+        debugLog("ERROR: Failed to encode rack letter '" + std::string(1, letterChar) + "'");
+        std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_rack_letter"})" << std::endl;
+        return 1;
+      }
+      rackLetters.push_back(encoded[0]);
+      debugLog("Rack tile: letter='" + std::string(1, letterChar) + "', encoded=" + std::to_string(static_cast<int>(encoded[0])));
+    }
+
+    rr.setTiles(rackLetters);
+    debugLog("Rack encoded length: " + std::to_string(rackLetters.length()));
     cursorDebugLog("Plancia e rack creati.");
 
     // Create game position with proper initialization 
@@ -504,16 +514,38 @@ int main(int argc, char** argv){
       --r; --c;
       std::string letter = it->value("letter", "?");
       bool isBlank = it->value("isBlank", false);
-      char ch = std::toupper(letter[0]);
-      if (isBlank) ch = '?';
-      
-      debugLog("Placing tile at (" + std::to_string(r) + "," + std::to_string(c) + "): letter='" + letter + "', isBlank=" + std::string(isBlank ? "true" : "false") + ", final='" + std::string(1,ch) + "'");
-      
+      if (letter.empty()) {
+        debugLog("ERROR: Board tile missing letter at coordinate " + it.key());
+        std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_board_letter"})" << std::endl;
+        return 1;
+      }
+
+      char rawLetter = static_cast<char>(std::toupper(static_cast<unsigned char>(letter[0])));
+      if (!isBlank && !std::isalpha(static_cast<unsigned char>(rawLetter))) {
+        debugLog("ERROR: Invalid board letter '" + std::string(1, rawLetter) + "' at coordinate " + it.key());
+        std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_board_letter"})" << std::endl;
+        return 1;
+      }
+
+      std::string letterStr(1, rawLetter);
+      Quackle::LetterString encoded = alphabetParams->encode(letterStr);
+      if (encoded.empty()) {
+        debugLog("ERROR: Failed to encode board letter '" + std::string(1, rawLetter) + "'");
+        std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_board_letter"})" << std::endl;
+        return 1;
+      }
+      Quackle::Letter tileCode = encoded[0];
+      if (isBlank) {
+        tileCode = alphabetParams->setBlankness(tileCode);
+      }
+
+      debugLog("Placing tile at (" + std::to_string(r) + "," + std::to_string(c) + "): letter='" + letter + "', isBlank=" + std::string(isBlank ? "true" : "false") + ", encoded=" + std::to_string(static_cast<int>(tileCode)));
+
       Quackle::LetterString single;
-      single.push_back(ch);
+      single.push_back(tileCode);
       Quackle::Move m = Quackle::Move::createPlaceMove(r, c, false, single);
       board.makeMove(m);
-      if (board.letter(r, c) != ch) {
+      if (board.letter(r, c) != tileCode) {
         debugLog("ERROR: Failed to place tile at (" + std::to_string(r) + "," + std::to_string(c) + ")");
         throw std::runtime_error("failed to place existing tile");
       }
@@ -522,28 +554,18 @@ int main(int argc, char** argv){
 
     // Generate best move using Quackle's AI
     debugLog("Generating best move...");
-    debugLog("Creating generator...");
-    cursorDebugLog("Chiamata a findBestMove/kibitz...");
-    Quackle::Generator gen(pos);
-    debugLog("Generator created successfully");
-    
-    // Update cross structures for move generation
-    debugLog("Updating cross structures...");
-    gen.allCrosses();
-    debugLog("Cross structures updated");
-    
-    // Log anchor and cross-set information
+    cursorDebugLog("Chiamata a Generator::kibitz...");
+
+    // Log anchor and cross-set information for diagnostics
     debugLog("=== ANCHOR & CROSS-SET ANALYSIS ===");
     debugLog("Board empty: " + std::string(board.isEmpty() ? "YES" : "NO"));
     if (board.isEmpty()) {
       debugLog("Empty board - center anchor at (7,7)");
     } else {
-      // Count anchors on non-empty board
       int anchorCount = 0;
       for (int r = 0; r < 15; r++) {
         for (int c = 0; c < 15; c++) {
-          if (board.letter(r, c) != 0) { // 0 means empty cell
-            // Check adjacent empty cells (potential anchors)
+          if (board.letter(r, c) != 0) {
             if ((r > 0 && board.letter(r-1, c) == 0) ||
                 (r < 14 && board.letter(r+1, c) == 0) ||
                 (c > 0 && board.letter(r, c-1) == 0) ||
@@ -558,13 +580,17 @@ int main(int argc, char** argv){
     debugLog("Cross-set analysis: " + std::string(board.isEmpty() ? "0 (empty board)" : "calculated"));
     debugLog("=====================================");
 
-    // Generate moves with the complete Quackle engine
-    debugLog("Generating moves with Quackle engine via kibitz...");
     Quackle::Move best;
     bool foundValidMove = false;
 
     try {
-        gen.kibitz(kibitzLen);
+        Quackle::Generator gen;
+        gen.setPosition(pos);
+        gen.allCrosses();
+        const bool canExchange = pos.exchangeAllowed();
+        const int kibitzFlags = canExchange ? Quackle::Generator::RegularKibitz
+                                            : Quackle::Generator::CannotExchange;
+        gen.kibitz(kibitzLen, kibitzFlags);
         const Quackle::MoveList &moves = gen.kibitzList();
         if (!moves.empty()) {
             best = moves.front();
@@ -581,8 +607,9 @@ int main(int argc, char** argv){
         best = Quackle::Move::createPassMove();
     }
 
-    cursorDebugLog("Chiamata a findBestMove/kibitz completata.");
+    cursorDebugLog("Chiamata a Generator::kibitz completata.");
     cursorDebugLog("Mossa migliore trovata: score=" + std::to_string(best.score));
+    debugLog("Best move type: " + std::string(foundValidMove ? "play" : "pass"));
     
     try {
         // Convert the move to JSON
@@ -599,18 +626,14 @@ int main(int argc, char** argv){
             response["move_type"] = "pass";
             response["engine_fallback"] = false;
             std::cout << response.dump() << std::endl;
-        } else if (!best.tiles().empty()) {
+        } else if (best.action == Quackle::Move::Place && !best.tiles().empty()) {
           debugLog("Processing place move...");
           
           // Extract tiles from the move
           Quackle::LetterString tilesStr = best.tiles();
-          
-          // Convert FixedLengthString to std::string by iterating through characters
-          std::string tilesString;
-          for (size_t i = 0; i < tilesStr.length(); ++i) {
-            tilesString += tilesStr[i];
-          }
-          debugLog("Tiles string: " + tilesString);
+          std::string primaryWord;
+          primaryWord.reserve(tilesStr.length());
+          debugLog("Tiles count: " + std::to_string(tilesStr.length()));
           
           // Extract proper tile information from the move
           int startRow = best.startrow;
@@ -622,38 +645,41 @@ int main(int argc, char** argv){
           // Create tile representations with proper coordinates
           for (size_t i = 0; i < tilesStr.length(); ++i) {
             json tileJson;
-            tileJson["letter"] = std::string(1, tilesStr[i]);
-            // Assign proper English letter scores
-            char L = tilesStr[i];
-            int pts = 1;
-            switch (std::toupper(L)) {
-              case 'Q': case 'Z': pts = 10; break;
-              case 'J': case 'X': pts = 8; break;
-              case 'K': pts = 5; break;
-              case 'F': case 'H': case 'V': case 'W': case 'Y': pts = 4; break;
-              case 'B': case 'C': case 'M': case 'P': pts = 3; break;
-              case 'D': case 'G': pts = 2; break;
-              case '?': pts = 0; break;
-              default: pts = 1; break;
+            Quackle::Letter tileValue = tilesStr[i];
+            bool tileBlank = alphabetParams->isBlankLetter(tileValue) || tileValue == QUACKLE_BLANK_MARK;
+            Quackle::Letter baseLetter = tileValue;
+            if (alphabetParams->isBlankLetter(tileValue)) {
+              baseLetter = alphabetParams->clearBlankness(tileValue);
             }
-            tileJson["points"] = pts;
-            tileJson["isBlank"] = (tilesStr[i] == '?');
+
+            std::string letterText = alphabetParams->userVisible(tileValue);
+            if (letterText.empty()) {
+              letterText = tileBlank ? "?" : "";
+            }
+
+            tileJson["letter"] = letterText;
+            tileJson["isBlank"] = tileBlank;
+            tileJson["points"] = tileBlank ? 0 : alphabetParams->score(baseLetter);
             
             // Calculate proper coordinates based on direction
             if (isHorizontal) {
               tileJson["row"] = startRow;
-              tileJson["col"] = startCol + i;
+              tileJson["col"] = startCol + static_cast<int>(i);
             } else {
-              tileJson["row"] = startRow + i;
+              tileJson["row"] = startRow + static_cast<int>(i);
               tileJson["col"] = startCol;
             }
             
             tiles.push_back(tileJson);
+            primaryWord += letterText;
           }
           
-          // Extract words formed by this move
-          if (!tilesString.empty()) {
-            words.push_back(tilesString);
+          std::string mainWord = alphabetParams->userVisible(best.wordTiles());
+          if (mainWord.empty()) {
+            mainWord = primaryWord;
+          }
+          if (!mainWord.empty()) {
+            words.push_back(mainWord);
           }
           
           json response;

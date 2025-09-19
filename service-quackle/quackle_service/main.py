@@ -1,4 +1,5 @@
 import os, json, subprocess, sys, re
+import shutil
 from typing import Any, Dict, Optional, List, Tuple
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -64,7 +65,8 @@ STARTUP_STATUS: Dict[str, Any] = {
     "dawg_path": "",
     "gaddag_size": 0,
     "dawg_size": 0,
-    "errors": []
+    "errors": [],
+    "strategy": {}
 }
 
 def _lex_paths():
@@ -134,6 +136,51 @@ def _ensure_lexicon_files() -> Dict[str, Any]:
         "errors": errs,
     }
 
+def _ensure_strategy_files() -> Dict[str, Any]:
+    """Ensure Quackle strategy tables exist under APPDATA/strategy.
+    Copies packaged assets into the runtime directory if they're missing and
+    reports which required files are present."""
+    src_base = Path(os.getenv("QUACKLE_STRATEGY_SRC", "/usr/share/quackle/data/strategy")).resolve()
+    dest_base = Path(APPDATA) / "strategy"
+    required: Dict[str, List[str]] = {
+        "default": ["bogowin"],
+        "default_english": ["syn2", "vcplace", "superleaves", "worths"],
+    }
+    result: Dict[str, Any] = {
+        "ok": False,
+        "src": str(src_base),
+        "dest": str(dest_base),
+        "files": {},
+        "errors": [],
+    }
+
+    if not src_base.exists():
+        result["errors"].append("strategy_src_missing")
+        return result
+
+    try:
+        shutil.copytree(src_base, dest_base, dirs_exist_ok=True)
+    except Exception as e:
+        result["errors"].append(f"copy_failed:{e}")
+
+    missing: List[str] = []
+    for subset, names in required.items():
+        for name in names:
+            key = f"{subset}/{name}"
+            target = dest_base / subset / name
+            exists = target.exists() and target.is_file()
+            size = target.stat().st_size if exists else 0
+            is_ready = exists and size > 0
+            result["files"][key] = {"exists": is_ready, "size": size}
+            if not is_ready:
+                missing.append(key)
+
+    if missing:
+        result["errors"].append("missing:" + ",".join(missing))
+
+    result["ok"] = not result["errors"]
+    return result
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # 1) Create directories idempotently
@@ -146,6 +193,12 @@ async def lifespan(app: FastAPI):
     print(f"[startup] Lexicon ensure: ok={st['ok']} dawg={st['dawg_path']}({st['dawg_size']}) gaddag={st['gaddag_path']}({st['gaddag_size']})")
     if st["errors"]:
         print(f"[startup] Lexicon errors: {st['errors']}")
+
+    strat = _ensure_strategy_files()
+    STARTUP_STATUS["strategy"] = strat
+    print(f"[startup] Strategy ensure: ok={strat['ok']} dest={strat['dest']}")
+    if strat["errors"]:
+        print(f"[startup] Strategy errors: {strat['errors']}")
     # 3) Block until completion of download/verification (done above synchronously)
     yield
 
