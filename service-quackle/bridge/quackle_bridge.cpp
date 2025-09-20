@@ -396,7 +396,12 @@ int main(int argc, char** argv){
     debugLog("DAWG loaded: YES");
     debugLog("GADDAG loaded: " + std::string(gaddagFileCheck.good() ? "YES" : "NO"));
     debugLog("Lexicon type: " + std::string(gaddagFileCheck.good() ? "GADDAG-enabled" : "DAWG-only"));
-    debugLog("Ruleset: " + std::string(argv[1] ? argv[1] : "default"));
+    try {
+      std::string dbg_ruleset = req.value("ruleset", std::string("en"));
+      debugLog("Ruleset: " + dbg_ruleset);
+    } catch (...) {
+      debugLog("Ruleset: en");
+    }
     debugLog("================================");
     
     // Initialize strategy parameters using the chosen lexicon; this expects
@@ -505,7 +510,7 @@ int main(int argc, char** argv){
     
     debugLog("Game position initialized successfully");
 
-    // Place existing board tiles
+    // Place existing board tiles using GamePosition::makeMove to keep board state consistent
     debugLog("Placing existing board tiles...");
     for (auto it = jboard.begin(); it != jboard.end(); ++it) {
       int r = 0, c = 0; char comma;
@@ -544,11 +549,8 @@ int main(int argc, char** argv){
       Quackle::LetterString single;
       single.push_back(tileCode);
       Quackle::Move m = Quackle::Move::createPlaceMove(r, c, false, single);
-      board.makeMove(m);
-      if (board.letter(r, c) != tileCode) {
-        debugLog("ERROR: Failed to place tile at (" + std::to_string(r) + "," + std::to_string(c) + ")");
-        throw std::runtime_error("failed to place existing tile");
-      }
+      // Use GamePosition API to ensure generator and board internals stay consistent
+      pos.makeMove(m, /*maintainBoard=*/true);
     }
     debugLog("Board tiles placed successfully");
 
@@ -580,25 +582,19 @@ int main(int argc, char** argv){
     debugLog("Cross-set analysis: " + std::string(board.isEmpty() ? "0 (empty board)" : "calculated"));
     debugLog("=====================================");
 
+    // Prepare cross sets once before generating
+    try {
+      pos.ensureBoardIsPreparedForAnalysis();
+    } catch (...) { /* best-effort */ }
+
     Quackle::Move best;
     bool foundValidMove = false;
 
     try {
-        Quackle::Generator gen;
-        gen.setPosition(pos);
-        gen.allCrosses();
-        const bool canExchange = pos.exchangeAllowed();
-        const int kibitzFlags = canExchange ? Quackle::Generator::RegularKibitz
-                                            : Quackle::Generator::CannotExchange;
-        gen.kibitz(kibitzLen, kibitzFlags);
-        const Quackle::MoveList &moves = gen.kibitzList();
-        if (!moves.empty()) {
-            best = moves.front();
-            foundValidMove = best.action != Quackle::Move::Pass;
-        } else {
-            debugLog("kibitz returned no moves");
-            best = Quackle::Move::createPassMove();
-        }
+        // Use Quackle's GamePosition kibitz path to avoid edge cases in manual generator wiring
+        pos.kibitz(kibitzLen);
+        best = pos.staticBestMove();
+        foundValidMove = (best.action != Quackle::Move::Pass);
     } catch (const std::exception &e) {
         debugLog(std::string("Exception during kibitz: ") + e.what());
         best = Quackle::Move::createPassMove();
