@@ -717,6 +717,13 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
         if os.getenv("DEBUG_BRIDGE_PAYLOAD", "").strip().lower() in {"1","true","yes","on"}:
             print("[bridge.stdin]", stdin_str)
         try:
+            # Ensure the bridge child sees the same runtime dirs we validated
+            child_env = {
+                **os.environ,
+                "QUACKLE_APPDATA_DIR": APPDATA,
+                "QUACKLE_LEXDIR": QUACKLE_LEXDIR,
+                "QUACKLE_LEXICON": QUACKLE_LEXICON,
+            }
             proc = subprocess.run(
                 [
                     BRIDGE_BIN,
@@ -729,6 +736,7 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=max(1, TIMEOUT_MS // 1000),
+                env=child_env,
             )
         except OSError as e:
             # Likely missing runtime dep (e.g., dynamic linker or libasan)
@@ -770,13 +778,24 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
                 parsed = {}
             if isinstance(parsed, dict) and parsed.get("engine_fallback"):
                 return parsed
+            # Optional: include ldd output to aid diagnostics if explicitly enabled
+            ldd_out = None
+            if DEBUG_ENABLE_LDD:
+                try:
+                    ldd = subprocess.run(["ldd", BRIDGE_BIN], capture_output=True, text=True, timeout=3)
+                    ldd_out = ((ldd.stdout or "") + ("\n" + (ldd.stderr or "")).strip())[:4000]
+                except Exception:
+                    ldd_out = None
             # Return structured error instead of raising to avoid 500
-            return {
+            err = {
                 "engine_fallback": True,
                 "error": f"bridge_failed_rc={proc.returncode}",
                 "rc": proc.returncode,
                 "stderr": stderr_output[:4000]
             }
+            if ldd_out:
+                err["ldd"] = ldd_out
+            return err
 
         out = out_try
         if not out:

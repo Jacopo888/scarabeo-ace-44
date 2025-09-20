@@ -56,8 +56,8 @@ services:
       # Lexicon URLs: interpolated from .env.compose via --env-file
       GADDAG_URL: "${GADDAG_URL}"
       DAWG_URL:   "${DAWG_URL}"
-      # DEBUG_BRIDGE_PAYLOAD: "true"   # opzionale: logga stdin/stdout/stderr del bridge
-      # DEBUG_ENABLE_LDD: "true"       # opzionale: abilita /debug/ldd
+      DEBUG_BRIDGE_PAYLOAD: "true"   # opzionale: logga stdin/stdout/stderr del bridge
+      DEBUG_ENABLE_LDD: "true"       # opzionale: abilita /debug/ldd
     volumes:
       - ./data:/data
     healthcheck:
