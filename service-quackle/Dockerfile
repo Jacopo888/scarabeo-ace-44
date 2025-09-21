@@ -1,6 +1,8 @@
 # BASE Python + toolchain
 FROM python:3.13-slim
-ARG BUILD_FORCE="v104-debug-2"
+ARG BUILD_FORCE="v104-debug-3"
+ARG QUACKLE_REPO_URL="https://github.com/quackle/quackle.git"
+ARG QUACKLE_REPO_BRANCH="v1.0.4"
 ENV BUILD_FORCE=${BUILD_FORCE}
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -18,7 +20,13 @@ RUN mkdir -p /usr/share/quackle/lexica
 
 # Clona e compila Quackle v1.0.4 (versione stabile) con tutti gli strumenti
 # Cache buster for makegaddag compilation - v4
-RUN git clone --depth=1 --branch v1.0.4 https://github.com/quackle/quackle.git /tmp/quackle && \
+RUN git clone --depth=1 --branch ${QUACKLE_REPO_BRANCH} ${QUACKLE_REPO_URL} /tmp/quackle && \
+    # Patch 1: robust letter counting (normalize fancy letters)
+    sed -i 's/String::counts(letters, m_counts);/String::counts(String::usedTiles(letters), m_counts);/' /tmp/quackle/generator.cpp && \
+    # Patch 2: safe indexing in counts
+    sed -i 's/countsArray[(int)\*it]++/countsArray[(unsigned char)(*it)]++/g' /tmp/quackle/alphabetparameters.cpp && \
+    # Patch 3: avoid reliance on FixedLengthString::end()/length() for rack counts; use fixed rack size 7 from position
+    sed -i 's/void Generator::setupCounts(const LetterString &letters)/void Generator::setupCounts(const LetterString &letters)\n{\n\tfor (int j = 0; j < QUACKLE_FIRST_LETTER + QUACKLE_MAXIMUM_ALPHABET_SIZE; ++j) m_counts[j] = 0;\n\tconst FixedLengthString &rk = m_position.rack().tiles();\n\tfor (int i = 0; i < 7; ++i) { int v = (unsigned char)rk[i]; if (v >= 0 && v < (QUACKLE_FIRST_LETTER + QUACKLE_MAXIMUM_ALPHABET_SIZE)) m_counts[v]++; }\n\treturn;\n}\n\nvoid Generator::setupCounts_UNUSED(const LetterString &letters)/' /tmp/quackle/generator.cpp && \
     cd /tmp/quackle && mkdir -p build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     make -j"$(nproc)" && \

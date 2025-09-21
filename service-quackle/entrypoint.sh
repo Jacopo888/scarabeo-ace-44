@@ -34,4 +34,12 @@ for f in default_english/syn2 default_english/vcplace default_english/superleave
   fi
 done
 
+# Create symlinks into /usr/share/quackle/data/strategy pointing at appdata
+echo "[BOOT] Ensuring symlinks from /usr/share/quackle/data/strategy to /data/appdata/strategy"
+mkdir -p /usr/share/quackle/data/strategy/default_english /usr/share/quackle/data/strategy/default
+for n in syn2 vcplace superleaves worths; do
+  ln -sf "/data/appdata/strategy/default_english/$n" "/usr/share/quackle/data/strategy/default_english/$n"
+done
+ln -sf "/data/appdata/strategy/default/bogowin" "/usr/share/quackle/data/strategy/default/bogowin"
+
 exec uvicorn quackle_service.main:app --host 0.0.0.0 --port "$PORT"

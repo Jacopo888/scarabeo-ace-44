@@ -228,6 +228,49 @@ int main(int argc, char** argv){
   }
 
   try{
+    // Support diagnostic op without engaging heavy init
+    const std::string op = req.value("op", std::string("compute"));
+    if (op == "probe_strategy") {
+      // Minimal DataManager with appdata dir
+      if (!QUACKLE_DATAMANAGER_EXISTS) new Quackle::DataManager();
+      const char* envAppData = std::getenv("QUACKLE_APPDATA_DIR");
+      std::string appDataDir = (envAppData && *envAppData) ? std::string(envAppData) : std::string("/usr/share/quackle/data");
+      QUACKLE_DATAMANAGER->setAppDataDirectory(appDataDir);
+
+      StrategyPaths s_paths = compute_strategy_paths(fs::path(appDataDir));
+      json fscheck = json::object();
+      auto stat_one = [&](const char* key, const fs::path& p){
+        json j; j["path"] = p.string(); size_t sz=0; bool ok=file_ok(p,&sz); j["exists"]=ok; j["size"]=ok?(int64_t)sz:0; if(ok){
+          std::ifstream f(p, std::ios::binary); unsigned char buf[16]{}; f.read((char*)buf,16); std::ostringstream oss; for(int i=0;i<16;++i){ oss<< std::hex<< std::setw(2)<< std::setfill('0')<< (int)buf[i]; }
+          j["head16"]=oss.str();
+        }
+        fscheck[key]=j;
+      };
+      stat_one("default_english/syn2", s_paths.syn2);
+      stat_one("default_english/vcplace", s_paths.vcplace);
+      stat_one("default_english/superleaves", s_paths.superleaves);
+      stat_one("default_english/worths", s_paths.worths);
+      stat_one("default/bogowin", s_paths.bogowin);
+
+      // Also attempt DataManager resolution
+      json dm = json::object();
+      try{
+        dm["syn2"]       = QUACKLE_DATAMANAGER->findDataFile("strategy","default_english","syn2");
+        dm["vcplace"]    = QUACKLE_DATAMANAGER->findDataFile("strategy","default_english","vcplace");
+        dm["superleaves"] = QUACKLE_DATAMANAGER->findDataFile("strategy","default_english","superleaves");
+        dm["worths"]     = QUACKLE_DATAMANAGER->findDataFile("strategy","default_english","worths");
+        dm["bogowin"]    = QUACKLE_DATAMANAGER->findDataFile("strategy","default","bogowin");
+      }catch(...){ dm["error"] = "findDataFile_exception"; }
+
+      json out = {
+        {"engine_fallback", false},
+        {"app_data_dir", appDataDir},
+        {"fscheck", fscheck},
+        {"resolved", dm}
+      };
+      std::cout << out.dump() << std::endl; return 0;
+    }
+
     g_phase = "validate_input";
     const json jboard = req.value("board", json::object());
     const json jrack  = req.value("rack",  json::array());
@@ -236,7 +279,6 @@ int main(int argc, char** argv){
     const int kibitzLen = kibitzLenFor(diff);
 
     debugLog("Board keys count: " + std::to_string(jboard.size()));
-    debugLog("Rack size: " + std::to_string(jrack.size()));
     debugLog("Difficulty: " + diff);
     
     // Validate input schema
@@ -342,7 +384,8 @@ int main(int argc, char** argv){
     }
 
     debugLog("Board cells: " + std::to_string(boardCells) + ", bounds: (" + std::to_string(minRow) + "," + std::to_string(minCol) + ") to (" + std::to_string(maxRow) + "," + std::to_string(maxCol) + ")");
-    debugLog("Rack length: " + std::to_string(rackLen) + ", blanks: " + std::to_string(blankCount));
+    debugLog("Rack size: " + std::to_string(rackLen));
+    debugLog("Rack blanks: " + std::to_string(blankCount));
     debugLog("================================");
 
     // Prepare data manager and lexicon
@@ -509,18 +552,100 @@ int main(int argc, char** argv){
     // Initialize strategy parameters using the chosen lexicon; this expects
     // data/strategy/{default,default_english,...} under appDataDirectory
     if (QUACKLE_DATAMANAGER->strategyParameters()) {
-      if (env_flag_on("QUACKLE_DISABLE_STRATEGY")) {
-        fprintf(stderr, "[DEBUG] Strategy init DISABLED via QUACKLE_DISABLE_STRATEGY=1\n");
+      const char* modeEnv = std::getenv("QUACKLE_INIT_MODE");
+      std::string initMode = modeEnv ? std::string(modeEnv) : std::string("both");
+      for (auto &c : initMode) c = (char)std::tolower((unsigned char)c);
+      const bool disableStrategy = env_flag_on("QUACKLE_DISABLE_STRATEGY") || initMode == "none";
+      if (disableStrategy) {
+        fprintf(stderr, "[DEBUG] Strategy init DISABLED (env)\n");
       } else {
         // Resolve and log expected absolute paths from appDataDir
         StrategyPaths s_paths = compute_strategy_paths(fs::path(appDataDir));
         // Double-check readability for diagnostics; if any fails, log and exit 72
         require_strategy_files_or_die(s_paths);
 
-        // Now initialize the Quackle strategy parameters
-        debugLog("Initializing strategy parameters for lexicon sets: default, default_english");
-        QUACKLE_DATAMANAGER->strategyParameters()->initialize("default");
-        QUACKLE_DATAMANAGER->strategyParameters()->initialize("default_english");
+        // Second-choice: ensure DataManager findDataFile resolves the same files (dry-run)
+        try {
+          std::string f_syn2 = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "syn2");
+          std::string f_vc   = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "vcplace");
+          std::string f_sup  = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "superleaves");
+          std::string f_w    = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "worths");
+          std::string f_bw   = QUACKLE_DATAMANAGER->findDataFile("strategy", "default",          "bogowin");
+
+          struct Res { const char* name; std::string path; };
+          std::vector<Res> resolved = {
+            {"default_english/syn2", f_syn2},
+            {"default_english/vcplace", f_vc},
+            {"default_english/superleaves", f_sup},
+            {"default_english/worths", f_w},
+            {"default/bogowin", f_bw},
+          };
+          std::vector<std::string> missing;
+          std::vector<std::string> unreadable;
+          for (const auto &r : resolved) {
+            if (r.path.empty()) {
+              std::fprintf(stderr, "[CONFIG] resolve failed: strategy/%s\n", r.name);
+              missing.push_back(r.name);
+            } else {
+              std::error_code ec;
+              fs::path p(r.path);
+              if (!(fs::exists(p, ec) && fs::is_regular_file(p, ec) && fs::file_size(p, ec) > 0)) {
+                std::fprintf(stderr, "[CONFIG] resolved but not readable: %s\n", r.path.c_str());
+                unreadable.push_back(r.name);
+              }
+            }
+          }
+          if (!missing.empty() || !unreadable.empty()) {
+            json j; j["engine_fallback"] = true; j["error"] = "strategy_missing"; j["rc"] = 72;
+            j["app_data_dir"] = appDataDir;
+            if (!missing.empty()) j["missing"] = missing;
+            if (!unreadable.empty()) j["unreadable"] = unreadable;
+            std::cout << j.dump() << std::endl;
+            std::exit(72);
+          }
+          std::fprintf(stderr, "[DEBUG] DataManager resolved:\n syn2=%s\n vcplace=%s\n superleaves=%s\n worths=%s\n bogowin=%s\n",
+              f_syn2.c_str(), f_vc.c_str(), f_sup.c_str(), f_w.c_str(), f_bw.c_str());
+        } catch (...) {
+          // If findDataFile throws in this build, prefer failing early
+          json j = { {"engine_fallback", true}, {"error", "strategy_missing"}, {"rc", 72}, {"cause", "findDataFile_exception"} };
+          std::cout << j.dump() << std::endl;
+          std::fprintf(stderr, "[CONFIG] DataManager findDataFile raised while resolving strategy files\n");
+          std::exit(72);
+        }
+
+        // Now initialize the Quackle strategy parameters (configurable steps)
+        debugLog("Initializing strategy parameters (mode=" + initMode + ")");
+        if (initMode == "default" || initMode == "both") {
+          debugLog("init -> default");
+          QUACKLE_DATAMANAGER->strategyParameters()->initialize("default");
+          debugLog("init <- default (ok)");
+        }
+        if (initMode == "english" || initMode == "both") {
+          debugLog("init -> default_english");
+          QUACKLE_DATAMANAGER->strategyParameters()->initialize("default_english");
+          debugLog("init <- default_english (ok)");
+        }
+
+        // Guard-rail: after initialize, assert the tables are actually loaded; otherwise abort rc=72
+        {
+          auto *sp = QUACKLE_DATAMANAGER->strategyParameters();
+          bool ok = (sp && sp->hasSyn2() && sp->hasVcPlace() && sp->hasSuperleaves() && sp->hasWorths() && sp->hasBogowin());
+          if (!ok) {
+            std::fprintf(stderr, "[CONFIG] Strategy parameters missing after initialize()\n");
+            std::fprintf(stderr, "[CONFIG] has: syn2=%d vcplace=%d superleaves=%d worths=%d bogowin=%d\n",
+                         sp ? sp->hasSyn2() : 0, sp ? sp->hasVcPlace() : 0, sp ? sp->hasSuperleaves() : 0, sp ? sp->hasWorths() : 0, sp ? sp->hasBogowin() : 0);
+            json j; j["engine_fallback"] = true; j["error"] = "strategy_missing"; j["rc"] = 72; j["app_data_dir"] = appDataDir;
+            std::vector<std::string> miss;
+            if (!(sp && sp->hasSyn2())) miss.push_back("default_english/syn2");
+            if (!(sp && sp->hasVcPlace())) miss.push_back("default_english/vcplace");
+            if (!(sp && sp->hasSuperleaves())) miss.push_back("default_english/superleaves");
+            if (!(sp && sp->hasWorths())) miss.push_back("default_english/worths");
+            if (!(sp && sp->hasBogowin())) miss.push_back("default/bogowin");
+            if (!miss.empty()) j["missing"] = miss;
+            std::cout << j.dump() << std::endl;
+            std::exit(72);
+          }
+        }
 
         // Post-log realistic flags from filesystem checks (reflect reality)
         auto fs_syn2 = file_ok(s_paths.syn2);
@@ -600,9 +725,9 @@ int main(int argc, char** argv){
     pos.setBag(bag);
     debugLog("Bag set");
     
-    // Set current player and rack 
+    // Set current player and rack (force recalculation of internals)
     pos.setCurrentPlayer(0);
-    pos.setCurrentPlayerRack(rr, false);
+    pos.setCurrentPlayerRack(rr, true);
     debugLog("Current player rack set");
     
     // Verify the position is valid
@@ -656,76 +781,70 @@ int main(int argc, char** argv){
     }
     debugLog("Board tiles placed successfully");
 
-    // Before generating, ensure strategy files are present to avoid segfaults (redundant safety)
-    require_strategy_files_or_die(compute_strategy_paths(fs::path(appDataDir)));
+    // Before generating, ensure strategy files are present and strategy loaded
+    const char* modeEnv2 = std::getenv("QUACKLE_INIT_MODE");
+    std::string initMode2 = modeEnv2 ? std::string(modeEnv2) : std::string("both");
+    for (auto &c : initMode2) c = (char)std::tolower((unsigned char)c);
+    const bool strategyDisabled = env_flag_on("QUACKLE_DISABLE_STRATEGY") || initMode2 == "none";
+    if (!strategyDisabled) {
+      require_strategy_files_or_die(compute_strategy_paths(fs::path(appDataDir)));
+    }
+    if (!strategyDisabled) {
+      if (auto *sp_chk = QUACKLE_DATAMANAGER->strategyParameters()) {
+        if (!(sp_chk->hasSyn2() && sp_chk->hasVcPlace() && sp_chk->hasSuperleaves() && sp_chk->hasWorths() && sp_chk->hasBogowin())) {
+          std::fprintf(stderr, "[CONFIG] Strategy not fully loaded before move generation\n");
+          std::fprintf(stderr, "[CONFIG] has: syn2=%d vcplace=%d superleaves=%d worths=%d bogowin=%d\n",
+                       sp_chk->hasSyn2(), sp_chk->hasVcPlace(), sp_chk->hasSuperleaves(), sp_chk->hasWorths(), sp_chk->hasBogowin());
+          json j; j["engine_fallback"] = true; j["error"] = "strategy_missing"; j["rc"] = 72; j["stage"] = "pre_generation"; j["app_data_dir"] = appDataDir;
+          std::vector<std::string> miss;
+          if (!sp_chk->hasSyn2())        miss.push_back("default_english/syn2");
+          if (!sp_chk->hasVcPlace())     miss.push_back("default_english/vcplace");
+          if (!sp_chk->hasSuperleaves()) miss.push_back("default_english/superleaves");
+          if (!sp_chk->hasWorths())      miss.push_back("default_english/worths");
+          if (!sp_chk->hasBogowin())     miss.push_back("default/bogowin");
+          if (!miss.empty()) j["missing"] = miss;
+          std::cout << j.dump() << std::endl;
+          std::exit(72);
+        }
+      } else {
+        std::fprintf(stderr, "[CONFIG] StrategyParameters null before move generation\n");
+        json j = { {"engine_fallback", true}, {"error", "strategy_missing"}, {"rc", 72}, {"stage", "pre_generation"}, {"cause", "StrategyParameters_null"}, {"app_data_dir", appDataDir} };
+        std::cout << j.dump() << std::endl;
+        std::exit(72);
+      }
+    }
 
-    // Generate best move using Quackle's AI (low-level safe path by default)
-    debugLog("Generating best move...");
+    // Generate best move using Quackle's Generator with explicit setPosition (avoid copy-ctor pitfalls)
+    debugLog("Generating best move (generator.setPosition)...");
     const bool boardEmpty = board.isEmpty();
     debugLog(std::string("[DEBUG] Board empty: ") + (boardEmpty ? "YES" : "NO"));
-    if (!boardEmpty) {
-      int anchorCount = 0;
-      for (int r = 0; r < 15; r++) {
-        for (int c = 0; c < 15; c++) {
-          if (board.letter(r, c) != 0) {
-            if ((r > 0 && board.letter(r-1, c) == 0) ||
-                (r < 14 && board.letter(r+1, c) == 0) ||
-                (c > 0 && board.letter(r, c-1) == 0) ||
-                (c < 14 && board.letter(r, c+1) == 0)) {
-              anchorCount++;
-            }
-          }
-        }
-      }
-      debugLog("[DEBUG] Cross-set analysis: " + std::to_string(anchorCount));
-    }
-    debugLog("=====================================");
-
     try { pos.ensureBoardIsPreparedForAnalysis(); } catch (...) {}
 
     Quackle::Move best;
     bool foundValidMove = false;
-
-    if ( (hasFlag(argc, argv, "--highlevel") || env_flag_on("QUACKLE_USE_HIGHLEVEL")) && !boardEmpty) {
-      fprintf(stderr, "[DEBUG] Using HIGH-LEVEL API: GamePosition::kibitz + staticBestMove\n");
-      try {
-        pos.kibitz(kibitzLen);
-        best = pos.staticBestMove();
+    fprintf(stderr, "[DEBUG] Using GENERATOR API via setPosition()\n");
+    try {
+      Quackle::Generator gen;
+      gen.setPosition(pos);
+      gen.allCrosses();
+      const bool canExchange = pos.exchangeAllowed();
+      const int kibitzFlags = canExchange ? Quackle::Generator::RegularKibitz
+                                          : Quackle::Generator::CannotExchange;
+      gen.kibitz(kibitzLen, kibitzFlags);
+      const Quackle::MoveList &moves = gen.kibitzList();
+      if (!moves.empty()) {
+        best = moves.front();
         foundValidMove = (best.action != Quackle::Move::Pass);
-      } catch (const std::exception &e) {
-        debugLog(std::string("Exception during high-level kibitz: ") + e.what());
-        best = Quackle::Move::createPassMove();
-      } catch (...) {
-        debugLog("Unknown exception during high-level kibitz");
+      } else {
+        debugLog("kibitz returned no moves");
         best = Quackle::Move::createPassMove();
       }
-    } else {
-      fprintf(stderr, "[DEBUG] Using SAFE GENERATOR API (no staticBestMove)\n");
-      try {
-        Quackle::Generator gen;
-        gen.setPosition(pos);
-        gen.allCrosses();
-        const bool canExchange = pos.exchangeAllowed();
-        const int kibitzFlags = canExchange ? Quackle::Generator::RegularKibitz
-                                            : Quackle::Generator::CannotExchange;
-        cursorDebugLog("Chiamata a Generator::kibitz...");
-        gen.kibitz(kibitzLen, kibitzFlags);
-        const Quackle::MoveList &moves = gen.kibitzList();
-        cursorDebugLog("Chiamata a Generator::kibitz completata.");
-        if (!moves.empty()) {
-          best = moves.front();
-          foundValidMove = (best.action != Quackle::Move::Pass);
-        } else {
-          debugLog("kibitz returned no moves");
-          best = Quackle::Move::createPassMove();
-        }
-      } catch (const std::exception &e) {
-        debugLog(std::string("Exception during generator kibitz: ") + e.what());
-        best = Quackle::Move::createPassMove();
-      } catch (...) {
-        debugLog("Unknown exception during generator kibitz");
-        best = Quackle::Move::createPassMove();
-      }
+    } catch (const std::exception &e) {
+      debugLog(std::string("Exception during generator kibitz: ") + e.what());
+      best = Quackle::Move::createPassMove();
+    } catch (...) {
+      debugLog("Unknown exception during generator kibitz");
+      best = Quackle::Move::createPassMove();
     }
 
     cursorDebugLog("Mossa migliore trovata: score=" + std::to_string(best.score));
