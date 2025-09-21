@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && apt-get install -y \
     build-essential cmake git \
     libboost-all-dev libicu-dev python3-dev \
-    nlohmann-json3-dev curl \
+    nlohmann-json3-dev curl rsync \
     qt5-qmake qtbase5-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -77,6 +77,23 @@ RUN mkdir -p /usr/share/quackle/data && \
     cp -r /tmp/quackle/data/* /usr/share/quackle/data/ && \
     # Non includere i lessici baked-in: volume-first o download runtime
     rm -rf /usr/share/quackle/data/lexica || true
+
+# --- Strategia: garantire dati presenti in appdata ---
+RUN set -eux; \
+    mkdir -p /usr/share/quackle/data/strategy/default_english /usr/share/quackle/data/strategy/default; \
+    # (i file dovrebbero essere già presenti da /tmp/quackle/data/* -> /usr/share/quackle/data)
+    # Copia in appdata per runtime R/W:
+    mkdir -p /data/appdata/strategy/default_english /data/appdata/strategy/default; \
+    for f in syn2 vcplace superleaves worths; do \
+        if [ -f "/usr/share/quackle/data/strategy/default_english/$f" ]; then \
+            cp -f "/usr/share/quackle/data/strategy/default_english/$f" "/data/appdata/strategy/default_english/$f"; \
+        fi; \
+    done; \
+    if [ -f "/usr/share/quackle/data/strategy/default/bogowin" ]; then \
+        cp -f "/usr/share/quackle/data/strategy/default/bogowin" "/data/appdata/strategy/default/bogowin"; \
+    fi; \
+    # Permessi leggibili dal runtime non-root:
+    chmod -R a+rX /usr/share/quackle/data /data/appdata/strategy
 
 # Rimuovi i sorgenti temporanei
 RUN rm -rf /tmp/quackle

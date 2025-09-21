@@ -198,6 +198,60 @@ PORT=4000
 **Production deployment:** Set `VITE_RATING_API_URL` to your production API URL. If not set, the frontend will use local fallback puzzle generation.
 ## Railway – Setup Volume
 
+## Quackle-Service: Strategia e Test integrazione
+
+Al build e ad ogni avvio del container, i file strategia richiesti vengono sincronizzati in `/data/appdata/strategy` da `/usr/share/quackle/data/strategy`:
+- default_english: `syn2`, `vcplace`, `superleaves`, `worths`
+- default: `bogowin`
+
+Endpoint diagnostici e health:
+- `GET /debug/strategy` → per ciascun file: exists, path, size, sha256, mode
+- `GET /health` → include `strategy_ready` e `strategy_files`; ritorna 503 se manca un file (a meno che `ALLOW_EMPTY_STRATEGY=1`)
+
+Test di integrazione (dopo `docker compose up -d quackle-service`):
+
+```bash
+curl -s http://localhost:8080/debug/strategy | jq
+curl -s -w "\nHTTP=%{http_code}\n" http://localhost:8080/health | jq
+
+# Caso A: board vuota + AEIRSTZ
+curl -sS -X POST http://localhost:8080/best-move \
+  -H 'content-type: application/json' \
+  --data-binary @- <<'JSON' | jq
+{"rack":"AEIRSTZ","board":{"rows":15,"cols":15,"grid":
+["...............","...............","...............","...............","...............",
+ "...............","...............","...............","...............","...............",
+ "...............","...............","...............","...............","..............."]}}
+JSON
+
+# Caso B: centro A + HELLO??
+curl -sS -X POST http://localhost:8080/best-move \
+  -H 'content-type: application/json' \
+  --data-binary @- <<'JSON' | jq
+{"rack":"HELLO??","board":{"rows":15,"cols":15,"grid":
+["...............","...............","...............","...............","...............",
+ "...............","...............",".......A.......","...............","...............",
+ "...............","...............","...............","...............","..............."]}}
+JSON
+```
+
+Nota: se rimuovi un file da `/data/appdata/strategy`, al riavvio l'entrypoint lo ricrea dai file di sistema.
+
+### Bridge self-test (CLI)
+
+Esecuzioni dirette del binario (nessun segfault, exit codes coerenti):
+
+```bash
+# A) Board vuota + rack AEIRSTZ
+echo '{"op":"compute","rack":"AEIRSTZ","ruleset":"en","board":{}}' | /srv/bridge/engine_wrapper; echo RC=$?
+
+# B) Centro con A e rack HELLO??
+echo '{"op":"compute","rack":"HELLO??","ruleset":"en","board":{"8,8":{"letter":"A","isBlank":false}}}' | /srv/bridge/engine_wrapper; echo RC=$?
+
+# Se manca un file strategia oppure size==0 → exit code 72 con stderr contenente
+# "Strategy candidate missing: <abs_path>"
+```
+
 - Monta un volume su `/data`.
 - Imposta le variabili del servizio:
   - `QUACKLE_LEXICON=enable1`
