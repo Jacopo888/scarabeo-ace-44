@@ -43,6 +43,9 @@ services:
     build:
       context: ./service-quackle
       dockerfile: Dockerfile
+      args:
+        QUACKLE_REPO_URL: ${QUACKLE_REPO_URL:-https://github.com/quackle/quackle.git}
+        QUACKLE_REPO_BRANCH: ${QUACKLE_REPO_BRANCH:-v1.0.4}
     ports:
       - "8080:8080"
     environment:

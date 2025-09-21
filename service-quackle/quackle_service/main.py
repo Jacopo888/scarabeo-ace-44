@@ -750,6 +750,49 @@ def debug_quackle():
 def debug_ping():
     return {"ok": True, "msg": "pong", "version": "v104-debug"}
 
+def _call_bridge_simple_op(op: str) -> Dict[str, Any]:
+    """Call the native bridge with a simple op (no board/rack), e.g. 'probe_strategy'."""
+    try:
+        wrapper_payload = {"op": op}
+        stdin_str = json.dumps(wrapper_payload, separators=(",", ":"))
+        child_env = {
+            **os.environ,
+            "QUACKLE_APPDATA_DIR": APPDATA,
+            "QUACKLE_LEXDIR": QUACKLE_LEXDIR,
+            "QUACKLE_LEXICON": QUACKLE_LEXICON,
+        }
+        proc = subprocess.run(
+            [
+                BRIDGE_BIN,
+                "--lexicon", QUACKLE_LEXICON,
+                "--lexdir", QUACKLE_LEXDIR,
+                "--gaddag", f"{QUACKLE_LEXDIR}/{QUACKLE_LEXICON}.gaddag",
+                "--ruleset", "en"
+            ],
+            input=stdin_str.encode("utf-8"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=max(1, TIMEOUT_MS // 1000),
+            env=child_env,
+        )
+        try:
+            stderr_output = proc.stderr.decode("utf-8")
+        except UnicodeDecodeError:
+            stderr_output = proc.stderr.decode("latin-1", errors="replace")
+        out_try = proc.stdout.decode("utf-8", errors="replace").strip()
+        if proc.returncode != 0:
+            return {"engine_fallback": True, "error": f"bridge_failed_rc={proc.returncode}", "rc": proc.returncode, "stderr": stderr_output[:4000]}
+        return json.loads(out_try) if out_try else {"ok": True}
+    except Exception as e:
+        return {"engine_fallback": True, "error": str(e)}
+
+@app.get("/debug/strategy-probe")
+def debug_strategy_probe():
+    """Use the bridge 'probe_strategy' op to report strategy files status and resolution,
+    without calling initialize() or kibitz."""
+    res = _call_bridge_simple_op("probe_strategy")
+    return res
+
 @app.post("/debug/bridge-payload")
 def debug_bridge_payload(req: Dict[str, Any]):
     """Return the exact sanitized JSON that would be sent to the bridge,

@@ -242,14 +242,72 @@ Nota: se rimuovi un file da `/data/appdata/strategy`, al riavvio l'entrypoint lo
 Esecuzioni dirette del binario (nessun segfault, exit codes coerenti):
 
 ```bash
-# A) Board vuota + rack AEIRSTZ
-echo '{"op":"compute","rack":"AEIRSTZ","ruleset":"en","board":{}}' | /srv/bridge/engine_wrapper; echo RC=$?
+# A) Board vuota + rack AEIRSTZ (cattura RC con pipefail)
+set -o pipefail
+REQ='{"op":"compute","rack":"AEIRSTZ","ruleset":"en","board":{}}'
+printf '%s' "$REQ" | /srv/bridge/engine_wrapper | tee /tmp/out.json
+echo "RC=${PIPESTATUS[1]}"
 
 # B) Centro con A e rack HELLO??
-echo '{"op":"compute","rack":"HELLO??","ruleset":"en","board":{"8,8":{"letter":"A","isBlank":false}}}' | /srv/bridge/engine_wrapper; echo RC=$?
+set -o pipefail
+REQ='{"op":"compute","rack":"HELLO??","ruleset":"en","board":{"8,8":{"letter":"A","isBlank":false}}}'
+printf '%s' "$REQ" | /srv/bridge/engine_wrapper | tee /tmp/out2.json
+echo "RC=${PIPESTATUS[1]}"
 
 # Se manca un file strategia oppure size==0 → exit code 72 con stderr contenente
 # "Strategy candidate missing: <abs_path>"
+```
+
+### Fork Quackle (v1.0.4) e usare la nostra versione
+
+Per eliminare crash interni della libreria (FixedLengthString/Generator), questo progetto supporta una fork remota di Quackle. Il Dockerfile accetta gli argomenti di build:
+
+- `QUACKLE_REPO_URL` (default: `https://github.com/quackle/quackle.git`)
+- `QUACKLE_REPO_BRANCH` (default: `v1.0.4`)
+
+Passi consigliati:
+
+1) Crea il fork sul tuo account Git e push delle patch correttive (consigliato: branch `scarabeo-v104`)
+2) Esporta le variabili e ricostruisci:
+
+```bash
+export QUACKLE_REPO_URL=https://github.com/<tuo-account>/quackle.git
+export QUACKLE_REPO_BRANCH=scarabeo-v104
+docker compose build quackle-service
+docker compose up -d quackle-service
+```
+
+Note tecniche:
+- Durante il build, applichiamo anche patch di robustezza alla libreria: normalizzazione del conteggio lettere e indicizzazione sicura in `String::counts`. Inoltre, la funzione `Generator::setupCounts` usa una variante che non dipende da iteratori di FixedLengthString per il rack (assume rack a 7 tiles). Queste patch sono applicate inline per garantire build riproducibili; il fork remoto può includerle nativamente.
+
+
+### Diagnostica strategia (probe)
+
+Nuovo endpoint e op nel bridge per verificare senza inizializzare Quackle:
+
+- `GET /debug/strategy-probe` → chiama il bridge con `op:"probe_strategy"` e restituisce per ciascun file:
+  - `exists`, `size`, `head16`, `path`, e i path "risolti" via `DataManager::findDataFile`.
+
+Variabili utili per debug runtime del bridge:
+
+- `QUACKLE_INIT_MODE=none|default|english|both`
+  - `none`: salta completamente `StrategyParameters::initialize(...)` e i check pre-generazione.
+  - `default|english|both`: controlla quale sotto-set inizializzare e logga pre/post di ciascun passo.
+- `QUACKLE_DISABLE_STRATEGY=1` → equivalente a `QUACKLE_INIT_MODE=none` (salta init e check strategia).
+- `QUACKLE_USE_HIGHLEVEL=1` → abilita il percorso alternativo "high-level" (kibitz su `GamePosition`) anche a board vuota.
+
+Nota: se il binario del bridge non è ricompilato con l'ultima patch, gli switch sopra potrebbero non avere effetto. Nell'immagine Docker standard vengono applicati durante il build.
+
+API “happy path” su board vuota (HTTP 200 atteso):
+```bash
+curl -sS -X POST http://localhost:8080/best-move \
+  -H 'content-type: application/json' \
+  --data-binary @- <<'JSON'
+{"rack":"AEIRSTZ","ruleset":"en","board":{"rows":15,"cols":15,"grid":[
+"...............","...............","...............","...............","...............",
+"...............","...............","...............","...............","...............",
+"...............","...............","...............","...............","..............."]}}
+JSON
 ```
 
 - Monta un volume su `/data`.
