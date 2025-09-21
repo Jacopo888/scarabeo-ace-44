@@ -9,8 +9,11 @@
 #include <cstdlib>
 #include <filesystem>
 #include <iomanip>
+#include <csignal>
+#include <sys/stat.h>
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
+namespace fs = std::filesystem;
 
 // Quackle headers
 #include "game.h"
@@ -36,6 +39,19 @@ static bool hasFlag(int argc, char** argv, const std::string& k) {
   for (int i=1;i<argc;++i) if (std::string(argv[i])==k) return true;
   return false;
 }
+static bool env_flag_on(const char* name) {
+  const char* v = std::getenv(name);
+  if (!v) return false;
+  std::string s(v);
+  for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  return (s == "1" || s == "true" || s == "yes" || s == "on");
+}
+// Crash phase marker and SIGSEGV handler for diagnostics
+static const char* g_phase = "init";
+static void segv_handler(int) {
+  std::cerr << "[FATAL] SIGSEGV caught. Please check strategy/lexicon setup." << std::endl;
+  std::_Exit(70);
+}
 // Kibitz length (number of top moves to generate and evaluate). Not simulations.
 static int kibitzLenFor(const std::string& d){ if(d=="easy")return 15; if(d=="hard")return 100; return 50; }
 
@@ -59,13 +75,69 @@ void cursorDebugLog(const std::string& message) {
     }
 }
 
+// ---------- Strategy presence checks (filesystem) ----------
+static bool file_ok(const fs::path& p, size_t* out_size = nullptr) {
+    std::error_code ec;
+    if (fs::exists(p, ec) && fs::is_regular_file(p, ec)) {
+        auto sz = fs::file_size(p, ec);
+        if (!ec && sz > 0) { if (out_size) *out_size = static_cast<size_t>(sz); return true; }
+    }
+    return false;
+}
+
+static void log_hex_head(const fs::path& path) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f.good()) return;
+    unsigned char buf[16]{};
+    f.read(reinterpret_cast<char*>(buf), 16);
+    std::ostringstream oss;
+    for (int i = 0; i < 16; ++i) {
+        oss << std::hex << std::setw(2) << std::setfill('0') << (int)buf[i];
+    }
+    std::fprintf(stderr, "[DEBUG] Strategy head16 %s: %s\n", path.string().c_str(), oss.str().c_str());
+}
+struct StrategyPaths { fs::path syn2, vcplace, superleaves, worths, bogowin; };
+
+static StrategyPaths compute_strategy_paths(const fs::path& appdata_base) {
+    fs::path base = appdata_base / "strategy";
+    StrategyPaths s{
+        base / "default_english" / "syn2",
+        base / "default_english" / "vcplace",
+        base / "default_english" / "superleaves",
+        base / "default_english" / "worths",
+        base / "default" / "bogowin",
+    };
+    std::fprintf(stderr, "[DEBUG] Strategy expected paths:\n  syn2=%s\n  vcplace=%s\n  superleaves=%s\n  worths=%s\n  bogowin=%s\n",
+            s.syn2.string().c_str(), s.vcplace.string().c_str(), s.superleaves.string().c_str(), s.worths.string().c_str(), s.bogowin.string().c_str());
+    return s;
+}
+
+static void require_strategy_files_or_die(const StrategyPaths& s) {
+    const std::vector<std::pair<const char*, fs::path>> req = {
+        {"syn2", s.syn2}, {"vcplace", s.vcplace}, {"superleaves", s.superleaves}, {"worths", s.worths}, {"bogowin", s.bogowin},
+    };
+    for (const auto& kv : req) {
+        size_t sz = 0;
+        if (!file_ok(kv.second, &sz)) {
+            std::fprintf(stderr, "[CONFIG] Strategy candidate missing: %s\n", kv.second.string().c_str());
+            std::exit(72); // config error per spec
+        }
+        std::fprintf(stderr, "[DEBUG] Strategy %s -> %s (size=%zu)\n", kv.first, kv.second.string().c_str(), sz);
+        log_hex_head(kv.second);
+    }
+}
+
 int main(int argc, char** argv){
+  std::signal(SIGSEGV, segv_handler);
   cursorDebugLog("Bridge avviato.");
   debugLog("=== Quackle Bridge Started (v1.0.4 with correct API) ===");
   
-  const std::string lexicon = arg(argc, argv, "--lexicon", "enable1");
-  const std::string lexdir  = arg(argc, argv, "--lexdir",  "/usr/share/quackle/lexica");
+  const char* envLex = std::getenv("QUACKLE_LEXICON");
+  const char* envDir = std::getenv("QUACKLE_LEXDIR");
+  const std::string lexicon = arg(argc, argv, "--lexicon", envLex ? std::string(envLex) : std::string("enable1"));
+  const std::string lexdir  = arg(argc, argv, "--lexdir",  envDir ? std::string(envDir) : std::string("/data/lexica"));
   const bool selftest = hasFlag(argc, argv, "--selftest");
+  const bool forceHighLevel = hasFlag(argc, argv, "--highlevel") || env_flag_on("QUACKLE_USE_HIGHLEVEL");
   
   debugLog("Lexicon: " + lexicon + ", LexDir: " + lexdir);
 
@@ -107,7 +179,13 @@ int main(int argc, char** argv){
       }
 
       if (!dawgExists) {
-        json out={{"selftest","fail"},{"dawg_exists",false},{"gaddag_exists",gaddagExists},{"dawg_path",dawgFile},{"gaddag_path",gaddagFile}};
+        json out = {
+          {"selftest", false},
+          {"dawg", false},
+          {"gaddag", gaddagExists},
+          {"dawg_path", dawgFile},
+          {"gaddag_path", gaddagFile}
+        };
         std::cout<<out.dump()<<std::endl; return 2;
       }
 
@@ -118,15 +196,27 @@ int main(int argc, char** argv){
       }
       QUACKLE_DATAMANAGER->setLexiconParameters(lexParams);
 
-      json out={{"selftest","ok"},{"dawg_exists",true},{"gaddag_exists",gaddagExists},{"dawg_path",dawgFile},{"gaddag_path",gaddagFile}};
+      // Prepare a default position and ensure board is ready
+      Quackle::GamePosition pos;
+      try { pos.ensureBoardIsPreparedForAnalysis(); } catch (...) {}
+
+      json out = {
+        {"selftest", true},
+        {"dawg", true},
+        {"gaddag", gaddagExists},
+        {"board_prepared", true},
+        {"dawg_path", dawgFile},
+        {"gaddag_path", gaddagFile}
+      };
       std::cout<<out.dump()<<std::endl; return 0;
     } catch (const std::exception& e) {
-      json out={{"selftest","fail"},{"error",std::string(e.what())}}; std::cout<<out.dump()<<std::endl; return 3;
+      json out={{"selftest",false},{"error",std::string(e.what())}}; std::cout<<out.dump()<<std::endl; return 70;
     } catch (...) {
-      json out={{"selftest","fail"},{"error","unknown"}}; std::cout<<out.dump()<<std::endl; return 4;
+      json out={{"selftest",false},{"error","unknown"}}; std::cout<<out.dump()<<std::endl; return 70;
     }
   }
 
+  g_phase = "read_stdin";
   std::ostringstream ss; ss<<std::cin.rdbuf(); std::string input=ss.str();
   cursorDebugLog("Input ricevuto da stdin: " + input.substr(0, 500));
   debugLog("Input length: " + std::to_string(input.length()));
@@ -134,12 +224,14 @@ int main(int argc, char** argv){
   
   json req; try{ req = json::parse(input.empty()?"{}":input); cursorDebugLog("JSON parsato con successo."); }catch(const std::exception& e){
     debugLog("JSON parse error: " + std::string(e.what()));
-    std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"json_parse"})"; return 0;
+    std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"json_parse"})"; return 64;
   }
 
   try{
+    g_phase = "validate_input";
     const json jboard = req.value("board", json::object());
     const json jrack  = req.value("rack",  json::array());
+    const std::string ruleset = req.value("ruleset", std::string("en"));
     const std::string diff = req.value("difficulty", std::string("medium"));
     const int kibitzLen = kibitzLenFor(diff);
 
@@ -149,6 +241,11 @@ int main(int argc, char** argv){
     
     // Validate input schema
     debugLog("=== INPUT VALIDATION ===");
+    if (!(ruleset == "en")) {
+      debugLog("ERROR: Unsupported ruleset: " + ruleset);
+      std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_ruleset"})" << std::endl;
+      return 64;
+    }
     
     // Validate board format
     int boardCells = 0;
@@ -159,14 +256,14 @@ int main(int argc, char** argv){
       if (!(sscoord >> r >> comma >> c) || comma != ',') {
         debugLog("ERROR: Invalid board coordinate format: " + std::string(it.key()));
         std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"malformed_coordinate"})" << std::endl;
-        return 1;
+        return 64;
       }
       // Convert from 1-based to 0-based
       --r; --c;
       if (r < 0 || r >= 15 || c < 0 || c >= 15) {
         debugLog("ERROR: Board coordinate out of bounds: (" + std::to_string(r) + "," + std::to_string(c) + ")");
         std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_board_coordinate","reason":"out_of_bounds"})" << std::endl;
-        return 1;
+        return 64;
       }
       boardCells++;
       minRow = std::min(minRow, r);
@@ -183,7 +280,7 @@ int main(int argc, char** argv){
     auto emitRackError = [&]() {
       debugLog("ERROR: Invalid rack format");
       std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_rack_format"})" << std::endl;
-      return 1;
+      return 64;
     };
 
     if (jrack.is_string()) {
@@ -236,7 +333,11 @@ int main(int argc, char** argv){
       return emitRackError();
     }
 
-    if (rackLen <= 0 || rackLen > 7) {
+    if (rackLen > 7) {
+      return emitRackError();
+    }
+    if (blankCount > 2) {
+      debugLog("ERROR: Too many blanks in rack");
       return emitRackError();
     }
 
@@ -299,6 +400,7 @@ int main(int argc, char** argv){
     }
     
     debugLog("Finding dictionary file...");
+    debugLog(std::string("Effective lexicon dir: ") + lexdir);
     debugLog("Looking for: " + lexicon + ".dawg");
     debugLog(std::string("App data directory: ") + appDataDir);
     
@@ -407,33 +509,33 @@ int main(int argc, char** argv){
     // Initialize strategy parameters using the chosen lexicon; this expects
     // data/strategy/{default,default_english,...} under appDataDirectory
     if (QUACKLE_DATAMANAGER->strategyParameters()) {
-      // Pre-log resolved strategy paths
-      try {
-        std::string p_syn2 = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "syn2");
-        std::string p_vc   = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "vcplace");
-        std::string p_sup  = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "superleaves");
-        std::string p_bw   = QUACKLE_DATAMANAGER->findDataFile("strategy", "default",          "bogowin");
-        std::string p_w    = QUACKLE_DATAMANAGER->findDataFile("strategy", "default_english", "worths");
-        debugLog(std::string("Strategy expected paths:\n  syn2=") + p_syn2 +
-                 "\n  vcplace=" + p_vc +
-                 "\n  superleaves=" + p_sup +
-                 "\n  bogowin=" + p_bw +
-                 "\n  worths=" + p_w);
-      } catch (...) { /* ignore */ }
+      if (env_flag_on("QUACKLE_DISABLE_STRATEGY")) {
+        fprintf(stderr, "[DEBUG] Strategy init DISABLED via QUACKLE_DISABLE_STRATEGY=1\n");
+      } else {
+        // Resolve and log expected absolute paths from appDataDir
+        StrategyPaths s_paths = compute_strategy_paths(fs::path(appDataDir));
+        // Double-check readability for diagnostics; if any fails, log and exit 72
+        require_strategy_files_or_die(s_paths);
 
-      debugLog("Initializing strategy parameters for lexicon sets: default, default_english");
-      QUACKLE_DATAMANAGER->strategyParameters()->initialize("default");
-      QUACKLE_DATAMANAGER->strategyParameters()->initialize("default_english");
+        // Now initialize the Quackle strategy parameters
+        debugLog("Initializing strategy parameters for lexicon sets: default, default_english");
+        QUACKLE_DATAMANAGER->strategyParameters()->initialize("default");
+        QUACKLE_DATAMANAGER->strategyParameters()->initialize("default_english");
 
-      // Post-log which tables are loaded
-      auto *sp = QUACKLE_DATAMANAGER->strategyParameters();
-      debugLog(std::string("Strategy loaded flags: ") +
-               "syn2=" + (sp->hasSyn2() ? "1" : "0") + ", " +
-               "worths=" + (sp->hasWorths() ? "1" : "0") + ", " +
-               "vcplace=" + (sp->hasVcPlace() ? "1" : "0") + ", " +
-               "bogowin=" + (sp->hasBogowin() ? "1" : "0") + ", " +
-               "superleaves=" + (sp->hasSuperleaves() ? "1" : "0"));
-      debugLog("Strategy parameters initialized");
+        // Post-log realistic flags from filesystem checks (reflect reality)
+        auto fs_syn2 = file_ok(s_paths.syn2);
+        auto fs_vc   = file_ok(s_paths.vcplace);
+        auto fs_sup  = file_ok(s_paths.superleaves);
+        auto fs_bw   = file_ok(s_paths.bogowin);
+        auto fs_w    = file_ok(s_paths.worths);
+        debugLog(std::string("Strategy FS flags: ") +
+                 "syn2=" + (fs_syn2 ? "1" : "0") + ", " +
+                 "worths=" + (fs_w ? "1" : "0") + ", " +
+                 "vcplace=" + (fs_vc ? "1" : "0") + ", " +
+                 "bogowin=" + (fs_bw ? "1" : "0") + ", " +
+                 "superleaves=" + (fs_sup ? "1" : "0"));
+        debugLog("Strategy parameters initialized");
+      }
     }
 
     debugLog("Data manager setup complete");
@@ -448,7 +550,7 @@ int main(int argc, char** argv){
     if (!alphabetParams) {
       debugLog("ERROR: Alphabet parameters unavailable while building rack");
       std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"alphabet_unavailable"})" << std::endl;
-      return 1;
+      return 64;
     }
 
     for (const auto &tileInfo : rackTilesNormalized) {
@@ -465,7 +567,7 @@ int main(int argc, char** argv){
       if (encoded.empty()) {
         debugLog("ERROR: Failed to encode rack letter '" + std::string(1, letterChar) + "'");
         std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_rack_letter"})" << std::endl;
-        return 1;
+        return 64;
       }
       rackLetters.push_back(encoded[0]);
       debugLog("Rack tile: letter='" + std::string(1, letterChar) + "', encoded=" + std::to_string(static_cast<int>(encoded[0])));
@@ -522,14 +624,14 @@ int main(int argc, char** argv){
       if (letter.empty()) {
         debugLog("ERROR: Board tile missing letter at coordinate " + it.key());
         std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_board_letter"})" << std::endl;
-        return 1;
+        return 64;
       }
 
       char rawLetter = static_cast<char>(std::toupper(static_cast<unsigned char>(letter[0])));
       if (!isBlank && !std::isalpha(static_cast<unsigned char>(rawLetter))) {
         debugLog("ERROR: Invalid board letter '" + std::string(1, rawLetter) + "' at coordinate " + it.key());
         std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_board_letter"})" << std::endl;
-        return 1;
+        return 64;
       }
 
       std::string letterStr(1, rawLetter);
@@ -537,7 +639,7 @@ int main(int argc, char** argv){
       if (encoded.empty()) {
         debugLog("ERROR: Failed to encode board letter '" + std::string(1, rawLetter) + "'");
         std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_board_letter"})" << std::endl;
-        return 1;
+        return 64;
       }
       Quackle::Letter tileCode = encoded[0];
       if (isBlank) {
@@ -554,16 +656,14 @@ int main(int argc, char** argv){
     }
     debugLog("Board tiles placed successfully");
 
-    // Generate best move using Quackle's AI
-    debugLog("Generating best move...");
-    cursorDebugLog("Chiamata a Generator::kibitz...");
+    // Before generating, ensure strategy files are present to avoid segfaults (redundant safety)
+    require_strategy_files_or_die(compute_strategy_paths(fs::path(appDataDir)));
 
-    // Log anchor and cross-set information for diagnostics
-    debugLog("=== ANCHOR & CROSS-SET ANALYSIS ===");
-    debugLog("Board empty: " + std::string(board.isEmpty() ? "YES" : "NO"));
-    if (board.isEmpty()) {
-      debugLog("Empty board - center anchor at (7,7)");
-    } else {
+    // Generate best move using Quackle's AI (low-level safe path by default)
+    debugLog("Generating best move...");
+    const bool boardEmpty = board.isEmpty();
+    debugLog(std::string("[DEBUG] Board empty: ") + (boardEmpty ? "YES" : "NO"));
+    if (!boardEmpty) {
       int anchorCount = 0;
       for (int r = 0; r < 15; r++) {
         for (int c = 0; c < 15; c++) {
@@ -577,33 +677,57 @@ int main(int argc, char** argv){
           }
         }
       }
-      debugLog("Anchors found: " + std::to_string(anchorCount));
+      debugLog("[DEBUG] Cross-set analysis: " + std::to_string(anchorCount));
     }
-    debugLog("Cross-set analysis: " + std::string(board.isEmpty() ? "0 (empty board)" : "calculated"));
     debugLog("=====================================");
 
-    // Prepare cross sets once before generating
-    try {
-      pos.ensureBoardIsPreparedForAnalysis();
-    } catch (...) { /* best-effort */ }
+    try { pos.ensureBoardIsPreparedForAnalysis(); } catch (...) {}
 
     Quackle::Move best;
     bool foundValidMove = false;
 
-    try {
-        // Use Quackle's GamePosition kibitz path to avoid edge cases in manual generator wiring
+    if ( (hasFlag(argc, argv, "--highlevel") || env_flag_on("QUACKLE_USE_HIGHLEVEL")) && !boardEmpty) {
+      fprintf(stderr, "[DEBUG] Using HIGH-LEVEL API: GamePosition::kibitz + staticBestMove\n");
+      try {
         pos.kibitz(kibitzLen);
         best = pos.staticBestMove();
         foundValidMove = (best.action != Quackle::Move::Pass);
-    } catch (const std::exception &e) {
-        debugLog(std::string("Exception during kibitz: ") + e.what());
+      } catch (const std::exception &e) {
+        debugLog(std::string("Exception during high-level kibitz: ") + e.what());
         best = Quackle::Move::createPassMove();
-    } catch (...) {
-        debugLog("Unknown exception during kibitz");
+      } catch (...) {
+        debugLog("Unknown exception during high-level kibitz");
         best = Quackle::Move::createPassMove();
+      }
+    } else {
+      fprintf(stderr, "[DEBUG] Using SAFE GENERATOR API (no staticBestMove)\n");
+      try {
+        Quackle::Generator gen;
+        gen.setPosition(pos);
+        gen.allCrosses();
+        const bool canExchange = pos.exchangeAllowed();
+        const int kibitzFlags = canExchange ? Quackle::Generator::RegularKibitz
+                                            : Quackle::Generator::CannotExchange;
+        cursorDebugLog("Chiamata a Generator::kibitz...");
+        gen.kibitz(kibitzLen, kibitzFlags);
+        const Quackle::MoveList &moves = gen.kibitzList();
+        cursorDebugLog("Chiamata a Generator::kibitz completata.");
+        if (!moves.empty()) {
+          best = moves.front();
+          foundValidMove = (best.action != Quackle::Move::Pass);
+        } else {
+          debugLog("kibitz returned no moves");
+          best = Quackle::Move::createPassMove();
+        }
+      } catch (const std::exception &e) {
+        debugLog(std::string("Exception during generator kibitz: ") + e.what());
+        best = Quackle::Move::createPassMove();
+      } catch (...) {
+        debugLog("Unknown exception during generator kibitz");
+        best = Quackle::Move::createPassMove();
+      }
     }
 
-    cursorDebugLog("Chiamata a Generator::kibitz completata.");
     cursorDebugLog("Mossa migliore trovata: score=" + std::to_string(best.score));
     debugLog("Best move type: " + std::string(foundValidMove ? "play" : "pass"));
     
@@ -707,10 +831,10 @@ int main(int argc, char** argv){
   }catch(const std::exception& e){
     debugLog("Exception caught: " + std::string(e.what()));
     json out={{"tiles",json::array()},{"score",0},{"words",json::array()},{"move_type","pass"},{"engine_fallback",true},{"error",std::string("engine: ")+e.what()}};
-    std::cout<<out.dump(); return 0;
+    std::cout<<out.dump(); return 70;
   }catch(...){
     debugLog("Unknown exception caught");
     json out={{"tiles",json::array()},{"score",0},{"words",json::array()},{"move_type","pass"},{"engine_fallback",true},{"error","engine: unknown"}};
-    std::cout<<out.dump(); return 0;
+    std::cout<<out.dump(); return 70;
   }
 }

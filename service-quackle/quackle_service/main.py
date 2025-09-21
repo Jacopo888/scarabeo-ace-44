@@ -1,4 +1,5 @@
 import os, json, subprocess, sys, re
+import hashlib
 import shutil
 from typing import Any, Dict, Optional, List, Tuple
 from pathlib import Path
@@ -135,6 +136,53 @@ def _ensure_lexicon_files() -> Dict[str, Any]:
         "gaddag_size": gaddag_sz,
         "errors": errs,
     }
+
+# ------------------------------
+# Strategy helpers and diagnostics
+# ------------------------------
+REQ_STRATEGY: List[tuple[str, str]] = [
+    ("default_english", "syn2"),
+    ("default_english", "vcplace"),
+    ("default_english", "superleaves"),
+    ("default_english", "worths"),
+    ("default", "bogowin"),
+]
+
+def _hash_sha256(path: Path) -> Optional[str]:
+    try:
+        h = hashlib.sha256()
+        with path.open("rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return None
+
+def _stat_strategy_file(p: Path) -> Dict[str, Any]:
+    try:
+        if p.exists() and p.is_file():
+            st = p.stat()
+            return {
+                "exists": True,
+                "path": str(p),
+                "size": st.st_size,
+                "sha256": _hash_sha256(p),
+                "mode": oct(st.st_mode & 0o777),
+            }
+        else:
+            return {"exists": False, "path": str(p)}
+    except Exception as e:
+        return {"exists": False, "path": str(p), "error": str(e)}
+
+def _strategy_inventory(base: Optional[Path] = None) -> Dict[str, Any]:
+    """Return inventory for required strategy files under base (default APPDATA/strategy)."""
+    base = base or (Path(APPDATA) / "strategy")
+    items: Dict[str, Any] = {}
+    for d, f in REQ_STRATEGY:
+        p = base / d / f
+        items[f"{d}/{f}"] = _stat_strategy_file(p)
+    all_ok = all(v.get("exists") and (v.get("size") or 0) > 0 for v in items.values())
+    return {"strategy": items, "all_ok": all_ok, "base": str(base)}
 
 def _ensure_strategy_files() -> Dict[str, Any]:
     """Ensure Quackle strategy tables exist under APPDATA/strategy.
@@ -452,6 +500,40 @@ def _grid_to_coordmap(grid: list[str]) -> dict[str, dict]:
                 out[f"{r},{c}"] = {"letter": str(ch).upper(), "isBlank": False}
     return out
 
+@app.get("/debug/strategy")
+def debug_strategy():
+    base = Path(os.getenv("QUACKLE_APPDATA_DIR", "/data/appdata")).joinpath("strategy")
+    inventory = []
+    for root, _, files in os.walk(base):
+        for name in files:
+            p = Path(root) / name
+            try:
+                sz = p.stat().st_size
+                h = _hash_sha256(p) if sz > 0 else None
+            except Exception:
+                sz, h = 0, None
+            inventory.append({"path": str(p), "size": sz, "sha256": h})
+    # Required flags (existence and size>0)
+    def ok(rel: str) -> bool:
+        p = base / rel
+        try:
+            return p.is_file() and p.stat().st_size > 0
+        except Exception:
+            return False
+    required = {
+        "syn2": ok("default_english/syn2"),
+        "vcplace": ok("default_english/vcplace"),
+        "superleaves": ok("default_english/superleaves"),
+        "worths": ok("default_english/worths"),
+        "bogowin": ok("default/bogowin"),
+    }
+    return {
+        "inventory": inventory,
+        "required_flags": required,
+        "bridge_path": BRIDGE_BIN,
+        "bridge_version": "v104-strict",
+    }
+
 @app.get("/health")
 def health():
     ok, dawg, gaddag = ensure_lexicon_ready()
@@ -475,7 +557,8 @@ def health():
     except Exception:
         word_count = None
     engine_ready = (os.path.exists(BRIDGE_BIN) and os.access(BRIDGE_BIN, os.X_OK) and ok)
-    return {
+    strat_debug = _strategy_inventory()
+    payload = {
         "status": "ok",
         "engine": "quackle-bridge",
         "engine_ready": engine_ready,
@@ -491,15 +574,18 @@ def health():
         "dawg_size": size_or_zero(dawg),
         "gaddag_size": size_or_zero(gaddag),
         "word_count": word_count,
+        "version": "v104-strict",
+        "strategy_ready": strat_debug["all_ok"],
+        "strategy_files": strat_debug["strategy"],
         "strategy": {
-            "syn2": exists(os.path.join(strat_en, "syn2")),
-            "vcplace": exists(os.path.join(strat_en, "vcplace")),
-            "superleaves": exists(os.path.join(strat_en, "superleaves")),
-            "worths": exists(os.path.join(strat_en, "worths")),
-            "bogowin": exists(os.path.join(strat_def, "bogowin")),
+            "syn2": strat_debug["strategy"].get("default_english/syn2", {}).get("exists", False),
+            "vcplace": strat_debug["strategy"].get("default_english/vcplace", {}).get("exists", False),
+            "superleaves": strat_debug["strategy"].get("default_english/superleaves", {}).get("exists", False),
+            "worths": strat_debug["strategy"].get("default_english/worths", {}).get("exists", False),
+            "bogowin": strat_debug["strategy"].get("default/bogowin", {}).get("exists", False),
         },
-        "version": "v104-strict"
     }
+    return payload
 
 @app.get("/healthz")
 def healthz():
@@ -549,6 +635,36 @@ def debug_ldd():
             "error": str(e)
         })
     return info
+
+@app.get("/debug/selftest")
+def debug_selftest():
+    """Run the native bridge in --selftest mode to verify lexicon loading and
+    basic board preparation, without invoking kibitz.
+    Returns rc, stdout, stderr.
+    """
+    try:
+        child_env = {
+            **os.environ,
+            "QUACKLE_APPDATA_DIR": APPDATA,
+            "QUACKLE_LEXDIR": QUACKLE_LEXDIR,
+            "QUACKLE_LEXICON": QUACKLE_LEXICON,
+        }
+        args = [
+            BRIDGE_BIN,
+            "--lexicon", QUACKLE_LEXICON,
+            "--lexdir", QUACKLE_LEXDIR,
+            "--gaddag", f"{QUACKLE_LEXDIR}/{QUACKLE_LEXICON}.gaddag",
+            "--ruleset", "en",
+            "--selftest",
+        ]
+        proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=child_env, timeout=10)
+        return JSONResponse({
+            "rc": proc.returncode,
+            "stdout": proc.stdout.decode("utf-8", errors="replace"),
+            "stderr": proc.stderr.decode("utf-8", errors="replace"),
+        }, status_code=200 if proc.returncode == 0 else 500)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 @app.post("/debug/probe")
 async def debug_probe(request: Request):
@@ -716,6 +832,12 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
 
         if os.getenv("DEBUG_BRIDGE_PAYLOAD", "").strip().lower() in {"1","true","yes","on"}:
             print("[bridge.stdin]", stdin_str)
+        # Preflight: require strategy unless explicitly allowed empty
+        allow_empty_strategy = os.getenv("ALLOW_EMPTY_STRATEGY") == "1"
+        inv = _strategy_inventory()
+        if not allow_empty_strategy and not inv.get("all_ok", False):
+            return {"engine_fallback": True, "error": "strategy_missing", **inv}
+
         try:
             # Ensure the bridge child sees the same runtime dirs we validated
             child_env = {
@@ -777,6 +899,7 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
             except Exception:
                 parsed = {}
             if isinstance(parsed, dict) and parsed.get("engine_fallback"):
+                parsed.setdefault("rc", proc.returncode)
                 return parsed
             # Optional: include ldd output to aid diagnostics if explicitly enabled
             ldd_out = None
@@ -897,9 +1020,17 @@ async def best_move(req: Request):
         if result.get("engine_fallback") or (isinstance(result, dict) and result.get("error")):
             err = (result.get("error") or "engine_error")
             status = 500
-            if err in {"invalid_board_coordinate", "malformed_coordinate", "rack_empty", "invalid_rack_format", "malformed_board"}:
+            if err in {"invalid_board_coordinate", "malformed_coordinate", "rack_empty", "invalid_rack_format", "malformed_board", "invalid_ruleset"}:
                 status = 400
-            elif err.startswith("exec_failed") or err.startswith("bridge_failed_rc"):
+            rc_val = result.get("rc")
+            if isinstance(rc_val, int):
+                if rc_val == 64:
+                    status = 400
+                elif rc_val == 72:
+                    status = 502
+                elif rc_val == 70:
+                    status = 500
+            elif err.startswith("exec_failed") or err.startswith("bridge_failed_rc") or err == "strategy_missing":
                 status = 502
             body = {k: v for k, v in result.items() if k in {"engine_fallback", "error", "stderr", "ldd", "rc"}}
             return JSONResponse(body or {"engine_fallback": True, "error": err}, status_code=status)
