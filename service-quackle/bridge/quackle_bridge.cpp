@@ -131,6 +131,9 @@ int main(int argc, char** argv){
   std::signal(SIGSEGV, segv_handler);
   cursorDebugLog("Bridge avviato.");
   debugLog("=== Quackle Bridge Started (v1.0.4 with correct API) ===");
+  for (int i = 0; i < argc; ++i) {
+    debugLog(std::string("argv[") + std::to_string(i) + "]: " + argv[i]);
+  }
   
   const char* envLex = std::getenv("QUACKLE_LEXICON");
   const char* envDir = std::getenv("QUACKLE_LEXDIR");
@@ -222,7 +225,7 @@ int main(int argc, char** argv){
   debugLog("Input length: " + std::to_string(input.length()));
   debugLog("Input content: " + input.substr(0, 500)); // First 500 chars
   
-  json req; try{ req = json::parse(input.empty()?"{}":input); cursorDebugLog("JSON parsato con successo."); }catch(const std::exception& e){
+  json req; try{ req = json::parse(input.empty()?"{}":input); cursorDebugLog("JSON parsato con successo."); debugLog(std::string("Parsed JSON: ") + req.dump(2)); }catch(const std::exception& e){
     debugLog("JSON parse error: " + std::string(e.what()));
     std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"json_parse"})"; return 64;
   }
@@ -814,6 +817,7 @@ int main(int argc, char** argv){
       }
     }
 
+    debugLog("Starting move generation...");
     // Generate best move: prefer High-Level GamePosition::kibitz, then fallback to Generator if needed
     debugLog("Generating best move (HL first, then GEN fallback)...");
     const bool boardEmpty = board.isEmpty();
@@ -827,6 +831,7 @@ int main(int argc, char** argv){
     try {
       fprintf(stderr, "[DEBUG] Using HIGH-LEVEL API: GamePosition::kibitz + staticBestMove\n");
       pos.kibitz(kibitzLen);
+      debugLog(std::string("High-level kibitz done. Moves found: ") + std::to_string(pos.moves().size()));
       // Prefer a placement from the HL move list
       best = Quackle::Move::createPassMove();
       const Quackle::MoveList &hlMoves = pos.moves();
@@ -861,6 +866,7 @@ int main(int argc, char** argv){
         // Disallow exchanges in generator path to avoid non-play results on opening.
         const int kibitzFlags = Quackle::Generator::CannotExchange;
         gen.kibitz(kibitzLen, kibitzFlags);
+        debugLog(std::string("Generator kibitz done. Moves found: ") + std::to_string(gen.kibitzList().size()));
         const Quackle::MoveList &moves = gen.kibitzList();
         fprintf(stderr, "[DEBUG] GEN kibitz moves count=%d\n", (int)moves.size());
         if (!moves.empty()) {

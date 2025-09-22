@@ -242,11 +242,7 @@ async def lifespan(app: FastAPI):
     if st["errors"]:
         print(f"[startup] Lexicon errors: {st['errors']}")
 
-    strat = _ensure_strategy_files()
-    STARTUP_STATUS["strategy"] = strat
-    print(f"[startup] Strategy ensure: ok={strat['ok']} dest={strat['dest']}")
-    if strat["errors"]:
-        print(f"[startup] Strategy errors: {strat['errors']}")
+
     # 3) Block until completion of download/verification (done above synchronously)
     yield
 

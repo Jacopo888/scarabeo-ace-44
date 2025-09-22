@@ -12,7 +12,7 @@ from typing import Optional
 
 APP_PORT = int(os.getenv("PORT", "8080"))
 GADDAG_PATH = os.getenv("GADDAG_PATH", "/app/lexica/enable1.gaddag")
-RULESET = os.getenv("RULESET", "it")
+RULESET = os.getenv("RULESET", "en")
 
 app = FastAPI(title="Scarabeo Engine", version="0.1.0")
 

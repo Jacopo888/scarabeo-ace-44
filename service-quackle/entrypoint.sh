@@ -43,3 +43,4 @@ done
 ln -sf "/data/appdata/strategy/default/bogowin" "/usr/share/quackle/data/strategy/default/bogowin"
 
 exec uvicorn quackle_service.main:app --host 0.0.0.0 --port "$PORT"
+sleep 3600
