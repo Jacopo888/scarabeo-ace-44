@@ -131,6 +131,9 @@ int main(int argc, char** argv){
   std::signal(SIGSEGV, segv_handler);
   cursorDebugLog("Bridge avviato.");
   debugLog("=== Quackle Bridge Started (v1.0.4 with correct API) ===");
+  for (int i = 0; i < argc; ++i) {
+    debugLog(std::string("argv[") + std::to_string(i) + "]: " + argv[i]);
+  }
   
   const char* envLex = std::getenv("QUACKLE_LEXICON");
   const char* envDir = std::getenv("QUACKLE_LEXDIR");
@@ -222,7 +225,7 @@ int main(int argc, char** argv){
   debugLog("Input length: " + std::to_string(input.length()));
   debugLog("Input content: " + input.substr(0, 500)); // First 500 chars
   
-  json req; try{ req = json::parse(input.empty()?"{}":input); cursorDebugLog("JSON parsato con successo."); }catch(const std::exception& e){
+  json req; try{ req = json::parse(input.empty()?"{}":input); cursorDebugLog("JSON parsato con successo."); debugLog(std::string("Parsed JSON: ") + req.dump(2)); }catch(const std::exception& e){
     debugLog("JSON parse error: " + std::string(e.what()));
     std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"json_parse"})"; return 64;
   }
@@ -814,37 +817,84 @@ int main(int argc, char** argv){
       }
     }
 
-    // Generate best move using Quackle's Generator with explicit setPosition (avoid copy-ctor pitfalls)
-    debugLog("Generating best move (generator.setPosition)...");
+    debugLog("Starting move generation...");
+    // Generate best move: prefer High-Level GamePosition::kibitz, then fallback to Generator if needed
+    debugLog("Generating best move (HL first, then GEN fallback)...");
     const bool boardEmpty = board.isEmpty();
     debugLog(std::string("[DEBUG] Board empty: ") + (boardEmpty ? "YES" : "NO"));
     try { pos.ensureBoardIsPreparedForAnalysis(); } catch (...) {}
 
     Quackle::Move best;
     bool foundValidMove = false;
-    fprintf(stderr, "[DEBUG] Using GENERATOR API via setPosition()\n");
+
+    // High-Level path
     try {
-      Quackle::Generator gen;
-      gen.setPosition(pos);
-      gen.allCrosses();
-      const bool canExchange = pos.exchangeAllowed();
-      const int kibitzFlags = canExchange ? Quackle::Generator::RegularKibitz
-                                          : Quackle::Generator::CannotExchange;
-      gen.kibitz(kibitzLen, kibitzFlags);
-      const Quackle::MoveList &moves = gen.kibitzList();
-      if (!moves.empty()) {
-        best = moves.front();
-        foundValidMove = (best.action != Quackle::Move::Pass);
-      } else {
-        debugLog("kibitz returned no moves");
-        best = Quackle::Move::createPassMove();
+      fprintf(stderr, "[DEBUG] Using HIGH-LEVEL API: GamePosition::kibitz + staticBestMove\n");
+      pos.kibitz(kibitzLen);
+      debugLog(std::string("High-level kibitz done. Moves found: ") + std::to_string(pos.moves().size()));
+      // Prefer a placement from the HL move list
+      best = Quackle::Move::createPassMove();
+      const Quackle::MoveList &hlMoves = pos.moves();
+      for (const auto &m : hlMoves) {
+        if (m.action == Quackle::Move::Place && !m.tiles().empty()) { best = m; break; }
       }
+      if (best.action != Quackle::Move::Place || best.tiles().empty()) {
+        // Fallback to staticBestMove if no explicit Place was found
+        best = pos.staticBestMove();
+      }
+      // Consider only a real placement as a valid HL result; fallback otherwise
+      foundValidMove = (best.action == Quackle::Move::Place && !best.tiles().empty());
+      fprintf(stderr, "[DEBUG] HL result: action=%d score=%d\n", (int)best.action, best.score);
     } catch (const std::exception &e) {
-      debugLog(std::string("Exception during generator kibitz: ") + e.what());
+      debugLog(std::string("Exception during high-level kibitz: ") + e.what());
       best = Quackle::Move::createPassMove();
+      foundValidMove = false;
     } catch (...) {
-      debugLog("Unknown exception during generator kibitz");
+      debugLog("Unknown exception during high-level kibitz");
       best = Quackle::Move::createPassMove();
+      foundValidMove = false;
+    }
+
+    // Fallback to Generator if HL produced pass or no move
+    if (!foundValidMove) {
+      try {
+        fprintf(stderr, "[DEBUG] Fallback: Using GENERATOR API via setPosition()\n");
+        Quackle::Generator gen;
+        gen.setPosition(pos);
+        gen.allCrosses();
+        // Prefer generating actual placement moves for service responses.
+        // Disallow exchanges in generator path to avoid non-play results on opening.
+        const int kibitzFlags = Quackle::Generator::CannotExchange;
+        gen.kibitz(kibitzLen, kibitzFlags);
+        debugLog(std::string("Generator kibitz done. Moves found: ") + std::to_string(gen.kibitzList().size()));
+        const Quackle::MoveList &moves = gen.kibitzList();
+        fprintf(stderr, "[DEBUG] GEN kibitz moves count=%d\n", (int)moves.size());
+        if (!moves.empty()) {
+          best = moves.front();
+          foundValidMove = (best.action != Quackle::Move::Pass);
+        } else {
+          debugLog("GEN kibitz returned no moves");
+          best = Quackle::Move::createPassMove();
+        }
+      } catch (const std::exception &e) {
+        debugLog(std::string("Exception during generator kibitz: ") + e.what());
+        best = Quackle::Move::createPassMove();
+        foundValidMove = false;
+      } catch (...) {
+        debugLog("Unknown exception during generator kibitz");
+        best = Quackle::Move::createPassMove();
+        foundValidMove = false;
+      }
+    }
+
+    // Ensure the move has a proper point score before serializing.
+    // Some generator paths do not populate Move::score; compute it via GamePosition.
+    try {
+      if (foundValidMove && best.action == Quackle::Move::Place && best.score == 0) {
+        pos.scoreMove(best);
+      }
+    } catch (...) {
+      // Leave score as-is on any exception
     }
 
     cursorDebugLog("Mossa migliore trovata: score=" + std::to_string(best.score));

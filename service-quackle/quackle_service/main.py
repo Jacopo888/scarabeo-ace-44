@@ -242,11 +242,7 @@ async def lifespan(app: FastAPI):
     if st["errors"]:
         print(f"[startup] Lexicon errors: {st['errors']}")
 
-    strat = _ensure_strategy_files()
-    STARTUP_STATUS["strategy"] = strat
-    print(f"[startup] Strategy ensure: ok={strat['ok']} dest={strat['dest']}")
-    if strat["errors"]:
-        print(f"[startup] Strategy errors: {strat['errors']}")
+
     # 3) Block until completion of download/verification (done above synchronously)
     yield
 
@@ -470,11 +466,26 @@ def _normalize_board_for_bridge(board_input: Any) -> Dict[str, Any]:
     """
     # Extract grid depending on type
     if isinstance(board_input, list):
+        # Legacy form: list[str] (15 strings)
         grid = board_input
     elif isinstance(board_input, dict):
-        if "grid" not in board_input:
+        # Accept either an object with grid, or a 1-based coordinate map (possibly empty {})
+        if "grid" in board_input:
+            grid = board_input.get("grid")
+        elif _is_coord_map(board_input):
+            # Build a 15x15 grid from provided coordinates
+            rows = 15
+            cols = 15
+            squares = _squares_from_coord_map(board_input, rows, cols)
+            grid = [
+                ''.join(
+                    '.' if (v is None or v == '' or v == '.') else ('?' if v in ('?', '*') else str(v).upper()[:1])
+                    for v in row
+                )
+                for row in squares
+            ]
+        else:
             raise HTTPException(status_code=400, detail="board.grid missing")
-        grid = board_input.get("grid")
     else:
         raise HTTPException(status_code=400, detail="board invalid type")
 
@@ -869,6 +880,10 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
             "ruleset": "en",
             "board": board_for_bridge,
         }
+        # Optional difficulty passthrough (easy|medium|hard)
+        diff = (payload.get("difficulty") or "").strip().lower()
+        if diff in {"easy", "medium", "hard"}:
+            bridge_payload["difficulty"] = diff
         bridge_payload = _sanitize_none(bridge_payload)
         wrapper_payload = {"op": "compute", **bridge_payload}
         stdin_str = json.dumps(wrapper_payload, separators=(",", ":"))
@@ -1045,11 +1060,14 @@ async def best_move(req: Request):
             print(f"[lexicon] missing files: dawg={os.path.exists(dawg)} gaddag={os.path.exists(gaddag)} dir={LEXDIR}")
             raise HTTPException(status_code=500, detail="lexicon_not_ready")
 
-        # Build bridge payload from normalized inputs
+        # Build bridge payload from normalized inputs (propaga difficulty se presente)
         payload = {
             "board": board_out,
             "rack": rack_norm,
         }
+        diff_raw = (body.get("difficulty") if isinstance(body, dict) else None) or None
+        if isinstance(diff_raw, str) and diff_raw.strip().lower() in {"easy", "medium", "hard"}:
+            payload["difficulty"] = diff_raw.strip().lower()
 
         # Call bridge
         result = _call_bridge(payload)
