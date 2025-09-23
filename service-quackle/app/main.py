@@ -181,7 +181,7 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
             input=payload_json,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=8,
+            timeout=30,
         )
         
         # Always log stderr for debugging
@@ -206,6 +206,16 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
         out = proc.stdout.decode("utf-8").strip()
         print(f"[DEBUG] Bridge stdout: {out}")
         return json.loads(out) if out else {}
+    except subprocess.TimeoutExpired as e:
+        print(f"[ERROR] Bridge timed out: {repr(e)}")
+        return {
+            "tiles": [],
+            "score": 0,
+            "words": [],
+            "move_type": "pass",
+            "engine_fallback": True,
+            "error": f"bridge_timeout: {e}"
+        }
     except Exception as e:
         print(f"[ERROR] Bridge error: {repr(e)}")
         return {
@@ -229,6 +239,7 @@ async def best_move(req_model: BestMoveRequest):
             print(f"[lexicon] missing files: dawg={os.path.exists(dawg)} gaddag={os.path.exists(gaddag)} dir={LEX_DIR}")
             raise HTTPException(status_code=503, detail="lexicon_not_ready")
 
+        print(f"[CURSOR_DEBUG] board object: {req_model.board}")
         body = {
             "board": req_model.board,
             "rack": req_model.rack,

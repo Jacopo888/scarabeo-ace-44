@@ -1,0 +1,20 @@
+{
+  "board": {
+    "8,8": {"letter": "A", "points": 1, "isBlank": false},
+    "8,9": {"letter": "R", "points": 1, "isBlank": false},
+    "8,10": {"letter": "T", "points": 1, "isBlank": false},
+    "8,11": {"letter": "I", "points": 1, "isBlank": false},
+    "8,12": {"letter": "S", "points": 1, "isBlank": false},
+    "8,13": {"letter": "T", "points": 1, "isBlank": false}
+  },
+  "rack": [
+    {"letter": "E", "points": 1, "isBlank": false},
+    {"letter": "X", "points": 8, "isBlank": false},
+    {"letter": "I", "points": 1, "isBlank": false},
+    {"letter": "S", "points": 1, "isBlank": false},
+    {"letter": "T", "points": 1, "isBlank": false},
+    {"letter": "S", "points": 1, "isBlank": false},
+    {"letter": "?", "points": 0, "isBlank": true}
+  ],
+  "difficulty": "hard"
+}
