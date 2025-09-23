@@ -49,86 +49,53 @@ def test_bridge(payload, test_name):
 
 def main():
     print("Testing Quackle Bridge with various payloads...")
-    
-    # Test 1: Empty board, simple rack
-    test_bridge({
+
+    # Case A: board {}, rack AEINRS? -> expect not pass
+    resA = test_bridge({
         "board": {},
         "rack": [
             {"letter": "A", "points": 1, "isBlank": False},
-            {"letter": "B", "points": 3, "isBlank": False},
-            {"letter": "C", "points": 3, "isBlank": False},
-            {"letter": "D", "points": 2, "isBlank": False},
             {"letter": "E", "points": 1, "isBlank": False},
-            {"letter": "F", "points": 4, "isBlank": False},
-            {"letter": "G", "points": 2, "isBlank": False}
+            {"letter": "I", "points": 1, "isBlank": False},
+            {"letter": "N", "points": 1, "isBlank": False},
+            {"letter": "R", "points": 1, "isBlank": False},
+            {"letter": "S", "points": 1, "isBlank": False},
+            {"letter": "?", "points": 0, "isBlank": True}
         ],
         "difficulty": "medium"
-    }, "Test 1: Empty board, simple rack")
-    
-    # Test 2: Empty board, rack with blank
-    test_bridge({
-        "board": {},
+    }, "Case A: Empty board + AEINRS?")
+    if resA:
+        print("ASSERT A move_type != pass:", resA.get('move_type') != 'pass')
+
+    # Case B: malformed coordinate (0-based key used) -> expect error
+    resB = test_bridge({
+        "board": {
+            "7,7": {"letter": "A", "points": 1, "isBlank": False}
+        },
         "rack": [
-            {"letter": "?", "points": 0, "isBlank": True},
             {"letter": "A", "points": 1, "isBlank": False},
-            {"letter": "B", "points": 3, "isBlank": False},
-            {"letter": "C", "points": 3, "isBlank": False},
-            {"letter": "D", "points": 2, "isBlank": False},
-            {"letter": "E", "points": 1, "isBlank": False},
-            {"letter": "F", "points": 4, "isBlank": False}
+            {"letter": "I", "points": 1, "isBlank": False},
+            {"letter": "?", "points": 0, "isBlank": True}
         ],
         "difficulty": "medium"
-    }, "Test 2: Empty board, rack with blank")
-    
-    # Test 3: Board with one tile, simple rack
-    test_bridge({
+    }, "Case B: 0-based key '7,7' (should error)")
+    if resB:
+        print("ASSERT B error present:", bool(resB.get('error')))
+
+    # Case C: valid 1-based key '8,8' + small rack -> expect not pass
+    resC = test_bridge({
         "board": {
             "8,8": {"letter": "A", "points": 1, "isBlank": False}
         },
         "rack": [
-            {"letter": "B", "points": 3, "isBlank": False},
-            {"letter": "C", "points": 3, "isBlank": False},
-            {"letter": "D", "points": 2, "isBlank": False},
-            {"letter": "E", "points": 1, "isBlank": False},
-            {"letter": "F", "points": 4, "isBlank": False},
-            {"letter": "G", "points": 2, "isBlank": False},
-            {"letter": "H", "points": 4, "isBlank": False}
+            {"letter": "A", "points": 1, "isBlank": False},
+            {"letter": "I", "points": 1, "isBlank": False},
+            {"letter": "?", "points": 0, "isBlank": True}
         ],
         "difficulty": "medium"
-    }, "Test 3: Board with one tile")
-    
-    # Test 4: Minimal rack
-    test_bridge({
-        "board": {},
-        "rack": [
-            {"letter": "A", "points": 1, "isBlank": False},
-            {"letter": "B", "points": 3, "isBlank": False}
-        ],
-        "difficulty": "medium"
-    }, "Test 4: Minimal rack (2 tiles)")
-
-    # Test 5: Hard difficulty test
-    test_bridge({
-        "board": {},
-        "rack": [
-            {"letter": "C", "points": 3, "isBlank": False},
-            {"letter": "A", "points": 1, "isBlank": False},
-            {"letter": "T", "points": 1, "isBlank": False}
-        ],
-        "difficulty": "hard"
-    }, "Test 5: Hard difficulty (800 simulations)")
-
-    # Test 6: Easy difficulty test
-    test_bridge({
-        "board": {},
-        "rack": [
-            {"letter": "C", "points": 3, "isBlank": False},
-            {"letter": "A", "points": 1, "isBlank": False},
-            {"letter": "T", "points": 1, "isBlank": False}
-        ],
-        "difficulty": "easy"
-    }, "Test 6: Easy difficulty (0 simulations)")
+    }, "Case C: board '8,8' + AI?")
+    if resC:
+        print("ASSERT C move_type != pass:", resC.get('move_type') != 'pass')
 
 if __name__ == "__main__":
     main()
-

@@ -111,7 +111,7 @@ export const PlayButtons = () => {
               <CardTitle>Play Local</CardTitle>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" onClick={() => { setDifficulty(null); navigate('/game') }}>
+              <Button variant="default" className="w-full" onClick={() => { setDifficulty(null); navigate('/game') }}>
                 Start
               </Button>
             </CardContent>

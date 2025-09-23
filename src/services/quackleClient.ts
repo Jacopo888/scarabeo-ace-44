@@ -1,5 +1,5 @@
 import type { PlacedTile } from '@/types/game';
-import { API_BASE, api } from '@/config';
+import { QUACKLE_SERVICE_URL, quackleApi } from '@/config/quackle';
 
 export interface QuackleMove {
   tiles: PlacedTile[];
@@ -22,6 +22,8 @@ async function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = 10000)
     // Heuristica CORS: TypeError: Failed to fetch/NetworkError
     const msg = String(e?.message || e);
     const maybeCORS = /Failed to fetch|NetworkError|TypeError/i.test(msg);
+    // Log structured error for diagnostics
+    try { console.error({ tag: 'quackle_fetch_error', url, err: e }); } catch {}
     throw new Error(maybeCORS
       ? `[CORS/Network] ${msg} — Verifica CORS_ORIGINS su backend e dominio frontend.`
       : msg);
@@ -30,15 +32,15 @@ async function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = 10000)
 
 export async function quackleHealth(): Promise<{ ok: boolean; status: number; body: string; base: string; error?: string; }> {
   try {
-    console.log('[Quackle Debug] Attempting health check to:', api('/health'));
-    console.log('[Quackle Debug] API_BASE:', API_BASE);
+    console.log('[Quackle Debug] Attempting health check to:', quackleApi('/health'));
+    console.log('[Quackle Debug] API_BASE:', QUACKLE_SERVICE_URL);
     
-    const r = await fetchWithTimeout(api('/health'), { method: 'GET' }, 5000);
+    const r = await fetchWithTimeout(quackleApi('/health'), { method: 'GET' }, 5000);
     const body = await r.text().catch(() => '');
     
     console.log('[Quackle Debug] Health response:', { ok: r.ok, status: r.status, body: body.slice(0, 100) });
     
-    return { ok: r.ok, status: r.status, body, base: API_BASE };
+    return { ok: r.ok, status: r.status, body, base: QUACKLE_SERVICE_URL };
   } catch (error: any) {
     const errorMsg = String(error?.message || error);
     console.error('[Quackle Debug] Health check failed:', errorMsg);
@@ -52,14 +54,14 @@ export async function quackleHealth(): Promise<{ ok: boolean; status: number; bo
       ok: false, 
       status: 0, 
       body: '', 
-      base: API_BASE, 
+      base: QUACKLE_SERVICE_URL, 
       error: isCORSError ? 'CORS_ERROR' : isTimeoutError ? 'TIMEOUT_ERROR' : 'UNKNOWN_ERROR'
     };
   }
 }
 
 export async function quackleBestMove(payload: any): Promise<QuackleMove> {
-  const r = await fetchWithTimeout(api('/best-move'), {
+  const r = await fetchWithTimeout(quackleApi('/best-move'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -67,9 +69,29 @@ export async function quackleBestMove(payload: any): Promise<QuackleMove> {
 
   if (!r.ok) {
     const txt = await r.text().catch(() => '');
+    // Surface server-side validation/network errors to the caller
     throw new Error(`best-move failed: ${r.status} ${txt.slice(0,180)}`);
   }
-  return await r.json();
+  const data = await r.json();
+  if (data && (data.engine_fallback === true) && data.error) {
+    // Do not mask engine/bridge errors as a pass
+    const errMsg = `[bridge] ${data.error}`;
+    console.error('[quackleClient] Engine fallback with error:', data);
+    throw new Error(errMsg);
+  }
+  return data;
 }
 
-export function getQuackleBase() { return API_BASE; }
+export async function quackleCors(): Promise<{ allow_origins: string[]; status: number }> {
+  const r = await fetchWithTimeout(quackleApi('/health/cors'), { method: 'GET' }, 5000);
+  const json = await r.json().catch(() => ({}));
+  return { allow_origins: Array.isArray(json.allow_origins) ? json.allow_origins : [], status: r.status };
+}
+
+export async function quackleLexiconHealth(): Promise<{ ok: boolean; status: number; data: any }> {
+  const r = await fetchWithTimeout(quackleApi('/health/lexicon'), { method: 'GET' }, 5000);
+  const data = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, data };
+}
+
+export function getQuackleBase() { return QUACKLE_SERVICE_URL; }
