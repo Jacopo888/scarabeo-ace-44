@@ -188,7 +188,23 @@ def _ensure_strategy_files() -> Dict[str, Any]:
     """Ensure Quackle strategy tables exist under APPDATA/strategy.
     Copies packaged assets into the runtime directory if they're missing and
     reports which required files are present."""
-    src_base = Path(os.getenv("QUACKLE_STRATEGY_SRC", "/usr/share/quackle/data/strategy")).resolve()
+    # Choose a source directory for strategy files. Prefer explicit env,
+    # otherwise try common fallbacks present in both container and local dev.
+    candidates: List[Path] = []
+    env_src = os.getenv("QUACKLE_STRATEGY_SRC", "").strip()
+    if env_src:
+        candidates.append(Path(env_src).resolve())
+    # Default container path
+    candidates.append(Path("/usr/share/quackle/data/strategy").resolve())
+    # Repo fallback (engine/third_party/quackle/data/strategy)
+    try:
+        repo_root = Path(__file__).resolve().parents[2]  # .../service-quackle
+        repo_root = repo_root.parent  # repo root
+        candidates.append((repo_root / "engine/third_party/quackle/data/strategy").resolve())
+    except Exception:
+        pass
+    # Pick the first existing candidate
+    src_base = next((c for c in candidates if c.exists()), candidates[0])
     dest_base = Path(APPDATA) / "strategy"
     required: Dict[str, List[str]] = {
         "default": ["bogowin"],
@@ -241,6 +257,14 @@ async def lifespan(app: FastAPI):
     print(f"[startup] Lexicon ensure: ok={st['ok']} dawg={st['dawg_path']}({st['dawg_size']}) gaddag={st['gaddag_path']}({st['gaddag_size']})")
     if st["errors"]:
         print(f"[startup] Lexicon errors: {st['errors']}")
+    # 2b) Ensure strategy files are present (copy from packaged assets or local fallbacks)
+    stg = _ensure_strategy_files()
+    STARTUP_STATUS["strategy"] = stg
+    print(f"[startup] Strategy ensure: ok={stg.get('ok')} src={stg.get('src')} dest={stg.get('dest')} errors={stg.get('errors')}")
+    if stg.get("files"):
+        missing_debug = [k for k, v in stg["files"].items() if not v.get("exists")]
+        if missing_debug:
+            print(f"[startup] Strategy missing: {missing_debug}")
 
 
     # 3) Block until completion of download/verification (done above synchronously)
