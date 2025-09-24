@@ -955,14 +955,17 @@ int main(int argc, char** argv){
               baseLetter = alphabetParams->clearBlankness(tileValue);
             }
 
-            std::string letterText = alphabetParams->userVisible(tileValue);
-            if (letterText.empty()) {
-              letterText = tileBlank ? "?" : "";
-            }
+          // Use the base letter's visible character for blanks too, but keep isBlank=true and points=0
+          // Quackle's userVisible(tileValue) may return "." for blanks; we want the represented letter instead.
+          std::string letterText = alphabetParams->userVisible(tileBlank ? baseLetter : tileValue);
+          if (letterText.empty()) {
+            // As a last resort, represent blanks as '?' (client will ignore if needed)
+            letterText = tileBlank ? "?" : "";
+          }
 
-            tileJson["letter"] = letterText;
-            tileJson["isBlank"] = tileBlank;
-            tileJson["points"] = tileBlank ? 0 : alphabetParams->score(baseLetter);
+          tileJson["letter"] = letterText;
+          tileJson["isBlank"] = tileBlank;
+          tileJson["points"] = tileBlank ? 0 : alphabetParams->score(baseLetter);
 
             bool foundSpot = false;
             for (int guard = 0; guard < 30; ++guard) {

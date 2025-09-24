@@ -13,9 +13,17 @@ export function buildQuackleBoard(gameState: GameState): Record<string, { letter
     const c1 = tile.col + 1
     if (r1 >= 1 && r1 <= 15 && c1 >= 1 && c1 <= 15) {
       const isBlank = !!tile.isBlank
-      // If blank with assigned letter, send that letter uppercase, isBlank true
-      const letter = (tile.letter || (isBlank ? '?' : '')).toUpperCase()
-      out[`${r1},${c1}`] = { letter, isBlank }
+      const raw = (tile.letter ?? '').toString().trim().toUpperCase()
+      // Never send '?' or '.' as a board letter: the engine requires the represented letter for blanks
+      if (isBlank && (!raw || raw === '?' || raw === '.')) {
+        // Skip invalid blank (shouldn't happen for stabilized tiles). Better to omit than to break the request
+        return
+      }
+      if (!raw || raw === '.') {
+        // Skip any malformed content
+        return
+      }
+      out[`${r1},${c1}`] = { letter: raw, isBlank }
     }
   })
   return out
