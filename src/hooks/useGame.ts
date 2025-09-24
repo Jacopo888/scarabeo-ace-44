@@ -12,6 +12,26 @@ import type { GameMove } from './useGameAnalysis'
 import { Difficulty } from '@/components/DifficultyModal'
 import { toastOnce } from '@/lib/toastOnce'
 
+const sanitizeQuackleTile = (tile: PlacedTile): PlacedTile | null => {
+  if (!tile) return null
+
+  const rawLetter = (tile.letter ?? '').toString().trim()
+
+  // Skip placeholder dots sent by Quackle
+  if (!rawLetter || rawLetter === '.') {
+    return null
+  }
+
+  const upperLetter = rawLetter.toUpperCase()
+  const isBlank = tile.isBlank || upperLetter === '?'
+
+  return {
+    ...tile,
+    letter: upperLetter,
+    isBlank
+  }
+}
+
 const shuffleArray = <T,>(array: T[]): T[] => {
   const shuffled = [...array]
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -676,12 +696,22 @@ export const useGame = () => {
             console.log('[useGame] Bot exchanging tiles')
             exchangeTiles()
           } else {
-            console.log('[useGame] Bot placing tiles:', move.tiles)
+            const sanitizedTiles = move.tiles
+              .map(sanitizeQuackleTile)
+              .filter((tile): tile is PlacedTile => tile !== null)
+
+            if (sanitizedTiles.length === 0) {
+              console.log('[useGame] Bot move contained only invalid tiles - treating as pass')
+              passTurn()
+              return
+            }
+
+            console.log('[useGame] Bot placing tiles:', sanitizedTiles)
             // Apply bot move to game state
             setGameState(prev => {
               const newBoard = new Map(prev.board)
-              
-              move.tiles.forEach(tile => {
+
+              sanitizedTiles.forEach(tile => {
                 const key = `${tile.row},${tile.col}`
                 newBoard.set(key, {
                   letter: tile.letter,
@@ -691,14 +721,14 @@ export const useGame = () => {
                   isBlank: tile.isBlank || false
                 })
               })
-              
+
               // Update bot's rack and score
               const currentPlayer = prev.players[prev.currentPlayerIndex]
               const newRack = [...currentPlayer.rack]
-              move.tiles.forEach(usedTile => {
+              sanitizedTiles.forEach(usedTile => {
                 const tileIndex = newRack.findIndex(t => {
                   if (usedTile.isBlank && t.isBlank) return true
-                  return t.letter === usedTile.letter && t.points === usedTile.points
+                  return (t.letter || '').toUpperCase() === usedTile.letter && t.points === usedTile.points
                 })
                 if (tileIndex !== -1) {
                   newRack.splice(tileIndex, 1)
@@ -733,7 +763,7 @@ export const useGame = () => {
                 tileBag: remaining,
                 currentPlayerIndex: (prev.currentPlayerIndex + 1) % prev.players.length,
                 passCounts: newPassCounts,
-                lastMove: move.tiles
+                lastMove: sanitizedTiles
               }
             })
           }
