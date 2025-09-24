@@ -305,6 +305,118 @@ def _letter_points_en(letter: str) -> int:
     if L in {"?","*"}: return 0
     return 1
 
+def _reconstruct_tiles_from_raw_move(raw_move: Dict[str, Any], words: Optional[Any] = None) -> List[Dict[str, Any]]:
+    """Rebuild placed tiles ensuring letters align with board coordinates and blanks."""
+    try:
+        positions_raw = raw_move.get("positions") or []
+    except AttributeError:
+        return []
+
+    pos_list: List[tuple[int, int]] = []
+    for pos in positions_raw:
+        if not isinstance(pos, (list, tuple)) or len(pos) < 2:
+            continue
+        try:
+            r = int(pos[0])
+            c = int(pos[1])
+        except (TypeError, ValueError):
+            continue
+        pos_list.append((r, c))
+
+    if not pos_list:
+        return []
+
+    try:
+        start_row = int(raw_move.get("row"))
+        start_col = int(raw_move.get("col"))
+    except (TypeError, ValueError):
+        return []
+
+    direction = str(raw_move.get("dir") or "H").upper()
+    raw_word = raw_move.get("word")
+    if isinstance(raw_word, str):
+        raw_word_str = raw_word
+    elif raw_word is None:
+        raw_word_str = ""
+    else:
+        raw_word_str = str(raw_word)
+
+    first_word = ""
+    if isinstance(words, (list, tuple)) and words:
+        candidate = words[0]
+        if isinstance(candidate, str):
+            first_word = candidate
+        elif candidate is not None:
+            first_word = str(candidate)
+
+    raw_chars = list(raw_word_str)
+    word_chars = list(first_word)
+    same_length = len(word_chars) == len(raw_chars)
+    non_dot_length = len(word_chars) == sum(1 for ch in raw_chars if ch != '.') if word_chars else False
+
+    tiles: List[Dict[str, Any]] = []
+    pos_idx = 0
+    word_non_dot_idx = 0
+
+    for i, raw_char in enumerate(raw_chars):
+        if pos_idx >= len(pos_list):
+            break
+
+        row = start_row + (0 if direction == 'H' else i)
+        col = start_col + (i if direction == 'H' else 0)
+        target = pos_list[pos_idx]
+
+        if target != (row, col):
+            if non_dot_length and raw_char != '.':
+                word_non_dot_idx = min(word_non_dot_idx + 1, len(word_chars))
+            continue
+
+        if same_length and i < len(word_chars):
+            full_char = word_chars[i]
+        elif non_dot_length and raw_char != '.' and word_non_dot_idx < len(word_chars):
+            full_char = word_chars[word_non_dot_idx]
+        else:
+            full_char = raw_char
+
+        letter_char = full_char or raw_char
+
+        is_blank = False
+        if raw_char:
+            if raw_char in {'.'}:
+                # Existing board tile placeholder; use word character
+                letter_char = full_char
+            elif raw_char.islower():
+                is_blank = True
+                letter_char = full_char or raw_char.upper()
+            elif raw_char in {'?', '*'}:
+                is_blank = True
+                letter_char = full_char or raw_char.upper()
+            else:
+                letter_char = full_char or raw_char
+        else:
+            letter_char = full_char or letter_char
+
+        if not letter_char:
+            pos_idx += 1
+            if non_dot_length and raw_char != '.':
+                word_non_dot_idx = min(word_non_dot_idx + 1, len(word_chars))
+            continue
+
+        letter_up = letter_char.upper()
+        tiles.append({
+            "row": target[0],
+            "col": target[1],
+            "letter": letter_up,
+            "points": 0 if is_blank else _letter_points_en(letter_up),
+            "isBlank": is_blank
+        })
+
+        pos_idx += 1
+        if non_dot_length and raw_char != '.':
+            word_non_dot_idx = min(word_non_dot_idx + 1, len(word_chars))
+
+    return tiles
+
 def normalize_rack(raw: Any) -> str:
     """Accepts a string or list of characters/tiles and normalizes to 7-char uppercase string.
     Allowed characters: A-Z and blanks '?','*'. Spaces are ignored.
@@ -485,36 +597,29 @@ def _normalize_board_for_bridge(board_input: Any) -> Dict[str, Any]:
       - legacy grid: List[str] (15x15)
       - object: {"rows":15, "cols":15, "grid":[...15 strings...]}
         (may include extra metadata like center_x/center_y which are ignored)
-    Returns a sanitized object {"rows":15,"cols":15,"grid":[...]}.
+    Returns a sanitized object {"rows":15,"cols":15,"grid":[...]}. 
     Raises HTTPException(400) for invalid shapes.
     """
-    # Extract grid depending on type
-    if isinstance(board_input, list):
-        # Legacy form: list[str] (15 strings)
-        grid = board_input
-    elif isinstance(board_input, dict):
-        # Accept either an object with grid, or a 1-based coordinate map (possibly empty {})
-        if "grid" in board_input:
-            grid = board_input.get("grid")
-        elif _is_coord_map(board_input):
-            # Build a 15x15 grid from provided coordinates
-            rows = 15
-            cols = 15
-            squares = _squares_from_coord_map(board_input, rows, cols)
-            grid = [
-                ''.join(
-                    '.' if (v is None or v == '' or v == '.') else ('?' if v in ('?', '*') else str(v).upper()[:1])
-                    for v in row
-                )
-                for row in squares
-            ]
-        else:
-            raise HTTPException(status_code=400, detail="board.grid missing")
-    else:
-        raise HTTPException(status_code=400, detail="board invalid type")
+    try:
+        rows, cols, _, _, squares, _ = normalize_board(board_input)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=400, detail="malformed_board")
 
-    # Validate grid shape
-    if not (isinstance(grid, list) and len(grid) == 15 and all(isinstance(r, str) and len(r) == 15 for r in grid)):
+    grid = [
+        ''.join(
+            '.' if (cell is None or cell == '' or cell == '.')
+            else ('?' if str(cell).upper()[:1] in {'?', '*'} else str(cell).upper()[:1])
+            for cell in row
+        )
+        for row in squares
+    ]
+
+    if rows != 15 or cols != 15:
+        raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
+
+    if any(len(r) != 15 for r in grid) or len(grid) != 15:
         raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
 
     return {"rows": 15, "cols": 15, "grid": grid}
@@ -1121,8 +1226,15 @@ async def best_move(req: Request):
             return JSONResponse(body or {"engine_fallback": True, "error": err}, status_code=status)
 
         # Success path
+        tiles_out = result.get("tiles", [])
+        raw_move = result.get("raw_move") if isinstance(result, dict) else None
+        if isinstance(raw_move, dict):
+            rebuilt = _reconstruct_tiles_from_raw_move(raw_move, result.get("words"))
+            if rebuilt:
+                tiles_out = rebuilt
+
         return {
-            "tiles": result.get("tiles", []),
+            "tiles": tiles_out,
             "score": result.get("score", 0),
             "words": result.get("words", []),
             "move_type": result.get("move_type", "play" if result.get("tiles") else "pass"),
