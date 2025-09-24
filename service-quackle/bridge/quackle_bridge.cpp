@@ -934,19 +934,26 @@ int main(int argc, char** argv){
           
           debugLog("Move details: startRow=" + std::to_string(startRow) + ", startCol=" + std::to_string(startCol) + ", isHorizontal=" + std::string(isHorizontal ? "true" : "false"));
           
-          // Create tile representations with proper coordinates
-          std::set<std::pair<int,int>> occupiedSquares = originalBoardSquares;
-          int nextRow = startRow;
-          int nextCol = startCol;
-          auto advanceCoordinate = [&](int &row, int &col) {
-            if (isHorizontal) {
-              ++col;
-            } else {
-              ++row;
+          // Precompute coordinates along the word path and skip only
+          // cells that are already occupied on the input board. This
+          // guarantees correct alignment across intersections.
+          std::vector<std::pair<int,int>> placeCoords;
+          placeCoords.reserve(tilesStr.length());
+          {
+            int rr = startRow;
+            int cc = startCol;
+            auto adv = [&](int &r, int &c) { if (isHorizontal) ++c; else ++r; };
+            int guard = 0;
+            while (placeCoords.size() < tilesStr.length() && guard++ < 40) {
+              if (!originalBoardSquares.count({rr, cc})) {
+                placeCoords.emplace_back(rr, cc);
+              }
+              adv(rr, cc);
             }
-          };
+          }
 
-          for (size_t i = 0; i < tilesStr.length(); ++i) {
+          // Create tile representations with the computed coordinates
+          for (size_t i = 0; i < tilesStr.length() && i < placeCoords.size(); ++i) {
             json tileJson;
             Quackle::Letter tileValue = tilesStr[i];
             bool tileBlank = alphabetParams->isBlankLetter(tileValue) || tileValue == QUACKLE_BLANK_MARK;
@@ -967,24 +974,9 @@ int main(int argc, char** argv){
           tileJson["isBlank"] = tileBlank;
           tileJson["points"] = tileBlank ? 0 : alphabetParams->score(baseLetter);
 
-            bool foundSpot = false;
-            for (int guard = 0; guard < 30; ++guard) {
-              if (!occupiedSquares.count({nextRow, nextCol})) {
-                foundSpot = true;
-                break;
-              }
-              advanceCoordinate(nextRow, nextCol);
-              if (nextRow < 0 || nextRow >= 15 || nextCol < 0 || nextCol >= 15) {
-                break;
-              }
-            }
-            if (!foundSpot || nextRow < 0 || nextRow >= 15 || nextCol < 0 || nextCol >= 15) {
-              continue;
-            }
-            tileJson["row"] = nextRow;
-            tileJson["col"] = nextCol;
-            occupiedSquares.insert({nextRow, nextCol});
-            advanceCoordinate(nextRow, nextCol);
+            // Assign the precomputed coordinate (0-based)
+            tileJson["row"] = placeCoords[i].first;
+            tileJson["col"] = placeCoords[i].second;
 
             tiles.push_back(tileJson);
             primaryWord += letterText;
