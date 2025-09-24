@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <csignal>
 #include <sys/stat.h>
+#include <set>
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -276,6 +277,7 @@ int main(int argc, char** argv){
 
     g_phase = "validate_input";
     const json jboard = req.value("board", json::object());
+    std::set<std::pair<int,int>> originalBoardSquares;
     const json jrack  = req.value("rack",  json::array());
     const std::string ruleset = req.value("ruleset", std::string("en"));
     const std::string diff = req.value("difficulty", std::string("medium"));
@@ -311,6 +313,7 @@ int main(int argc, char** argv){
         return 64;
       }
       boardCells++;
+      originalBoardSquares.insert({r, c});
       minRow = std::min(minRow, r);
       maxRow = std::max(maxRow, r);
       minCol = std::min(minCol, c);
@@ -932,6 +935,17 @@ int main(int argc, char** argv){
           debugLog("Move details: startRow=" + std::to_string(startRow) + ", startCol=" + std::to_string(startCol) + ", isHorizontal=" + std::string(isHorizontal ? "true" : "false"));
           
           // Create tile representations with proper coordinates
+          std::set<std::pair<int,int>> occupiedSquares = originalBoardSquares;
+          int nextRow = startRow;
+          int nextCol = startCol;
+          auto advanceCoordinate = [&](int &row, int &col) {
+            if (isHorizontal) {
+              ++col;
+            } else {
+              ++row;
+            }
+          };
+
           for (size_t i = 0; i < tilesStr.length(); ++i) {
             json tileJson;
             Quackle::Letter tileValue = tilesStr[i];
@@ -949,16 +963,26 @@ int main(int argc, char** argv){
             tileJson["letter"] = letterText;
             tileJson["isBlank"] = tileBlank;
             tileJson["points"] = tileBlank ? 0 : alphabetParams->score(baseLetter);
-            
-            // Calculate proper coordinates based on direction
-            if (isHorizontal) {
-              tileJson["row"] = startRow;
-              tileJson["col"] = startCol + static_cast<int>(i);
-            } else {
-              tileJson["row"] = startRow + static_cast<int>(i);
-              tileJson["col"] = startCol;
+
+            bool foundSpot = false;
+            for (int guard = 0; guard < 30; ++guard) {
+              if (!occupiedSquares.count({nextRow, nextCol})) {
+                foundSpot = true;
+                break;
+              }
+              advanceCoordinate(nextRow, nextCol);
+              if (nextRow < 0 || nextRow >= 15 || nextCol < 0 || nextCol >= 15) {
+                break;
+              }
             }
-            
+            if (!foundSpot || nextRow < 0 || nextRow >= 15 || nextCol < 0 || nextCol >= 15) {
+              continue;
+            }
+            tileJson["row"] = nextRow;
+            tileJson["col"] = nextCol;
+            occupiedSquares.insert({nextRow, nextCol});
+            advanceCoordinate(nextRow, nextCol);
+
             tiles.push_back(tileJson);
             primaryWord += letterText;
           }
