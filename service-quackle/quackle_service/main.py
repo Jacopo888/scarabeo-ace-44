@@ -305,6 +305,97 @@ def _letter_points_en(letter: str) -> int:
     if L in {"?","*"}: return 0
     return 1
 
+def _reconstruct_tiles_from_raw_move(raw_move: Dict[str, Any], words: Optional[Any] = None) -> List[Dict[str, Any]]:
+    """Rebuild placed tiles ensuring letters align with board coordinates and blanks."""
+    try:
+        positions_raw = raw_move.get("positions") or []
+    except AttributeError:
+        return []
+
+    pos_list: List[tuple[int, int]] = []
+    for pos in positions_raw:
+        if not isinstance(pos, (list, tuple)) or len(pos) < 2:
+            continue
+        try:
+            r = int(pos[0])
+            c = int(pos[1])
+        except (TypeError, ValueError):
+            continue
+        pos_list.append((r, c))
+
+    if not pos_list:
+        return []
+
+    try:
+        start_row = int(raw_move.get("row"))
+        start_col = int(raw_move.get("col"))
+    except (TypeError, ValueError):
+        return []
+
+    direction = str(raw_move.get("dir") or "H").upper()
+    raw_word = raw_move.get("word")
+    raw_word_str = str(raw_word) if isinstance(raw_word, str) or raw_word is not None else ""
+
+    first_word = ""
+    if isinstance(words, (list, tuple)) and words:
+        candidate = words[0]
+        if isinstance(candidate, str):
+            first_word = candidate
+        elif candidate is not None:
+            first_word = str(candidate)
+
+    full_word_str = first_word or raw_word_str.replace('.', '') or raw_word_str
+
+    tiles: List[Dict[str, Any]] = []
+    pos_idx = 0
+
+    for i, full_char in enumerate(full_word_str):
+        if pos_idx >= len(pos_list):
+            break
+
+        row = start_row + (0 if direction == 'H' else i)
+        col = start_col + (i if direction == 'H' else 0)
+        target = pos_list[pos_idx]
+
+        if target != (row, col):
+            continue
+
+        raw_char = raw_word_str[i] if i < len(raw_word_str) else ""
+        letter_char = full_char or raw_char
+
+        is_blank = False
+        if raw_char:
+            if raw_char in {'.'}:
+                # Existing board tile placeholder; use word character
+                letter_char = full_char
+            elif raw_char.islower():
+                is_blank = True
+                letter_char = full_char or raw_char.upper()
+            elif raw_char in {'?', '*'}:
+                is_blank = True
+                letter_char = full_char or raw_char.upper()
+            else:
+                letter_char = full_char or raw_char
+        else:
+            letter_char = full_char or letter_char
+
+        if not letter_char:
+            pos_idx += 1
+            continue
+
+        letter_up = letter_char.upper()
+        tiles.append({
+            "row": target[0],
+            "col": target[1],
+            "letter": letter_up,
+            "points": 0 if is_blank else _letter_points_en(letter_up),
+            "isBlank": is_blank
+        })
+
+        pos_idx += 1
+
+    return tiles
+
 def normalize_rack(raw: Any) -> str:
     """Accepts a string or list of characters/tiles and normalizes to 7-char uppercase string.
     Allowed characters: A-Z and blanks '?','*'. Spaces are ignored.
@@ -1121,8 +1212,15 @@ async def best_move(req: Request):
             return JSONResponse(body or {"engine_fallback": True, "error": err}, status_code=status)
 
         # Success path
+        tiles_out = result.get("tiles", [])
+        raw_move = result.get("raw_move") if isinstance(result, dict) else None
+        if isinstance(raw_move, dict):
+            rebuilt = _reconstruct_tiles_from_raw_move(raw_move, result.get("words"))
+            if rebuilt:
+                tiles_out = rebuilt
+
         return {
-            "tiles": result.get("tiles", []),
+            "tiles": tiles_out,
             "score": result.get("score", 0),
             "words": result.get("words", []),
             "move_type": result.get("move_type", "play" if result.get("tiles") else "pass"),
