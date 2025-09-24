@@ -16,6 +16,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <algorithm>
+#include <set>
 // #include "debug/memwrap.h"  // Disabled
 
 // Quackle headers (core only, no Qt)
@@ -674,6 +675,7 @@ int main(int argc, char** argv) {
         
         Quackle::Board &board = pos.underlyingBoardReference();
         board.prepareEmptyBoard();
+        std::set<std::pair<int,int>> originalBoardSquares;
 
         // Set rack - SEPARATE blanks from letters to avoid OOB in counts
         Quackle::Rack rack;
@@ -748,6 +750,7 @@ int main(int argc, char** argv) {
                 }
                 
                 char ch = std::toupper(static_cast<unsigned char>(cell[0]));
+                originalBoardSquares.insert({r, c});
                 // CRITICAL FIX: Use alphabet encode to convert ASCII to internal letters
                 std::string singleStr(1, ch);
                 Quackle::LetterString single = alphabet->encode(singleStr);
@@ -979,10 +982,34 @@ int main(int argc, char** argv) {
                 }
 
                 json pos_arr = json::array();
+                std::set<std::pair<int,int>> occupiedSquares = originalBoardSquares;
+                int nextRow = mv.startrow;
+                int nextCol = mv.startcol;
+                auto advanceCoordinate = [&](int &row, int &col) {
+                    if (mv.horizontal) {
+                        ++col;
+                    } else {
+                        ++row;
+                    }
+                };
                 for (size_t i = 0; i < tls.length(); ++i) {
-                    int rr = mv.startrow + (mv.horizontal ? 0 : static_cast<int>(i));
-                    int cc = mv.startcol + (mv.horizontal ? static_cast<int>(i) : 0);
-                    pos_arr.push_back(json::array({rr, cc}));
+                    bool foundSpot = false;
+                    for (int guard = 0; guard < 30; ++guard) {
+                        if (!occupiedSquares.count({nextRow, nextCol})) {
+                            foundSpot = true;
+                            break;
+                        }
+                        advanceCoordinate(nextRow, nextCol);
+                        if (nextRow < 0 || nextRow >= 15 || nextCol < 0 || nextCol >= 15) {
+                            break;
+                        }
+                    }
+                    if (!foundSpot || nextRow < 0 || nextRow >= 15 || nextCol < 0 || nextCol >= 15) {
+                        continue;
+                    }
+                    pos_arr.push_back(json::array({nextRow, nextCol}));
+                    occupiedSquares.insert({nextRow, nextCol});
+                    advanceCoordinate(nextRow, nextCol);
                 }
 
                 json jmv = {
