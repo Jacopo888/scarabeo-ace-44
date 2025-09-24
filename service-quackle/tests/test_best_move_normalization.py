@@ -1,5 +1,6 @@
 import re
 import json
+from typing import Any
 from fastapi.testclient import TestClient
 
 from quackle_service.main import app
@@ -130,3 +131,75 @@ def test_F_errors():
     })
     assert r3.status_code == 400
     assert r3.json().get("error") == "invalid_board_coordinate"
+
+
+def test_G_crossword_letters_from_raw_move(monkeypatch):
+    client = make_client()
+
+    def fake_bridge(_: Any):
+        return {
+            "tiles": [],
+            "score": 24,
+            "words": ["JOY"],
+            "move_type": "play",
+            "engine_fallback": False,
+            "raw_move": {
+                "word": "J.Y",
+                "row": 7,
+                "col": 7,
+                "dir": "V",
+                "positions": [[7, 7], [9, 7]]
+            }
+        }
+
+    import quackle_service.main as m
+    monkeypatch.setattr(m, "_call_bridge", fake_bridge)
+    monkeypatch.setattr(m, "ensure_lexicon_ready", lambda: (True, "", ""))
+
+    body = {
+        "rack": "AEIRSTZ",
+        "board": {"rows": 15, "cols": 15, "grid": ["."*15 for _ in range(15)]}
+    }
+
+    r = client.post("/best-move", json=body)
+    assert r.status_code == 200, r.text
+    tiles = r.json().get("tiles", [])
+    assert [t.get("letter") for t in tiles] == ["J", "Y"]
+
+
+def test_H_blank_tiles_preserve_letter(monkeypatch):
+    client = make_client()
+
+    def fake_bridge_blank(_: Any):
+        return {
+            "tiles": [],
+            "score": 16,
+            "words": ["AX"],
+            "move_type": "play",
+            "engine_fallback": False,
+            "raw_move": {
+                "word": "aX",
+                "row": 7,
+                "col": 7,
+                "dir": "H",
+                "positions": [[7, 7], [7, 8]]
+            }
+        }
+
+    import quackle_service.main as m
+    monkeypatch.setattr(m, "_call_bridge", fake_bridge_blank)
+    monkeypatch.setattr(m, "ensure_lexicon_ready", lambda: (True, "", ""))
+
+    body = {
+        "rack": "AEIRSTZ",
+        "board": {"rows": 15, "cols": 15, "grid": ["."*15 for _ in range(15)]}
+    }
+
+    r = client.post("/best-move", json=body)
+    assert r.status_code == 200, r.text
+    tiles = r.json().get("tiles", [])
+    assert len(tiles) == 2
+    assert tiles[0]["letter"] == "A"
+    assert tiles[0]["isBlank"] is True
+    assert tiles[1]["letter"] == "X"
+    assert tiles[1]["isBlank"] is False

@@ -38,6 +38,7 @@ export const useGame = () => {
   const [isSurrendered, setIsSurrendered] = useState(false)
   const [moveHistory, setMoveHistory] = useState<GameMove[]>([])
   const gameIdRef = useRef<string>(crypto.randomUUID())
+  const botMoveInFlightRef = useRef(false)
   
   // Initialize game state with proper bot mode detection
   const initializeGameState = useCallback((): GameState => {
@@ -640,12 +641,17 @@ export const useGame = () => {
       activeDifficulty: activeDifficulty
     })
 
-    if (gameState.gameStatus === 'playing' && 
-        currentPlayer?.isBot && 
-        !isBotTurn && 
+    if (gameState.gameStatus === 'playing' &&
+        currentPlayer?.isBot &&
+        !isBotTurn &&
         activeDifficulty) {
-      
+
+      if (botMoveInFlightRef.current) {
+        return
+      }
+
       console.log('[useGame] Triggering bot move')
+      botMoveInFlightRef.current = true
       setIsBotTurn(true)
       
       // Make bot move directly here to avoid circular dependencies
@@ -737,10 +743,11 @@ export const useGame = () => {
           toastOnce(toast, 'quackle-error', msg, { title: 'Quackle error', variant: 'destructive', cooldownMs: 5000 })
           // Do not call passTurn; surface error and keep turn
         } finally {
+          botMoveInFlightRef.current = false
           setIsBotTurn(false)
         }
       }
-      
+
       makeBotMove()
     }
   }, [gameState.currentPlayerIndex, gameState.gameStatus, isBotTurn, difficulty, urlDifficulty, quackleMakeMove, passTurn, exchangeTiles, toast])
