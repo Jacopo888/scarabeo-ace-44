@@ -17,21 +17,28 @@ import { toastOnce } from '@/lib/toastOnce'
 
     const rawLetter = (tile.letter ?? '').toString().trim()
 
-  // Skip placeholder markers sent by old backends
-  if (!rawLetter || rawLetter === '.' || rawLetter === '?') {
-    return null
-  }
+    // Skip placeholder dots sent by Quackle
+    if (!rawLetter || rawLetter === '.') {
+      return null
+    }
 
-  const upperLetter = rawLetter.toUpperCase()
-  const isBlank = tile.isBlank || upperLetter === '?'
+    const upperLetter = rawLetter.toUpperCase()
+    const isBlank = tile.isBlank || upperLetter === '?'
+    // Quackle restituisce coordinate 1-based: riconverti a 0-based per la nostra board.
+    const rVal = typeof tile.row === 'number' ? tile.row : Number((tile as any).row || 0)
+    const cVal = typeof tile.col === 'number' ? tile.col : Number((tile as any).col || 0)
+    const row = Math.max(rVal - 1, 0)
+    const col = Math.max(cVal - 1, 0)
 
-  return {
-    ...tile,
-    letter: upperLetter,
-    isBlank,
-    points: isBlank ? 0 : (Number(tile.points) || 0)
+    return {
+      ...tile,
+      letter: upperLetter,
+      isBlank,
+      points: isBlank ? 0 : (Number(tile.points) || 0),
+      row,
+      col
+    }
   }
-}
 
 const shuffleArray = <T,>(array: T[]): T[] => {
   const shuffled = [...array]
@@ -487,7 +494,7 @@ export const useGame = () => {
   // Quackle move logic
   // Single, guarded entrypoint to start the bot move. This is also used by the effect.
   const makeQuackleMove = useCallback(async () => {
-    const activeDifficulty = difficulty || urlDifficulty
+    const activeDifficulty = difficulty
     if (!activeDifficulty || !quackleMakeMove) return
 
     // Prevent double starts
@@ -515,6 +522,21 @@ export const useGame = () => {
       const sanitizedTiles = move.tiles
         .map(sanitizeQuackleTile)
         .filter((tile): tile is PlacedTile => tile !== null)
+
+      // Diagnostics for continuity and bounds
+      if (sanitizedTiles.length > 0) {
+        const rows = sanitizedTiles.map(t => t.row)
+        const cols = sanitizedTiles.map(t => t.col)
+        const isH = sanitizedTiles.every(t => t.row === sanitizedTiles[0].row)
+        const ordered = [...sanitizedTiles].sort((a,b)=> isH ? a.col - b.col : a.row - b.row)
+        const contiguous = ordered.every((t,i,arr) => i===0 || (isH ? t.col === arr[i-1].col + 1 : t.row === arr[i-1].row + 1))
+        // eslint-disable-next-line no-console
+        console.log('[useGame] sanitize summary:', { count: sanitizedTiles.length, minRow: Math.min(...rows), maxRow: Math.max(...rows), minCol: Math.min(...cols), maxCol: Math.max(...cols), isH, contiguous })
+        if (!contiguous) {
+          // eslint-disable-next-line no-console
+          console.warn('[useGame] Non-contiguous bot tiles after sanitize; check indexing or anchor handling.', ordered)
+        }
+      }
 
       if (sanitizedTiles.length === 0) {
         passTurn()
@@ -600,12 +622,12 @@ export const useGame = () => {
       botMoveInFlightRef.current = false
       setIsBotTurn(false)
     }
-  }, [difficulty, urlDifficulty, quackleMakeMove, gameState, isBotTurn, passTurn, toast])
+  }, [difficulty, quackleMakeMove, gameState, isBotTurn, passTurn, toast])
 
   // Effect to handle Quackle turns - simplified with no circular dependencies
   useEffect(() => {
     const currentPlayer = gameState.players[gameState.currentPlayerIndex]
-    const activeDifficulty = difficulty || urlDifficulty
+    const activeDifficulty = difficulty
 
     console.log('[useGame] Bot turn effect:', {
       currentPlayerIndex: gameState.currentPlayerIndex,
@@ -619,21 +641,23 @@ export const useGame = () => {
       // Delegate to the unified function (includes its own guard)
       makeQuackleMove()
     }
-  }, [gameState.currentPlayerIndex, gameState.gameStatus, isBotTurn, difficulty, urlDifficulty, makeQuackleMove, passTurn])
+  }, [gameState.currentPlayerIndex, gameState.gameStatus, isBotTurn, difficulty, makeQuackleMove, passTurn])
 
-  // Effect to sync URL difficulty with context
+  // Apply URL difficulty once, then rely only on `difficulty` from context
+  const urlAppliedRef = useRef(false)
   useEffect(() => {
-    if (urlDifficulty && urlDifficulty !== difficulty) {
-      console.log('[useGame] Setting difficulty from URL:', urlDifficulty)
+    if (!urlAppliedRef.current && urlDifficulty && urlDifficulty !== difficulty) {
+      console.log('[useGame] Setting difficulty from URL (once):', urlDifficulty)
       setDifficulty(urlDifficulty)
+      urlAppliedRef.current = true
     }
   }, [urlDifficulty, difficulty, setDifficulty])
 
-  // Effect to initialize game when difficulty is available
+  // Effect to initialize game when difficulty is available (idempotent)
   useEffect(() => {
-    const activeDifficulty = difficulty || urlDifficulty
+    const activeDifficulty = difficulty
     console.log('[useGame] Active difficulty:', activeDifficulty)
-    if (activeDifficulty) {
+    if (activeDifficulty && gameState.players.length === 0) {
       console.log('[useGame] Initializing game with difficulty:', activeDifficulty)
       
       // Initialize game state directly here to avoid circular dependency
@@ -677,7 +701,7 @@ export const useGame = () => {
       setMoveHistory([])
       gameIdRef.current = crypto.randomUUID()
     }
-  }, [difficulty, urlDifficulty])
+  }, [difficulty, gameState.players.length])
 
   return {
     gameState,
