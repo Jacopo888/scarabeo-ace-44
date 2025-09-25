@@ -24,9 +24,16 @@ import { toastOnce } from '@/lib/toastOnce'
 
     const upperLetter = rawLetter.toUpperCase()
     const isBlank = tile.isBlank || upperLetter === '?'
-    // Service now returns 0-based coordinates: do not offset
-    const row = Number((tile as any).row ?? 0)
-    const col = Number((tile as any).col ?? 0)
+    // Service returns 0-based coordinates: ensure finite integers within [0,14]
+    const rowRaw = (tile as any).row
+    const colRaw = (tile as any).col
+    const rowNum = Number(rowRaw)
+    const colNum = Number(colRaw)
+    if (!Number.isFinite(rowNum) || !Number.isFinite(colNum)) return null
+    if (!Number.isInteger(rowNum) || !Number.isInteger(colNum)) return null
+    if (rowNum < 0 || rowNum > 14 || colNum < 0 || colNum > 14) return null
+    const row = rowNum
+    const col = colNum
 
     return {
       ...tile,

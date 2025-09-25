@@ -9,22 +9,24 @@ export function buildQuackleBoard(gameState: GameState): Record<string, { letter
   const out: Record<string, { letter: string; isBlank: boolean }> = {}
   // gameState.board is a Map of stabilized tiles only; pending tiles live elsewhere
   gameState.board.forEach((tile: PlacedTile) => {
+    // Only process finite integer coordinates
+    if (!Number.isFinite(tile.row) || !Number.isFinite(tile.col)) return
+    if (!Number.isInteger(tile.row) || !Number.isInteger(tile.col)) return
+    // Convert to 1-based and enforce bounds [1,15]
     const r1 = tile.row + 1
     const c1 = tile.col + 1
-    if (r1 >= 1 && r1 <= 15 && c1 >= 1 && c1 <= 15) {
-      const isBlank = !!tile.isBlank
-      const raw = (tile.letter ?? '').toString().trim().toUpperCase()
-      // Never send '?' or '.' as a board letter: the engine requires the represented letter for blanks
-      if (isBlank && (!raw || raw === '?' || raw === '.')) {
-        // Skip invalid blank (shouldn't happen for stabilized tiles). Better to omit than to break the request
-        return
-      }
-      if (!raw || raw === '.') {
-        // Skip any malformed content
-        return
-      }
-      out[`${r1},${c1}`] = { letter: raw, isBlank }
-    }
+    if (r1 < 1 || r1 > 15 || c1 < 1 || c1 > 15) return
+
+    const isBlank = !!tile.isBlank
+    const raw = (tile.letter ?? '').toString().trim().toUpperCase()
+    // Never send '?' or '.' as a board letter: the engine requires the represented letter for blanks
+    if (isBlank && (!raw || raw === '?' || raw === '.')) return
+    if (!raw || raw === '.') return
+
+    const key = `${r1},${c1}`
+    // Optional defensive pattern check for 1..15 keys
+    if (!/^(?:[1-9]|1[0-5]),(?:[1-9]|1[0-5])$/.test(key)) return
+    out[key] = { letter: raw, isBlank }
   })
   return out
 }
