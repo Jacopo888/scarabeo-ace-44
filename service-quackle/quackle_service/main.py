@@ -39,6 +39,7 @@ class BestMoveRequest(BaseModel):
     difficulty: Optional[str] = None
 
 ENV_MODE = os.getenv("ENV", "").lower()
+SKIP_LEXICON_CHECK = os.getenv("QUACKLE_SKIP_LEXICON_CHECK", "").strip().lower() in {"1","true","yes","on"}
 # CORS from env (comma-separated) → list
 ALLOW_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
 
@@ -83,8 +84,8 @@ def ensure_lexicon_ready():
               os.path.isfile(gaddag) and os.path.getsize(gaddag) > 0)
     except Exception:
         ok = False
-    # In non-prod environments, allow tests to run without lexicon on disk
-    if not ok and ENV_MODE and ENV_MODE.lower() in {"test", "dev", "development"}:
+    # In non-prod environments OR when explicitly skipped, allow running without files
+    if not ok and (SKIP_LEXICON_CHECK or (ENV_MODE and ENV_MODE.lower() in {"test", "dev", "development"})):
         return True, dawg, gaddag
     return ok, dawg, gaddag
 
@@ -726,7 +727,7 @@ def health():
                 word_count = sum(1 for _ in f)
     except Exception:
         word_count = None
-    engine_ready = (os.path.exists(BRIDGE_BIN) and os.access(BRIDGE_BIN, os.X_OK) and ok)
+    engine_ready = (os.path.exists(BRIDGE_BIN) and os.access(BRIDGE_BIN, os.X_OK) and (ok or SKIP_LEXICON_CHECK))
     strat_debug = _strategy_inventory()
     payload = {
         "status": "ok",
@@ -736,6 +737,7 @@ def health():
         "timeout_ms": TIMEOUT_MS,
         "lexicon": QUACKLE_LEXICON,
         "lexdir": QUACKLE_LEXDIR,
+        "lexicon_check_skipped": SKIP_LEXICON_CHECK,
         "bridge_ruleset": "en",
         "board_schema": "coord_map_1based",
         "payload_sanitize": True,
@@ -1214,7 +1216,7 @@ async def best_move(req: Request):
         print(f"[DEBUG] board_norm rows={board_out.get('rows')} cols={board_out.get('cols')} non_empty={non_empty}")
 
         # Preflight lexicon only in production to keep tests fast
-        if ENV_MODE == 'prod':
+        if ENV_MODE == 'prod' and not SKIP_LEXICON_CHECK:
             ok, dawg, gaddag = ensure_lexicon_ready()
             if not ok:
                 print(f"[lexicon] missing files: dawg={os.path.exists(dawg)} gaddag={os.path.exists(gaddag)} dir={LEXDIR}")
