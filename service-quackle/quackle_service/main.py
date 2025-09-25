@@ -973,8 +973,10 @@ def debug_bridge_payload(req: Dict[str, Any]):
     if not (len(rack_str) == 7 and all(ch.isalpha() or ch in {"?","*"} for ch in rack_str)):
         raise HTTPException(status_code=400, detail="invalid rack")
     board_out = _normalize_board_for_bridge(req.get("board"))
-    # Preview exact payload (board as 1-based coordinate map)
-    bridge_payload = _sanitize_none({"rack": rack_str, "ruleset": "en", "board": _grid_to_coordmap(board_out["grid"])})
+    # Preview exact payload (board as cells 15x15 for the native bridge)
+    grid = board_out["grid"]
+    cells = [[None if ch == '.' else ("?" if ch in ('?','*') else ch.upper()) for ch in row] for row in grid]
+    bridge_payload = _sanitize_none({"rack": rack_str, "ruleset": "en", "board": {"cells": cells}})
     return {"bridge_payload": bridge_payload}
 
 @app.get("/debug/lexicon")
@@ -1034,8 +1036,9 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
 
         board_out = _normalize_board_for_bridge(payload.get("board"))
 
-        # Send board as a 1-based coordinate map object to the bridge
-        board_for_bridge = _grid_to_coordmap(board_out["grid"])
+        # Send board as a 15x15 'cells' matrix to the bridge
+        grid = board_out["grid"]
+        board_for_bridge = {"cells": [[None if ch == '.' else ("?" if ch in ('?','*') else ch.upper()) for ch in row] for row in grid]}
         bridge_payload = {
             "rack": rack_str,
             "ruleset": "en",
