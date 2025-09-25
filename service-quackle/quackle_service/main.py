@@ -1218,6 +1218,15 @@ async def best_move(req: Request):
             rebuilt = _reconstruct_tiles_from_raw_move(raw_move, result.get("words"))
             if rebuilt:
                 tiles_out = rebuilt
+        # Normalize ALL output coordinates to 0-based for the frontend
+        def _to_zero_based(t: dict) -> dict:
+            try:
+                r = int(t.get("row"))
+                c = int(t.get("col"))
+            except Exception:
+                return t
+            return {**t, "row": r - 1, "col": c - 1}
+        tiles_out = [_to_zero_based(t) for t in tiles_out]
 
         return {
             "tiles": tiles_out,

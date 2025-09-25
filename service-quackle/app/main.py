@@ -253,8 +253,18 @@ async def best_move(req_model: BestMoveRequest):
             'score': result.get('score'),
             'engine_fallback': result.get('engine_fallback')
         })
+        # Normalize all tile coordinates to 0-based before responding
+        tiles_out = result.get("tiles", [])
+        def _to_zero_based(t: dict) -> dict:
+            try:
+                r = int(t.get("row")); c = int(t.get("col"))
+            except Exception:
+                return t
+            return {**t, "row": r - 1, "col": c - 1}
+        tiles_out = [_to_zero_based(t) for t in tiles_out]
+
         return {
-            "tiles": result.get("tiles", []),
+            "tiles": tiles_out,
             "score": result.get("score", 0),
             "words": result.get("words", []),
             "move_type": result.get("move_type", "place" if result.get("tiles") else "pass"),

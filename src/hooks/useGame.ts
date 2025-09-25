@@ -24,11 +24,9 @@ import { toastOnce } from '@/lib/toastOnce'
 
     const upperLetter = rawLetter.toUpperCase()
     const isBlank = tile.isBlank || upperLetter === '?'
-    // Quackle restituisce coordinate 1-based: riconverti a 0-based per la nostra board.
-    const rVal = typeof tile.row === 'number' ? tile.row : Number((tile as any).row || 0)
-    const cVal = typeof tile.col === 'number' ? tile.col : Number((tile as any).col || 0)
-    const row = Math.max(rVal - 1, 0)
-    const col = Math.max(cVal - 1, 0)
+    // Service now returns 0-based coordinates: do not offset
+    const row = Number((tile as any).row ?? 0)
+    const col = Number((tile as any).col ?? 0)
 
     return {
       ...tile,
