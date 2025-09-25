@@ -15,10 +15,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Dictionary from "./pages/Dictionary";
 import Lobby from "./pages/Lobby";
-import PuzzleGame from "./pages/PuzzleGame";
 import NotFound from "./pages/NotFound";
-import Daily from "./pages/Daily";
-import DailyChallengePage from "./pages/DailyChallenge";
 import QuackleDebug from "./pages/QuackleDebug";
 import { QuackleProvider } from "./contexts/QuackleContext";
 import { DictionaryProvider } from "./contexts/DictionaryContext";
@@ -49,13 +46,7 @@ const AppRoutes = () => {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dictionary" element={<Dictionary />} />
           <Route path="/lobby" element={<Lobby />} />
-          <Route path="/puzzle" element={
-            <ErrorBoundary>
-              <PuzzleGame />
-            </ErrorBoundary>
-          } />
-          <Route path="/daily" element={<Daily />} />
-          <Route path="/daily-challenge" element={<DailyChallengePage />} />
+          {/** Puzzle/Daily routes removed */}
             <Route path="/__debug/quackle" element={<QuackleDebug />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

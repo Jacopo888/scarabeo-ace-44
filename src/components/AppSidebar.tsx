@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Home, Play, Users, BarChart3, Settings, Trophy, BookOpen, Zap } from "lucide-react"
+import { Home, Users, BookOpen } from "lucide-react"
 import { NavLink, useLocation } from "react-router-dom"
 import { motion } from "framer-motion"
 
@@ -17,8 +17,6 @@ import {
 
 const items = [
   { title: "Home", url: "/", icon: Home },
-  { title: "Puzzle 90s", url: "/puzzle?90s=true", icon: Zap },
-  { title: "Daily", url: "/daily-challenge", icon: Trophy },
   { title: "Dashboard", url: "/dashboard", icon: Users },
   { title: "Dictionary", url: "/dictionary", icon: BookOpen },
 ]

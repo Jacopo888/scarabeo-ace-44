@@ -57,6 +57,22 @@ describe('calculateWordScore', () => {
 
     expect(calculateWordScore(word, tiles)).toBe(96)
   })
+
+  it('treats center star (7,7) as DW for new tiles', () => {
+    const tiles = [
+      { row: 7, col: 7, letter: 'A', points: 1 }, // center DW
+      { row: 7, col: 8, letter: 'T', points: 1 },
+    ]
+    const word = {
+      word: 'AT',
+      tiles,
+      direction: 'horizontal' as const,
+      startRow: 7,
+      startCol: 7,
+    }
+    // Base 1 + 1 = 2, DW => 4
+    expect(calculateWordScore(word, tiles)).toBe(4)
+  })
 })
 
 describe('calculateMoveScore', () => {
