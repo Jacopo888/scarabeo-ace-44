@@ -164,7 +164,9 @@ def health_engine():
 
 @app.post("/engine/cmd")
 def cmd(payload: dict = Body(...)):
-    """Forward JSON command to wrapper process and return response"""
+    """Forward JSON command to wrapper process and return response (debug/ops)."""
+    if os.getenv("ALLOW_ENGINE_CMD", "1") not in ("1", "true", "TRUE", "yes", "on"):
+        raise HTTPException(status_code=403, detail="engine/cmd disabled")
     try:
         out = ask_engine(payload, timeout_ms=5000)  # 5 second default timeout
         return out
@@ -172,157 +174,7 @@ def cmd(payload: dict = Body(...)):
         raise HTTPException(status_code=504, detail="engine timeout")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"engine error: {e}")
-
-def _is_board_empty(board: list[list[str]]) -> bool:
-    try:
-        if len(board) != 15:
-            return False
-        for r in board:
-            if len(r) != 15:
-                return False
-            for c in r:
-                if isinstance(c, str) and (c == "" or c == " "):
-                    continue
-                return False
-        return True
-    except Exception:
-        return False
-
-
-def _fallback_move(board: list[list[str]], rack: str) -> dict:
-    # Simple, safe fallback: center drop single tile if empty board, else PASS
-    if _is_board_empty(board) and rack:
-        ch = rack[0].upper()
-        return {
-            "ok": True,
-            "status": "fallback_center_drop",
-            "best_move": {"word": ch, "row": 7, "col": 7, "dir": "H", "score": 0, "positions": [[7, 7]]},
-            "moves": [{"word": ch, "row": 7, "col": 7, "dir": "H", "score": 0, "positions": [[7, 7]]}],
-            "meta": {"fallback": True}
-        }
-    return {
-        "ok": True,
-        "status": "fallback_pass",
-        "best_move": {"word": "PASS", "row": 7, "col": 7, "dir": "H", "score": 0, "positions": []},
-        "moves": [{"word": "PASS", "row": 7, "col": 7, "dir": "H", "score": 0, "positions": []}],
-        "meta": {"fallback": True}
-    }
-
-
-@app.post("/engine/move")
-def test_move(req: dict = Body(...)):
-    """Budgeted compute: always respond within limit_ms with moves or fallback."""
-
-    default_board = [["" for _ in range(15)] for _ in range(15)]
-    default_rack = "ABCDEFG"
-
-    board = req.get("board", default_board)
-    rack = req.get("rack", default_rack)
-    limit_ms = int(req.get("limit_ms", 500))
-    top_n = int(req.get("top_n", 5))
-
-    payload = {
-        "op": "compute",
-        "board": board,
-        "rack": rack,
-        "bag": "",
-        "turn": "me",
-        "limit_ms": limit_ms,
-        "ruleset": "it",
-        "top_n": top_n,
-    }
-
-    # Ping once (short) to verify wrapper alive; do not block response
-    try:
-        _ = ask_engine({"op": "ping"}, timeout_ms=300)
-    except Exception:
-        # wrapper not responding; immediate fallback
-        return _fallback_move(board, rack)
-
-    # Run compute in a short-lived thread; join with budget, return fallback if not ready
-    result: dict = {}
-    done = threading.Event()
-
-    def _worker():
-        nonlocal result
-        try:
-            # Give wrapper a bit more time internally; we'll still enforce budget here
-            result = ask_engine(payload, timeout_ms=limit_ms + 3000)
-        except Exception as e:
-            result = {"moves": [], "error": str(e)}
-        finally:
-            done.set()
-
-    t = threading.Thread(target=_worker, daemon=True)
-    t.start()
-    done.wait(timeout=max(0, (limit_ms + 50) / 1000.0))
-
-    if not done.is_set():
-        return _fallback_move(board, rack)
-
-    moves = result.get("moves", [])
-    if moves:
-        # Normalize output
-        out = {
-            "ok": True,
-            "best_move": moves[0],
-            "moves": moves,
-            "status": "success",
-        }
-        if isinstance(result.get("meta"), dict):
-            out["meta"] = result["meta"]
-        return out
-
-    # No moves -> return fallback
-    return _fallback_move(board, rack)
-
-@app.post("/engine/move-old")
-def get_move_old(req: dict = Body(...)):
-    """Get a move suggestion for testing - simplified interface"""
-    # Default test board (empty) and rack
-    board = req.get("board", [["" for _ in range(15)] for _ in range(15)])
-    rack = req.get("rack", "ABCDEFG")
-    
-    payload = {
-        "op": "compute",
-        "board": board,
-        "rack": rack,
-        "bag": "",
-        "turn": "me",
-        "limit_ms": 2000,
-        "ruleset": "it",
-        "top_n": 3
-    }
-    
-    try:
-        out = ask_engine(payload, timeout_ms=3000)
-        moves = out.get("moves", [])
-        if moves:
-            return {
-                "success": True,
-                "move": moves[0],
-                "total_moves": len(moves),
-                "all_moves": moves
-            }
-        else:
-            return {
-                "success": False,
-                "error": "No moves generated",
-                "debug_output": out
-            }
-    except TimeoutError:
-        return {
-            "success": False,
-            "error": "engine timeout",
-            "timeout_ms": 3000
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"engine error: {e}",
-            "rack": rack,
-            "board_size": f"{len(board)}x{len(board[0]) if board else 0}"
-        }
+    # Note: legacy debug/bridge endpoints were removed to avoid exposing raw commands.
 
 @app.post("/api/v1/move", response_model=MoveResponse)
 def compute_move(req: MoveRequest = Body(...)):
@@ -349,5 +201,3 @@ def compute_move(req: MoveRequest = Body(...)):
     elapsed = int((time.time() - t0) * 1000)
     # il wrapper stub garantisce chiavi "moves"
     return MoveResponse(moves=out.get("moves", []), elapsed_ms=elapsed)
-
-

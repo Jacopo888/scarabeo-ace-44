@@ -59,8 +59,7 @@ curl -s http://localhost:8080/health/lexicon | jq .
 - `GET /health/lexicon` - GADDAG loading status
 
 ### Move Generation
-- `POST /engine/cmd` - Direct wrapper command interface
-- `POST /engine/move` - Simplified move generation for testing
+- `POST /engine/cmd` - Direct wrapper command interface (ops/debug)
 - `POST /api/v1/move` - Full Scrabble API (MoveRequest/MoveResponse)
 
 ### Example Usage
@@ -80,23 +79,10 @@ curl -X POST http://localhost:8080/engine/cmd \
 
 #### Generate Moves
 ```bash
-# Simple move generation
-curl -X POST http://localhost:8080/engine/move \
+# Compute real move (no fallback). Provide a valid 15x15 board + rack
+curl -sS -X POST http://localhost:8080/api/v1/move \
   -H 'content-type: application/json' \
-  -d '{"rack":"ABCDEFG"}' | jq .
-
-# Full API with custom board
-curl -X POST http://localhost:8080/api/v1/move \
-  -H 'content-type: application/json' \
-  -d '{
-    "board": [["" for _ in range(15)] for _ in range(15)],
-    "rack": "CIAOXYZ",
-    "bag": "",
-    "turn": "me", 
-    "limit_ms": 1000,
-    "ruleset": "it",
-    "top_n": 5
-  }' | jq .
+  -d @engine/examples/move-request.json | jq .
 ```
 
 ## Technical Details
@@ -118,6 +104,9 @@ curl -X POST http://localhost:8080/api/v1/move \
 - **Timeout handling**: Cooperative cancellation with std::async/future
 - **Health monitoring**: Continuous stderr logging and process monitoring
 - **Graceful degradation**: Clear error messages instead of crashes
+
+Notes: legacy endpoints with fake-move fallback have been removed to prevent
+artificial PASS/center-drop responses.
 
 ## Troubleshooting
 

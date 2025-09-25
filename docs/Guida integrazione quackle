@@ -107,3 +107,5 @@ https://github.com/quackle/quackle/blob/c68ac871c73ff4c76246fc49465f53f8befef92f
 https://en.wikipedia.org/wiki/Scrabble_letter_distributions
 [38] [59] [60] [61] [62] [63] [64] [65] [66] [67] [68] [69] [71] [72] [73] main.py
 https://github.com/Jacopo888/scarabeo-ace-44/blob/cf5f3546252c5de717589fb13ff015b977c493ae/engine/app/main.py
+Nota operativa (no fake fallback)
+Nel servizio engine attuale gli endpoint legacy con fallback (es. risposte artificiali come PASS o “center drop”) sono stati rimossi. L’unico endpoint stabile per il calcolo mosse è /api/v1/move e, in caso di errore del wrapper o lessico non pronto, il servizio risponde con un errore (4xx/5xx) senza generare mosse fittizie. L’endpoint /engine/cmd resta disponibile per scopi di debug/ops e può essere disabilitato via variabile d’ambiente ALLOW_ENGINE_CMD.

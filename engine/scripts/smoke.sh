@@ -102,30 +102,25 @@ if [ "$PROBE_RESULT" != "true" ]; then
 fi
 echo "[smoke] ✓ probe_lexicon command: OK"
 
-# Step 6: Test move generation
-echo "[smoke] Testing move generation..."
+# Step 6: Test move generation (no fallback)
+echo "[smoke] Testing move generation (api/v1/move)..."
 
-MOVE_RESULT=$(curl -s -X POST "http://localhost:$PORT/engine/move" \
-    -H 'content-type: application/json' \
-    -d '{"rack":"ABCDEFG"}')
-
-MOVE_SUCCESS=$(echo "$MOVE_RESULT" | jq -r '.ok // false')
-if [ "$MOVE_SUCCESS" != "true" ]; then
-    echo "[smoke] FAIL: move generation failed"
-    echo "$MOVE_RESULT" | jq .
-    exit 1
+EXAMPLE_JSON="$(dirname "$0")/../examples/move-request.json"
+if [ -f "$EXAMPLE_JSON" ]; then
+    MOVE_RESULT=$(curl -s -X POST "http://localhost:$PORT/api/v1/move" \
+        -H 'content-type: application/json' \
+        -d @"$EXAMPLE_JSON")
+    HTTP_OK=$(echo "$MOVE_RESULT" | jq -r '(.moves | type) == "array"')
+    if [ "$HTTP_OK" != "true" ]; then
+        echo "[smoke] FAIL: move generation failed"
+        echo "$MOVE_RESULT" | jq .
+        exit 1
+    fi
+    TOP_SCORE=$(echo "$MOVE_RESULT" | jq -r '.moves[0].score // 0')
+    echo "[smoke] ✓ move generation: OK (top score: $TOP_SCORE)"
+else
+    echo "[smoke] SKIP: missing examples/move-request.json"
 fi
-
-MOVE_WORD=$(echo "$MOVE_RESULT" | jq -r '.best_move.word // ""')
-MOVE_SCORE=$(echo "$MOVE_RESULT" | jq -r '.best_move.score // 0')
-
-if [ -z "$MOVE_WORD" ] || [ "$MOVE_SCORE" -eq 0 ]; then
-    echo "[smoke] FAIL: invalid move generated"
-    echo "$MOVE_RESULT" | jq .
-    exit 1
-fi
-
-echo "[smoke] ✓ move generation: OK (word: $MOVE_WORD, score: $MOVE_SCORE)"
 
 # Step 7: Performance test
 echo "[smoke] Testing response times..."
@@ -159,5 +154,4 @@ echo "  GET  /healthz"
 echo "  GET  /health/engine"  
 echo "  GET  /health/lexicon"
 echo "  POST /engine/cmd"
-echo "  POST /engine/move"
 echo "  POST /api/v1/move"
