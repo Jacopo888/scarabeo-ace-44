@@ -1,4 +1,4 @@
-import os, json, subprocess
+import os, json, subprocess, re
 from typing import Any, Dict
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -239,9 +239,34 @@ async def best_move(req_model: BestMoveRequest):
             print(f"[lexicon] missing files: dawg={os.path.exists(dawg)} gaddag={os.path.exists(gaddag)} dir={LEX_DIR}")
             raise HTTPException(status_code=503, detail="lexicon_not_ready")
 
-        print(f"[CURSOR_DEBUG] board object: {req_model.board}")
+        # Sanitize board: keep only 1-based "r,c" coordinate keys with 1..15 bounds
+        board_in = req_model.board or {}
+        board_map: Dict[str, Any] = {}
+        if isinstance(board_in, dict):
+            for k, v in board_in.items():
+                if isinstance(k, str) and re.fullmatch(r"\d+,\d+", k):
+                    try:
+                        r_str, c_str = k.split(',')
+                        r, c = int(r_str), int(c_str)
+                        if 1 <= r <= 15 and 1 <= c <= 15:
+                            # Ensure shape of value
+                            if isinstance(v, dict):
+                                letter = str(v.get("letter", "")).strip().upper()[:1]
+                                is_blank = bool(v.get("isBlank") or v.get("is_blank") or False)
+                            else:
+                                letter = str(v).strip().upper()[:1]
+                                is_blank = False
+                            # Skip placeholders
+                            if not letter or letter == '.' or (is_blank and letter in {'?', '*', '.'}):
+                                continue
+                            board_map[k] = {"letter": letter, "isBlank": is_blank}
+                    except Exception:
+                        # Ignore malformed coordinate pairs
+                        continue
+        print(f"[CURSOR_DEBUG] board keys sanitized (count={len(board_map)}): {list(board_map.keys())[:5]}")
+
         body = {
-            "board": req_model.board,
+            "board": board_map,
             "rack": req_model.rack,
             "difficulty": req_model.difficulty,
         }
