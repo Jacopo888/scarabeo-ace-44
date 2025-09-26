@@ -32,8 +32,8 @@ fi
 # Set environment variables for backend
 echo "Setting backend environment variables..."
 railway variables set CORS_ORIGINS="https://scarabeo-ace-44.lovable.app,https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44-production.up.railway.app"
-railway variables set DAWG_URL="https://raw.githubusercontent.com/Jacopo888/scarabeo-ace-44/main/docs/data/lexica/enable1.dawg"
-railway variables set GADDAG_URL="https://raw.githubusercontent.com/Jacopo888/scarabeo-ace-44/main/docs/data/lexica/enable1.gaddag"
+railway variables set DAWG_URL="https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexica/enable1.15.dawg"
+railway variables set GADDAG_URL="https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexica/enable1.15.gaddag"
 railway variables set QUACKLE_APPDATA_DIR="/data/appdata"
 railway variables set QUACKLE_LEXDIR="/data/lexica"
 railway variables set QUACKLE_LEXICON="enable1"
