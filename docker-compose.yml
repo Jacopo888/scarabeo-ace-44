@@ -52,12 +52,14 @@ services:
     environment:
       QUACKLE_LEXDIR: /data/lexica
       QUACKLE_APPDATA_DIR: /data/appdata
-      QUACKLE_LEXICON: enable1
+      # Usa i file corretti: enable1.15.gaddag / enable1.15.dawg
+      QUACKLE_LEXICON: enable1.15
       QUACKLE_TIMEOUT_MS: 8000
       # CORS: override from .env.compose if provided
       CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:5173}"
-
       # Lexicon URLs: interpolated from .env.compose via --env-file
+      # Imposta queste variabili a URL validi per enable1.15.gaddag / enable1.15.dawg
+      # Esempio: usa GitHub raw della repo Jacopo888/quackle
       GADDAG_URL: "${GADDAG_URL}"
       DAWG_URL:   "${DAWG_URL}"
       DEBUG_BRIDGE_PAYLOAD: "true"   # opzionale: logga stdin/stdout/stderr del bridge

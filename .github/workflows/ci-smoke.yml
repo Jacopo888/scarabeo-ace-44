@@ -10,6 +10,10 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # Posizione predefinita dei lessici corretti (repo Jacopo888/quackle)
+      GADDAG_URL: https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexica/enable1.15.gaddag
+      DAWG_URL:   https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexica/enable1.15.dawg
 
     steps:
       - uses: actions/checkout@v4
@@ -22,17 +26,17 @@ jobs:
       - name: Install npm deps
         run: npm i
 
-      - name: Prepare lexica volume
+      - name: Prepare lexica volume (directories only)
         run: |
           mkdir -p data/lexica data/appdata/strategy
-          # Se i file sono presenti nel repo, copiali (fallback: usa quelli sotto ./lexica)
-          if [ -f ./lexica/enable1.gaddag ]; then cp ./lexica/enable1.gaddag ./data/lexica/; fi
-          if [ -f ./lexica/enable1.dawg ]; then cp ./lexica/enable1.dawg ./data/lexica/; fi
           ls -l data/lexica || true
 
-      - name: Build and start quackle-service
+      - name: Build and start quackle-service (with lexicon URLs)
+        env:
+          GADDAG_URL: ${{ env.GADDAG_URL }}
+          DAWG_URL: ${{ env.DAWG_URL }}
         run: |
-          docker compose up -d --build quackle-service
+          GADDAG_URL="$GADDAG_URL" DAWG_URL="$DAWG_URL" docker compose up -d --build quackle-service
           docker compose ps
 
       - name: Wait for health
@@ -54,14 +58,6 @@ jobs:
         env:
           QUACKLE_BASE: http://localhost:8080
         run: npm run smoke:ci
-
-      - name: Install jq (for curl-based smoke)
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Run smoke test (curl)
-        env:
-          QUACKLE_BASE: http://localhost:8080
-        run: npm run smoke:ci:curl
 
       - name: Dump quackle logs on failure
         if: failure()

@@ -15,7 +15,8 @@
     "quackle:health": "node -e \"(async()=>{const b=process.env.QUACKLE_BASE||'http://localhost:5000';const r=await fetch(b+'/health');console.log(await r.text())})()\"",
     "quackle:test": "node ./scripts/test-quackle.mjs",
     "smoke:ci": "node ./scripts/test-smoke-ci.mjs",
-    "smoke:ci:curl": "bash ./scripts/smoketest-ci.sh"
+    "smoke:ci:curl": "bash ./scripts/smoketest-ci.sh",
+    "lexica:fetch": "bash ./scripts/fetch-lexica.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

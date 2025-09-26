@@ -97,12 +97,12 @@ Il microservizio `service-quackle` usa Quackle reale con GADDAG completo. Non ci
 - Frontend (Vite) usa `VITE_QUACKLE_SERVICE_URL` come base per le chiamate; impostalo al tuo URL pubblico o locale, ad es. `http://localhost:8080`.
 
 ### Variabili ambiente (servizio Quackle)
-- `QUACKLE_LEXICON=enable1` (nome del lessico)
-- `QUACKLE_LEXDIR=/data/lexica` (cartella su volume per `*.gaddag` e `*.dawg`)
-- `QUACKLE_APPDATA_DIR=/data/appdata` (cartella runtime per dati Quackle)
-- `QUACKLE_TIMEOUT_MS=8000` (timeout generazione mossa)
-- `CORS_ORIGINS="https://a,https://b,http://localhost:5173"` (lista separata da virgole)
-- Opzionali per download a runtime (se assenti, si usano i file già presenti nel volume):
+ `QUACKLE_LEXICON=enable1.15` (nome del lessico; i file corretti sono `enable1.15.gaddag` e `enable1.15.dawg`)
+ `QUACKLE_LEXDIR=/data/lexica` (cartella su volume per i file lessico)
+ Opzionali per download a runtime (se assenti, si usano i file già presenti nel volume):
+  - `GADDAG_URL=https://.../enable1.15.gaddag`
+  - `DAWG_URL=https://.../enable1.15.dawg`
+ Verifica che `enable1.15.gaddag` e `enable1.15.dawg` esistano e abbiano dimensione > 0. In caso contrario, `engine_ready:false` e `/best-move` risponde 500 `lexicon_not_ready`.
   - `GADDAG_URL=https://.../enable1.gaddag`
   - `DAWG_URL=https://.../enable1.dawg`
 
