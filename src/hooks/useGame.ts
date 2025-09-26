@@ -590,6 +590,35 @@ export const useGame = () => {
 
         toast({ title: 'Quackle played!', description: `Quackle scored ${move.score} points with: ${move.words.join(', ')}` })
 
+        // Check immediate endgame: if any rack is empty and bag is empty, finish without passing the turn
+        const endGame = canEndGame(
+          newPlayers.map(p => ({ rack: p.rack })),
+          remaining
+        )
+
+        if (endGame) {
+          const p1Penalty = calculateEndGamePenalty(newPlayers[0].rack)
+          const p2Penalty = calculateEndGamePenalty(newPlayers[1].rack)
+          let p1Score = newPlayers[0].score - p1Penalty
+          let p2Score = newPlayers[1].score - p2Penalty
+          if (p1Score > p2Score) p1Score += p2Penalty
+          else if (p2Score > p1Score) p2Score += p1Penalty
+          const finalPlayers: Player[] = [
+            { ...newPlayers[0], score: p1Score },
+            { ...newPlayers[1], score: p2Score }
+          ]
+          return {
+            ...prev,
+            board: newBoard,
+            players: finalPlayers,
+            tileBag: remaining,
+            gameStatus: 'finished',
+            passCounts: newPassCounts,
+            lastMove: sanitizedTiles
+          }
+        }
+
+        // Otherwise continue normally to next turn
         return {
           ...prev,
           board: newBoard,
