@@ -1162,9 +1162,7 @@ def debug_strategy_probe():
 def debug_bridge_payload(req: Dict[str, Any]):
     """Return the exact sanitized JSON that would be sent to the bridge,
     without invoking the native binary."""
-    rack_str = (req.get("rack") or "").strip().upper()
-    if not (len(rack_str) == 7 and all(ch.isalpha() or ch in {"?","*"} for ch in rack_str)):
-        raise HTTPException(status_code=400, detail="invalid rack")
+    rack_str = _normalize_rack_flexible(req.get("rack"))
     b_in = req.get("board")
     # Preview exact payload: pass through coord map if already provided, otherwise convert grid/squares
     if isinstance(b_in, dict) and _is_coord_map(b_in):
@@ -1227,9 +1225,8 @@ def debug_lexicon():
 def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
         # Build minimal, sanitized payload for the bridge
-        rack_str = (payload.get("rack") or "").strip().upper()
-        if not (len(rack_str) == 7 and all((c.isalpha() or c in {'?','*'}) for c in rack_str)):
-            raise HTTPException(status_code=400, detail="invalid_rack_format")
+        # Accept partial racks (0..7) for endgame; allow only A-Z and blanks
+        rack_str = _normalize_rack_flexible(payload.get("rack"))
 
         # Bridge expects a 1-based coordinate map: "r,c" -> {letter,isBlank}
         board_in = payload.get("board")
@@ -1410,7 +1407,8 @@ async def best_move(req: Request):
             raise HTTPException(status_code=400, detail="invalid_rack_format")
 
         # Normalize inputs
-        rack_norm = normalize_rack(body.get("rack"))
+        # Accept partial racks (0..7) — endgame can have fewer than 7 tiles
+        rack_norm = _normalize_rack_flexible(body.get("rack"))
         board_out = _normalize_board_for_bridge(body.get("board"))
         non_empty = any(ch != '.' for row in board_out.get("grid", []) for ch in row)
         logger.debug("rack_norm=%s (len=%s)", rack_norm, len(rack_norm))
