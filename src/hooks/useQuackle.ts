@@ -44,6 +44,20 @@ export function formatRackForQuackle(rack: Tile[]): Array<{ letter: string; poin
     })
 }
 
+// Optional: bridge can accept rack as a plain string, which simplifies parsing
+export function formatRackStringForQuackle(rack: Tile[]): string {
+  return rack
+    .map(t => {
+      const isBlank = !!t.isBlank
+      // For blanks, if a letter is assigned use it uppercase; otherwise '?'
+      const raw = (t.letter || '').toString().trim()
+      if (isBlank) return raw ? raw.toUpperCase() : '?'
+      return raw.toUpperCase()
+    })
+    .join('')
+    .slice(0, 7)
+}
+
 export const useQuackle = () => {
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
   const [isThinking, setIsThinking] = useState(false)
@@ -62,9 +76,10 @@ export const useQuackle = () => {
       
       // Build board and rack payloads for bridge
       const board = buildQuackleBoard(gameState)
-      const rackArr = formatRackForQuackle(playerRack)
+      // Prefer simple string rack to minimize payload ambiguity
+      const rack = formatRackStringForQuackle(playerRack)
 
-      const payload = { board, rack: rackArr, difficulty }
+      const payload = { board, rack, difficulty }
 
       // Structured debug log
       const bkeys = Object.keys(board)
@@ -72,7 +87,7 @@ export const useQuackle = () => {
         tag: 'quackle_payload',
         boardCellCount: bkeys.length,
         sampleKeys: bkeys.slice(0, 3),
-        rack: playerRack.map(t => t.letter).join(''),
+        rack,
         rackLen: playerRack.length,
         difficulty
       })
