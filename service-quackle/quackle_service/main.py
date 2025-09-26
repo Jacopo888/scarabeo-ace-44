@@ -38,6 +38,72 @@ class BestMoveRequest(BaseModel):
     rack: Any
     difficulty: Optional[str] = None
 
+# ------------------------------
+# Tile distribution (English default) and helpers
+# ------------------------------
+
+def _english_tile_distribution() -> Dict[str, int]:
+    """Standard English Scrabble tile counts (100 tiles including 2 blanks).
+    Keys are A-Z plus '?' for blanks.
+    """
+    return {
+        'A': 9, 'B': 2, 'C': 2, 'D': 4, 'E': 12, 'F': 2, 'G': 3, 'H': 2, 'I': 9,
+        'J': 1, 'K': 1, 'L': 4, 'M': 2, 'N': 6, 'O': 8, 'P': 2, 'Q': 1, 'R': 6,
+        'S': 4, 'T': 6, 'U': 4, 'V': 2, 'W': 2, 'X': 1, 'Y': 2, 'Z': 1, '?': 2
+    }
+
+def _merge_distribution_override(base: Dict[str, int], override: Optional[Dict[str, Any]]) -> Dict[str, int]:
+    """Merge an optional override distribution into the base.
+    Only keys 'A'-'Z' and '?' are considered; values coerced to non-negative ints.
+    """
+    if not isinstance(override, dict):
+        return dict(base)
+    out = dict(base)
+    for k, v in override.items():
+        if not isinstance(k, str) or len(k) != 1:
+            continue
+        K = k.upper()
+        if K == '*' or K == '.':
+            K = '?'
+        if re.fullmatch(r"[A-Z\?]", K) is None:
+            continue
+        try:
+            n = int(v)
+        except Exception:
+            continue
+        out[K] = max(0, n)
+    return out
+
+def _count_unseen(grid: List[str], rack: str, dist: Dict[str, int]) -> Tuple[int, Dict[str, int]]:
+    """Return (remaining_total, remaining_by_letter) given a 15x15 grid and a 7-char rack.
+    Grid uses '.' for empty and '?' for blanks; letters are A-Z.
+    Rack can include '?' or '*' for blanks.
+    """
+    remain: Dict[str, int] = {k: int(v) for k, v in dist.items()}
+
+    # Subtract board letters and blanks
+    for row in grid:
+        if not isinstance(row, str):
+            continue
+        for ch in row:
+            if ch == '.':
+                continue
+            if ch in {'?', '*'}:
+                remain['?'] = max(0, remain.get('?', 0) - 1)
+            else:
+                L = str(ch).upper()[:1]
+                if re.fullmatch(r"[A-Z]", L):
+                    remain[L] = max(0, remain.get(L, 0) - 1)
+
+    # Subtract rack tiles
+    for ch in str(rack or '').upper():
+        K = '?' if ch in {'?', '*'} else ch
+        if re.fullmatch(r"[A-Z\?]", K):
+            remain[K] = max(0, remain.get(K, 0) - 1)
+
+    total_left = sum(remain.values())
+    return total_left, remain
+
 ENV_MODE = os.getenv("ENV", "").lower()
 SKIP_LEXICON_CHECK = os.getenv("QUACKLE_SKIP_LEXICON_CHECK", "").strip().lower() in {"1","true","yes","on"}
 # CORS from env (comma-separated) → list
@@ -388,9 +454,10 @@ def _reconstruct_tiles_from_raw_move(raw_move: Dict[str, Any], words: Optional[A
             continue
 
         letter_up = letter_char.upper()
+        # Bridge raw positions are 1-based; normalize to 0-based for service output
         tiles.append({
-            "row": target[0],
-            "col": target[1],
+            "row": target[0] - 1,
+            "col": target[1] - 1,
             "letter": letter_up,
             "points": 0 if is_blank else _letter_points_en(letter_up),
             "isBlank": is_blank
@@ -429,6 +496,28 @@ def normalize_rack(raw: Any) -> str:
         raise HTTPException(status_code=400, detail="invalid_rack_format")
     if len(raw) != 7:
         raise HTTPException(status_code=400, detail="rack_must_be_7_chars")
+    return raw
+
+def _normalize_rack_flexible(raw: Any) -> str:
+    """Like normalize_rack but allows 0..7 tiles. Returns uppercase string.
+    Accepts string or list (of letters or tile objects with 'letter').
+    """
+    if raw is None:
+        return ""
+    if isinstance(raw, list):
+        try:
+            parts: List[str] = []
+            for el in raw:
+                if isinstance(el, dict) and "letter" in el:
+                    parts.append(str(el["letter"]))
+                else:
+                    parts.append(str(el))
+            raw = ''.join(parts)
+        except Exception:
+            raw = ''.join([str(x) for x in raw])
+    raw = str(raw).replace(" ", "").upper()
+    if not re.fullmatch(r"[A-Z\?\*]{0,7}", raw or ""):
+        raise HTTPException(status_code=400, detail="invalid_rack_format")
     return raw
 
 def _is_coord_map(d: Dict[str, Any]) -> bool:
@@ -914,6 +1003,67 @@ async def debug_probe(request: Request):
         logger.error(f"Debug probe failed: {e}")
         return {"error": str(e), "took_ms": 0, "timeout_hit": False, "board_empty": False,
                 "center_anchor_ok": False, "generated_count": 0, "legal_count": 0, "top_5_moves": []}
+
+@app.post("/bag/summary")
+async def bag_summary(req: Request):
+    """Compute remaining tiles in the bag and unseen letters, based on current board and rack.
+    Accepts JSON like {"board": <any accepted shape>, "rack": <string|list>, "distribution": {optional override}}.
+    Returns remaining_count, remaining_by_letter and a repeated letters pool.
+    """
+    try:
+        raw = await req.body()
+        body = json.loads(raw.decode("utf-8")) if raw else {}
+        rack_norm = normalize_rack(body.get("rack"))
+        board_out = _normalize_board_for_bridge(body.get("board"))
+        base = _english_tile_distribution()
+        dist = _merge_distribution_override(base, body.get("distribution"))
+
+        # Unseen from the player's perspective = base - board - player rack
+        unseen_count, unseen_by_letter = _count_unseen(board_out["grid"], rack_norm, dist)
+
+        # Optionally compute the actual bag (excluding opponent rack if provided)
+        opp_raw = body.get("opponent_rack") if isinstance(body, dict) else None
+        if opp_raw is None and isinstance(body, dict):
+            opp_raw = body.get("opponentRack")  # camelCase alternative
+        opp_rack = _normalize_rack_flexible(opp_raw)
+
+        bag_by_letter = dict(unseen_by_letter)
+        if opp_rack:
+            for ch in opp_rack:
+                K = '?' if ch in {'?', '*'} else ch
+                if re.fullmatch(r"[A-Z\?]", K):
+                    bag_by_letter[K] = max(0, bag_by_letter.get(K, 0) - 1)
+        bag_count = sum(int(v) for v in bag_by_letter.values())
+
+        # Build pools
+        order = [chr(c) for c in range(ord('A'), ord('Z') + 1)] + ['?']
+        unseen_pool: List[str] = []
+        bag_pool: List[str] = []
+        for k in order:
+            u = int(unseen_by_letter.get(k, 0))
+            b = int(bag_by_letter.get(k, 0))
+            if u > 0:
+                unseen_pool.extend([k] * u)
+            if b > 0:
+                bag_pool.extend([k] * b)
+
+        return {
+            # Back-compat fields (represent unseen)
+            "remaining_count": unseen_count,
+            "remaining_by_letter": unseen_by_letter,
+            "pool": unseen_pool,
+            # Explicit fields
+            "unseen_count": unseen_count,
+            "unseen_by_letter": unseen_by_letter,
+            "unseen_pool": unseen_pool,
+            "bag_count": bag_count,
+            "bag_by_letter": bag_by_letter,
+            "bag_pool": bag_pool,
+        }
+    except HTTPException as e:
+        return JSONResponse({"error": e.detail}, status_code=e.status_code)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 @app.get("/health/lexicon")
 def health_lexicon():

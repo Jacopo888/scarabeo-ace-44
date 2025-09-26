@@ -561,10 +561,6 @@ int main(int argc, char** argv){
       const char* modeEnv = std::getenv("QUACKLE_INIT_MODE");
       std::string initMode = modeEnv ? std::string(modeEnv) : std::string("both");
       for (auto &c : initMode) c = (char)std::tolower((unsigned char)c);
-      const bool disableStrategy = env_flag_on("QUACKLE_DISABLE_STRATEGY") || initMode == "none";
-      if (disableStrategy) {
-        fprintf(stderr, "[DEBUG] Strategy init DISABLED (env)\n");
-      } else {
         // Resolve and log expected absolute paths from appDataDir
         StrategyPaths s_paths = compute_strategy_paths(fs::path(appDataDir));
         // Double-check readability for diagnostics; if any fails, log and exit 72
@@ -666,7 +662,6 @@ int main(int argc, char** argv){
                  "bogowin=" + (fs_bw ? "1" : "0") + ", " +
                  "superleaves=" + (fs_sup ? "1" : "0"));
         debugLog("Strategy parameters initialized");
-      }
     }
 
     debugLog("Data manager setup complete");
@@ -788,14 +783,11 @@ int main(int argc, char** argv){
     debugLog("Board tiles placed successfully");
 
     // Before generating, ensure strategy files are present and strategy loaded
-    const char* modeEnv2 = std::getenv("QUACKLE_INIT_MODE");
-    std::string initMode2 = modeEnv2 ? std::string(modeEnv2) : std::string("both");
-    for (auto &c : initMode2) c = (char)std::tolower((unsigned char)c);
-    const bool strategyDisabled = env_flag_on("QUACKLE_DISABLE_STRATEGY") || initMode2 == "none";
-    if (!strategyDisabled) {
+    // Always require strategy files before generation
+    {
       require_strategy_files_or_die(compute_strategy_paths(fs::path(appDataDir)));
     }
-    if (!strategyDisabled) {
+    {
       if (auto *sp_chk = QUACKLE_DATAMANAGER->strategyParameters()) {
         if (!(sp_chk->hasSyn2() && sp_chk->hasVcPlace() && sp_chk->hasSuperleaves() && sp_chk->hasWorths() && sp_chk->hasBogowin())) {
           std::fprintf(stderr, "[CONFIG] Strategy not fully loaded before move generation\n");
@@ -839,14 +831,14 @@ int main(int argc, char** argv){
       best = Quackle::Move::createPassMove();
       const Quackle::MoveList &hlMoves = pos.moves();
       for (const auto &m : hlMoves) {
-        if (m.action == Quackle::Move::Place && !m.tiles().empty()) { best = m; break; }
+        if (m.action == Quackle::Move::Place) { best = m; break; }
       }
-      if (best.action != Quackle::Move::Place || best.tiles().empty()) {
+      if (best.action != Quackle::Move::Place) {
         // Fallback to staticBestMove if no explicit Place was found
         best = pos.staticBestMove();
       }
-      // Consider only a real placement as a valid HL result; fallback otherwise
-      foundValidMove = (best.action == Quackle::Move::Place && !best.tiles().empty());
+      // Consider a Place move valid even if tiles() is empty; we'll reconstruct tiles from wordTiles().
+      foundValidMove = (best.action == Quackle::Move::Place);
       fprintf(stderr, "[DEBUG] HL result: action=%d score=%d\n", (int)best.action, best.score);
     } catch (const std::exception &e) {
       debugLog(std::string("Exception during high-level kibitz: ") + e.what());
@@ -940,9 +932,13 @@ int main(int argc, char** argv){
             int rr = startRow;
             int cc = startCol;
             auto adv = [&](int &r, int &c) { if (isHorizontal) ++c; else ++r; };
-
-            for (size_t i = 0; i < tilesStr.length(); ++i) {
-              Quackle::Letter tileValue = tilesStr[i];
+            // If tilesStr is empty (some HL paths omit it), derive letters from wordTiles().
+            Quackle::LetterString seq = tilesStr;
+            if (seq.length() == 0) {
+              seq = best.wordTiles();
+            }
+            for (size_t i = 0; i < seq.length(); ++i) {
+              Quackle::Letter tileValue = seq[i];
               // Determine if this step uses an existing board tile using either
               // the original board occupancy or a visible '.' from Quackle.
               std::string uv = alphabetParams->userVisible(tileValue);
