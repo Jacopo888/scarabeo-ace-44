@@ -6,14 +6,15 @@ import { TileCounter } from "@/components/TileCounter"
 import { TileRack } from "@/components/TileRack"
 import { TileActions } from "@/components/TileActions"
 import { DictionaryLoader } from "@/components/DictionaryLoader"
-import { AnalysisPanel } from "@/components/AnalysisPanel"
-import { useGameAnalysis } from "@/hooks/useGameAnalysis"
+// Analysis removed per request
 import { BlankTileDialog } from "@/components/BlankTileDialog"
 import { QuackleProvider, useQuackleContext } from "@/contexts/QuackleContext"
 import { QuackleHealthCheck } from "@/components/QuackleHealthCheck"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+// Tabs for analysis removed
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Trophy, BarChart3 } from "lucide-react"
+import { ArrowLeft, Trophy } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { toastOnce } from "@/lib/toastOnce"
 import { useState, useEffect } from "react"
 import type { Tile } from '@/types/game'
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -53,9 +54,10 @@ const GameContent = () => {
   }
 
   const isMobile = useIsMobile()
+  const { toast } = useToast()
   const [selectedTileIndex, setSelectedTileIndex] = useState<number | null>(null)
   const [blankTile, setBlankTile] = useState<{ row: number, col: number, tile: Tile } | null>(null)
-  const { moves, analysis, analyzeGame, loading: analysisLoading, error: analysisError } = useGameAnalysis(gameId, moveHistory)
+  // Analysis disabled
 
   const humanPlayer = gameState.players.find(p => !p.isBot) || currentPlayer
   const rackToShow = gameState.gameMode === 'quackle' ? (humanPlayer?.rack || []) : (currentPlayer?.rack || [])
@@ -82,13 +84,7 @@ const GameContent = () => {
 
   const clearSelectedTile = () => setSelectedTileIndex(null)
 
-  const [tab, setTab] = useState<'summary' | 'analysis'>('summary')
-
-  useEffect(() => {
-    if (gameState.gameStatus === 'finished') {
-      setTab('analysis')
-    }
-  }, [gameState.gameStatus])
+  // No analysis tab
 
   useEffect(() => {
     if (isBotTurn) {
@@ -96,12 +92,18 @@ const GameContent = () => {
     }
   }, [isBotTurn])
 
-  // Start analysis when game finishes
+  // No post-game analysis
+
+  // Toast when Quackle has fewer than 5 tiles remaining
   useEffect(() => {
-    if (gameState.gameStatus === 'finished' && moves.length > 0) {
-      analyzeGame()
+    if (gameState.gameMode !== 'quackle') return
+    if (gameState.gameStatus === 'finished') return
+    const remaining = (opponentRackForBag?.length ?? 0)
+    if (remaining < 5) {
+      toastOnce(toast, `quackle-low-tiles-${remaining}`,
+        `quackle has ${remaining} tiles remaining`)
     }
-  }, [gameState.gameStatus, moves.length, analyzeGame])
+  }, [opponentRackForBag?.length, gameState.gameMode, gameState.gameStatus, toast])
 
   if (gameState.gameStatus === 'finished') {
     const winner = gameState.players.reduce((prev, current) => (prev.score > current.score) ? prev : current)
@@ -118,88 +120,54 @@ const GameContent = () => {
           <h1 className="text-2xl font-bold">Game Results</h1>
         </div>
 
-        <Tabs value={tab} onValueChange={(value) => setTab(value as 'summary' | 'analysis')} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="summary" className="flex items-center gap-2">
-              <Trophy className="h-4 w-4" />
-              Summary
-            </TabsTrigger>
-            <TabsTrigger value="analysis" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Analysis
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="summary">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5" />
-                  Game Complete
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <h2 className="text-3xl font-bold text-primary mb-2">
-                      {winner.name} Wins!
-                    </h2>
-                    <p className="text-muted-foreground">
-                      Final Score: {winner.score} points
-                    </p>
-                  </div>
-                  
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {gameState.players.map(player => (
-                      <div key={player.id} className="p-4 border rounded-lg">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">{player.name}</span>
-                          <span className="text-2xl font-bold">{player.score}</span>
-                        </div>
-                        {player.id === winner.id && (
-                          <div className="mt-2">
-                            <Trophy className="h-4 w-4 text-yellow-500 inline mr-1" />
-                            <span className="text-sm text-yellow-600">Winner</span>
-                          </div>
-                        )}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5" />
+              Game Complete
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="text-center">
+                <h2 className="text-3xl font-bold text-primary mb-2">
+                  {winner.name} Wins!
+                </h2>
+                <p className="text-muted-foreground">
+                  Final Score: {winner.score} points
+                </p>
+              </div>
+              
+              <div className="grid gap-4 md:grid-cols-2">
+                {gameState.players.map(player => (
+                  <div key={player.id} className="p-4 border rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">{player.name}</span>
+                      <span className="text-2xl font-bold">{player.score}</span>
+                    </div>
+                    {player.id === winner.id && (
+                      <div className="mt-2">
+                        <Trophy className="h-4 w-4 text-yellow-500 inline mr-1" />
+                        <span className="text-sm text-yellow-600">Winner</span>
                       </div>
-                    ))}
+                    )}
                   </div>
+                ))}
+              </div>
 
-                  <div className="flex gap-2 justify-center">
-                    <Button onClick={resetGame}>
-                      Play Again
-                    </Button>
-                    <Link to="/">
-                      <Button variant="outline">
-                        Back to Home
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="analysis">
-            {analysisLoading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                <p className="text-muted-foreground">Analyzing game...</p>
+              <div className="flex gap-2 justify-center">
+                <Button onClick={resetGame}>
+                  Play Again
+                </Button>
+                <Link to="/">
+                  <Button variant="outline">
+                    Back to Home
+                  </Button>
+                </Link>
               </div>
-            ) : analysis ? (
-              <AnalysisPanel analysis={analysis} moves={moves} />
-            ) : analysisError ? (
-              <div className="text-center py-8">
-                <p className="text-destructive">{analysisError}</p>
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">No analysis available for this game.</p>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
