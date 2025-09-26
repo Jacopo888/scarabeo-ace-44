@@ -1,0 +1,68 @@
+name: CI Smoke Quackle
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install npm deps
+        run: npm i
+
+      - name: Prepare lexica volume
+        run: |
+          mkdir -p data/lexica data/appdata/strategy
+          # Se i file sono presenti nel repo, copiali (fallback: usa quelli sotto ./lexica)
+          if [ -f ./lexica/enable1.gaddag ]; then cp ./lexica/enable1.gaddag ./data/lexica/; fi
+          if [ -f ./lexica/enable1.dawg ]; then cp ./lexica/enable1.dawg ./data/lexica/; fi
+          ls -l data/lexica || true
+
+      - name: Build and start quackle-service
+        run: |
+          docker compose up -d --build quackle-service
+          docker compose ps
+
+      - name: Wait for health
+        env:
+          QUACKLE_BASE: http://localhost:8080
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$QUACKLE_BASE/health") || code=000
+            echo "Attempt $i: $code"
+            if [ "$code" = "200" ]; then
+              curl -s "$QUACKLE_BASE/health" | jq . || true
+              break
+            fi
+            sleep 2
+          done
+          [ "$code" = "200" ] || (docker compose logs quackle-service && exit 1)
+
+      - name: Run smoke test (Node)
+        env:
+          QUACKLE_BASE: http://localhost:8080
+        run: npm run smoke:ci
+
+      - name: Install jq (for curl-based smoke)
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run smoke test (curl)
+        env:
+          QUACKLE_BASE: http://localhost:8080
+        run: npm run smoke:ci:curl
+
+      - name: Dump quackle logs on failure
+        if: failure()
+        run: docker compose logs quackle-service || true

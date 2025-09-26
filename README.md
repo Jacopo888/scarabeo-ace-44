@@ -258,6 +258,35 @@ echo "RC=${PIPESTATUS[1]}"
 # "Strategy candidate missing: <abs_path>"
 ```
 
+### Smoke test CI (consigliato)
+
+Per uno smoke affidabile in CI usa la stessa forma di payload inviata alla modalità "vs quackle" (mappa di coordinate 1-based) e rack robusti che tendono a produrre una mossa all'opening:
+
+- Board vuota: `{}`
+- Centro occupato: `{"8,8":{"letter":"A","isBlank":false}}`
+- Rack suggeriti: `FALREI?`, `HELLO??`
+
+Script già inclusi:
+
+- `npm run smoke:ci` → Node script (`scripts/test-smoke-ci.mjs`)
+- `npm run smoke:ci:curl` → Bash con curl (`scripts/smoketest-ci.sh`)
+
+Entrambi verificano:
+
+- HTTP 200
+- `engine_fallback == false`
+- `move_type != "pass"`
+- `tiles` non vuote
+
+Esempio esecuzione locale (dopo aver avviato `docker compose up -d quackle-service`):
+
+```bash
+QUACKLE_BASE=http://localhost:8080 npm run smoke:ci
+QUACKLE_BASE=http://localhost:8080 npm run smoke:ci:curl
+```
+
+In GitHub Actions è disponibile il workflow `.github/workflows/ci-smoke.yml` che costruisce e avvia `quackle-service`, prepara i dizionari in `./data/lexica`, attende `/health` e lancia gli smoke.
+
 ### Fork Quackle (v1.0.4) e usare la nostra versione
 
 Per eliminare crash interni della libreria (FixedLengthString/Generator), questo progetto supporta una fork remota di Quackle. Il Dockerfile accetta gli argomenti di build:
