@@ -977,7 +977,8 @@ async def debug_probe(request: Request):
     try:
         raw = await request.body()
         body = json.loads(raw.decode("utf-8")) if raw else {}
-        rack_norm = normalize_rack(body.get("rack"))
+        # Accept partial racks (0..7) here for robustness in endgame situations
+        rack_norm = _normalize_rack_flexible(body.get("rack"))
         board_out = _normalize_board_for_bridge(body.get("board"))
         non_empty = any(ch != '.' for row in board_out.get("grid", []) for ch in row)
         center_anchor_ok = True
@@ -1013,7 +1014,7 @@ async def bag_summary(req: Request):
     try:
         raw = await req.body()
         body = json.loads(raw.decode("utf-8")) if raw else {}
-        rack_norm = normalize_rack(body.get("rack"))
+        rack_norm = _normalize_rack_flexible(body.get("rack"))
         board_out = _normalize_board_for_bridge(body.get("board"))
         base = _english_tile_distribution()
         dist = _merge_distribution_override(base, body.get("distribution"))

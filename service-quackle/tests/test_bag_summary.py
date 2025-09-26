@@ -79,3 +79,20 @@ def test_bag_summary_with_opponent_rack():
     by_bag = j.get("bag_by_letter")
     assert by_bag["A"] == 7  # 9 - 1 (board) - 1 (opp)
     assert by_bag["B"] == 1  # 2 - 1 (opp)
+
+
+def test_bag_summary_partial_rack_allowed():
+  client = make_client()
+  grid = empty_grid()
+  body = {
+    "board": {"rows": 15, "cols": 15, "grid": grid},
+    "rack": "HELLO",  # 5 tiles only
+    "opponent_rack": "ABCD",
+  }
+  r = client.post("/bag/summary", json=body)
+  assert r.status_code == 200, r.text
+  j = r.json()
+  # Total unseen = 100 - 0(board) - 5 = 95
+  assert j.get("unseen_count") == 95
+  # Bag after removing opponent 4 tiles = 91
+  assert j.get("bag_count") == 91

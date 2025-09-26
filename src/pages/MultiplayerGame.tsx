@@ -180,7 +180,10 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
                 <div className="flex justify-end mt-4">
                   <TileCounter
                     tileBag={game?.tile_bag || []}
-                    className="w-20 text-xs"
+                    boardMap={gameState.board}
+                    myRack={getCurrentRack() as any}
+                    opponentRack={(game.player1_id === user.id ? game.player2_rack : game.player1_rack) as any}
+                    className="w-32 text-xs"
                   />
                 </div>
               </CardContent>

@@ -2,6 +2,7 @@ import { GameProvider, useGameContext } from "@/contexts/GameContext"
 import { Button } from "@/components/ui/button"
 import { GameFlow } from "@/components/GameFlow"
 import { ScrabbleBoard } from "@/components/ScrabbleBoard"
+import { TileCounter } from "@/components/TileCounter"
 import { TileRack } from "@/components/TileRack"
 import { TileActions } from "@/components/TileActions"
 import { DictionaryLoader } from "@/components/DictionaryLoader"
@@ -58,6 +59,13 @@ const GameContent = () => {
 
   const humanPlayer = gameState.players.find(p => !p.isBot) || currentPlayer
   const rackToShow = gameState.gameMode === 'quackle' ? (humanPlayer?.rack || []) : (currentPlayer?.rack || [])
+  const myRackForBag = gameState.gameMode === 'quackle' ? (humanPlayer?.rack || []) : (currentPlayer?.rack || [])
+  const opponentRackForBag = (() => {
+    if (gameState.players.length < 2) return [] as any
+    const myId = gameState.gameMode === 'quackle' ? (humanPlayer?.id || currentPlayer.id) : currentPlayer.id
+    const opp = gameState.players.find(p => p.id !== myId)
+    return opp?.rack || []
+  })()
 
   const selectedTile = selectedTileIndex !== null && !isBotTurn
     ? {
@@ -250,6 +258,15 @@ const GameContent = () => {
                   </div>
                 ))}
               </div>
+            </div>
+            <div className="flex justify-end mt-4">
+              <TileCounter
+                tileBag={gameState.tileBag as any}
+                boardMap={gameState.board as any}
+                myRack={myRackForBag as any}
+                opponentRack={opponentRackForBag as any}
+                className="w-32 text-xs"
+              />
             </div>
             <div className="mt-4 sm:mt-6 space-y-4 pb-20 sm:pb-0">
               <TileRack

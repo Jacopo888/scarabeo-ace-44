@@ -95,3 +95,25 @@ export async function quackleLexiconHealth(): Promise<{ ok: boolean; status: num
 }
 
 export function getQuackleBase() { return QUACKLE_SERVICE_URL; }
+
+export async function quackleBagSummary(payload: any): Promise<{
+  unseen_count: number;
+  unseen_by_letter: Record<string, number>;
+  unseen_pool: string[];
+  bag_count: number;
+  bag_by_letter: Record<string, number>;
+  bag_pool: string[];
+  remaining_count?: number; // back-compat alias
+  remaining_by_letter?: Record<string, number>; // back-compat alias
+}> {
+  const r = await fetchWithTimeout(quackleApi('/bag/summary'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }, 10000);
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    throw new Error(`bag-summary failed: ${r.status} ${txt.slice(0,180)}`);
+  }
+  return r.json();
+}
