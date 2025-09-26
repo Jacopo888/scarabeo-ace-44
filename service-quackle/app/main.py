@@ -7,6 +7,110 @@ from fastapi.responses import JSONResponse
 import os
 from pydantic import BaseModel
 
+# --- Board normalization helpers (accept multiple shapes; output coord map 1-based) ---
+def _is_coord_map(d: Dict[str, Any]) -> bool:
+    if not isinstance(d, dict):
+        return False
+    if not d:
+        return True
+    for k in d.keys():
+        if isinstance(k, str) and re.fullmatch(r"\d+,\d+", k):
+            return True
+    return False
+
+def _grid_to_coordmap(grid: list[str]) -> Dict[str, Dict[str, Any]]:
+    if not (isinstance(grid, list) and len(grid) == 15):
+        raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
+    out: Dict[str, Dict[str, Any]] = {}
+    for r, row in enumerate(grid, start=1):
+        if not isinstance(row, str) or len(row) != 15:
+            raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
+        for c, ch in enumerate(row, start=1):
+            if ch != '.':
+                out[f"{r},{c}"] = {"letter": str(ch).upper(), "isBlank": False}
+    return out
+
+def _squares_to_coordmap(squares: list[list[Any]]) -> Dict[str, Dict[str, Any]]:
+    if not (isinstance(squares, list) and len(squares) == 15 and all(isinstance(r, list) and len(r) == 15 for r in squares)):
+        raise HTTPException(status_code=400, detail="board.squares must be 15x15")
+    out: Dict[str, Dict[str, Any]] = {}
+    for r0 in range(15):
+        for c0 in range(15):
+            v = squares[r0][c0]
+            if v in (None, '.', ''):
+                continue
+            letter = str(v).upper()[:1]
+            # Treat '?' or '*' as blanks without assigned letter — skip to avoid placeholders
+            if letter in ('?', '*', '.'):
+                continue
+            out[f"{r0+1},{c0+1}"] = {"letter": letter, "isBlank": False}
+    return out
+
+def _placements_to_coordmap(placements: list[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = {}
+    for p in placements:
+        try:
+            x = int(p.get("x"))
+            y = int(p.get("y"))
+            letter = str(p.get("letter", "")).strip().upper()[:1]
+            is_blank = bool(p.get("is_blank") or p.get("isBlank") or False)
+        except Exception:
+            raise HTTPException(status_code=400, detail="malformed_board")
+        if not (0 <= x < 15 and 0 <= y < 15):
+            raise HTTPException(status_code=400, detail="invalid_board_coordinate")
+        if not letter or letter in ('.',) or (is_blank and letter in ('?', '*', '.')):
+            # Skip placeholders
+            continue
+        r1, c1 = y + 1, x + 1
+        out[f"{r1},{c1}"] = {"letter": letter, "isBlank": is_blank}
+    return out
+
+def _sanitize_coordmap(board_in: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    out: Dict[str, Dict[str, Any]] = {}
+    for k, v in board_in.items():
+        if not (isinstance(k, str) and re.fullmatch(r"\d+,\d+", k)):
+            # Ignore non coord keys
+            continue
+        try:
+            r_str, c_str = k.split(',')
+            r, c = int(r_str), int(c_str)
+        except Exception:
+            continue
+        if not (1 <= r <= 15 and 1 <= c <= 15):
+            continue
+        if isinstance(v, dict):
+            letter = str(v.get("letter", "")).strip().upper()[:1]
+            is_blank = bool(v.get("isBlank") or v.get("is_blank") or False)
+        else:
+            letter = str(v).strip().upper()[:1]
+            is_blank = False
+        if not letter or letter == '.' or (is_blank and letter in {'?', '*', '.'}):
+            continue
+        out[k] = {"letter": letter, "isBlank": is_blank}
+    return out
+
+def _normalize_board_to_coordmap(board: Any) -> Dict[str, Dict[str, Any]]:
+    # Accept several forms and always return a 1-based coord map {"r,c": {letter,isBlank}}
+    if isinstance(board, dict):
+        b = board
+        if isinstance(b.get("grid"), list):
+            return _grid_to_coordmap(b.get("grid"))
+        if isinstance(b.get("squares"), list):
+            return _squares_to_coordmap(b.get("squares"))
+        if isinstance(b.get("placements"), list):
+            return _placements_to_coordmap(b.get("placements"))
+        if _is_coord_map(b):
+            return _sanitize_coordmap(b)
+        raise HTTPException(status_code=400, detail="malformed_board")
+    if isinstance(board, list):
+        arr = board
+        if all(isinstance(r, str) for r in arr):
+            return _grid_to_coordmap(arr)  # type: ignore
+        if all(isinstance(r, list) for r in arr):
+            return _squares_to_coordmap(arr)  # type: ignore
+        raise HTTPException(status_code=400, detail="malformed_board")
+    raise HTTPException(status_code=400, detail="malformed_board")
+
 # NOTE: This module is aligned with ENABLE defaults for consistency, but the
 # running app is `quackle_service.main:app` (see Docker CMD). Keep this file
 # only if you need a second app entry for local testing.
@@ -239,32 +343,9 @@ async def best_move(req_model: BestMoveRequest):
             print(f"[lexicon] missing files: dawg={os.path.exists(dawg)} gaddag={os.path.exists(gaddag)} dir={LEX_DIR}")
             raise HTTPException(status_code=503, detail="lexicon_not_ready")
 
-        # Sanitize board: keep only 1-based "r,c" coordinate keys with 1..15 bounds
-        board_in = req_model.board or {}
-        board_map: Dict[str, Any] = {}
-        if isinstance(board_in, dict):
-            for k, v in board_in.items():
-                if isinstance(k, str) and re.fullmatch(r"\d+,\d+", k):
-                    try:
-                        r_str, c_str = k.split(',')
-                        r, c = int(r_str), int(c_str)
-                        if 1 <= r <= 15 and 1 <= c <= 15:
-                            # Ensure shape of value
-                            if isinstance(v, dict):
-                                letter = str(v.get("letter", "")).strip().upper()[:1]
-                                is_blank = bool(v.get("isBlank") or v.get("is_blank") or False)
-                            else:
-                                letter = str(v).strip().upper()[:1]
-                                is_blank = False
-                            # Skip placeholders
-                            if not letter or letter == '.' or (is_blank and letter in {'?', '*', '.'}):
-                                continue
-                            board_map[k] = {"letter": letter, "isBlank": is_blank}
-                    except Exception:
-                        # Ignore malformed coordinate pairs
-                        continue
-        print(f"[CURSOR_DEBUG] board keys sanitized (count={len(board_map)}): {list(board_map.keys())[:5]}")
-
+        # Normalize board to 1-based coord map accepted by the bridge
+        board_map: Dict[str, Any] = _normalize_board_to_coordmap(req_model.board)
+        print(f"[CURSOR_DEBUG] board keys normalized (count={len(board_map)}): {list(board_map.keys())[:5]}")
         body = {
             "board": board_map,
             "rack": req_model.rack,
