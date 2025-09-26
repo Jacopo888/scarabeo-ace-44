@@ -1228,6 +1228,11 @@ async def best_move(req: Request):
         # Build bridge payload from normalized inputs (propaga difficulty se presente)
         # Convert normalized grid to 1-based coordinate map for the bridge
         board_map = _grid_to_coordmap(board_out.get("grid"))
+        try:
+            bkeys = list(board_map.keys())
+            print("[DEBUG] board_map keys sample:", bkeys[:5], "count=", len(bkeys))
+        except Exception:
+            pass
         payload = {
             "board": (board_map if board_map else {}),
             "rack": rack_norm,
