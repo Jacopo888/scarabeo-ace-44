@@ -658,7 +658,10 @@ def _normalize_board_for_bridge(board_input: Any) -> Dict[str, Any]:
 def _grid_to_coordmap(grid: list[str]) -> dict[str, dict]:
     """
     Convert a 15x15 grid ('.' empty, letters placed) into a coordinate map:
-      "r,c" (1-based) -> {"letter": <A-Z>, "isBlank": False}
+      "r,c" (1-based) -> {"letter": <A-Z>, "isBlank": bool}
+    Notes:
+      - Skips unknown placeholders. For blanks ('?' or '*') we cannot infer the chosen letter
+        from a single-character grid, so we skip them to avoid invalid board letters.
     """
     if not (isinstance(grid, list) and len(grid) == 15):
         raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
@@ -667,8 +670,47 @@ def _grid_to_coordmap(grid: list[str]) -> dict[str, dict]:
         if not isinstance(row, str) or len(row) != 15:
             raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
         for c, ch in enumerate(row, start=1):
-            if ch != '.':
-                out[f"{r},{c}"] = {"letter": str(ch).upper(), "isBlank": False}
+            if ch == '.':
+                continue
+            ch_up = str(ch).upper()[:1]
+            # Skip blanks if we cannot infer assigned letter from grid
+            if ch_up in ('?', '*'):
+                continue
+            out[f"{r},{c}"] = {"letter": ch_up, "isBlank": False}
+    return out
+
+def _sanitize_coordmap_for_bridge(board_in: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """
+    Accepts a dict with string keys "r,c" and values that may be dicts with
+    {letter,isBlank} or raw letters. Returns a cleaned 1-based coord map suitable
+    for the native bridge. Skips entries with missing/invalid letters.
+    """
+    out: Dict[str, Dict[str, Any]] = {}
+    for k, v in (board_in or {}).items():
+        if not (isinstance(k, str) and re.fullmatch(r"\d+,\d+", k)):
+            continue
+        try:
+            r_str, c_str = k.split(',')
+            r, c = int(r_str), int(c_str)
+        except Exception:
+            continue
+        if not (1 <= r <= 15 and 1 <= c <= 15):
+            continue
+        letter = ''
+        is_blank = False
+        if isinstance(v, dict):
+            letter = str(v.get("letter", "")).strip().upper()[:1]
+            is_blank = bool(v.get("isBlank") or v.get("is_blank") or False)
+        else:
+            letter = str(v).strip().upper()[:1]
+            is_blank = False
+        # Reject placeholders and missing letters
+        if not letter or letter in {'.', '?', '*'}:
+            continue
+        # Only allow A-Z letters
+        if not re.fullmatch(r"[A-Z]", letter):
+            continue
+        out[k] = {"letter": letter, "isBlank": bool(is_blank)}
     return out
 
 @app.get("/debug/strategy")
@@ -972,11 +1014,15 @@ def debug_bridge_payload(req: Dict[str, Any]):
     rack_str = (req.get("rack") or "").strip().upper()
     if not (len(rack_str) == 7 and all(ch.isalpha() or ch in {"?","*"} for ch in rack_str)):
         raise HTTPException(status_code=400, detail="invalid rack")
-    board_out = _normalize_board_for_bridge(req.get("board"))
-    # Preview exact payload (board as cells 15x15 for the native bridge)
-    grid = board_out["grid"]
-    cells = [[None if ch == '.' else ("?" if ch in ('?','*') else ch.upper()) for ch in row] for row in grid]
-    bridge_payload = _sanitize_none({"rack": rack_str, "ruleset": "en", "board": {"cells": cells}})
+    b_in = req.get("board")
+    # Preview exact payload: pass through coord map if already provided, otherwise convert grid/squares
+    if isinstance(b_in, dict) and _is_coord_map(b_in):
+        coord_map = _sanitize_coordmap_for_bridge(b_in)
+    else:
+        board_out = _normalize_board_for_bridge(b_in)
+        grid = board_out["grid"]
+        coord_map = _grid_to_coordmap(grid)
+    bridge_payload = _sanitize_none({"rack": rack_str, "ruleset": "en", "board": coord_map})
     return {"bridge_payload": bridge_payload}
 
 @app.get("/debug/lexicon")
@@ -1034,11 +1080,14 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
         if not (len(rack_str) == 7 and all((c.isalpha() or c in {'?','*'}) for c in rack_str)):
             raise HTTPException(status_code=400, detail="invalid_rack_format")
 
-        board_out = _normalize_board_for_bridge(payload.get("board"))
-
-        # Send board as a 15x15 'cells' matrix to the bridge
-        grid = board_out["grid"]
-        board_for_bridge = {"cells": [[None if ch == '.' else ("?" if ch in ('?','*') else ch.upper()) for ch in row] for row in grid]}
+        # Bridge expects a 1-based coordinate map: "r,c" -> {letter,isBlank}
+        board_in = payload.get("board")
+        if isinstance(board_in, dict) and _is_coord_map(board_in):
+            board_for_bridge = _sanitize_coordmap_for_bridge(board_in)
+        else:
+            board_out = _normalize_board_for_bridge(board_in)
+            grid = board_out["grid"]
+            board_for_bridge = _grid_to_coordmap(grid)
         bridge_payload = {
             "rack": rack_str,
             "ruleset": "en",
