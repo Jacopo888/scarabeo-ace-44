@@ -22,10 +22,34 @@ export const TileCounter: FC<TileCounterProps> = ({ tileBag, boardMap, myRack, o
 
   const boardPayload = useMemo(() => {
     if (!boardMap) return null
-    if (boardMap instanceof Map) {
-      return Object.fromEntries(boardMap)
+    // Build a canonical 15x15 grid payload for the backend
+    const size = 15
+    const grid: string[] = Array.from({ length: size }, () => '.'.repeat(size))
+
+    const applyTile = (r: number, c: number, v: PlacedTile | any) => {
+      if (!Number.isFinite(r) || !Number.isFinite(c)) return
+      const row = Math.max(0, Math.min(size - 1, Math.floor(r)))
+      const col = Math.max(0, Math.min(size - 1, Math.floor(c)))
+      const isBlank = !!(v?.isBlank)
+      const ch = isBlank ? '?' : String(v?.letter || '').toUpperCase().slice(0, 1)
+      if (!ch || ch === '.') return
+      const rowStr = grid[row]
+      grid[row] = rowStr.slice(0, col) + ch + rowStr.slice(col + 1)
     }
-    return boardMap
+
+    if (boardMap instanceof Map) {
+      for (const [k, v] of boardMap.entries()) {
+        const [rs, cs] = String(k).split(',')
+        applyTile(Number(rs), Number(cs), v)
+      }
+    } else if (typeof boardMap === 'object' && boardMap) {
+      for (const [k, v] of Object.entries(boardMap as Record<string, PlacedTile>)) {
+        const [rs, cs] = String(k).split(',')
+        applyTile(Number(rs), Number(cs), v)
+      }
+    }
+
+    return { rows: size, cols: size, grid }
   }, [boardMap])
 
   const rackToString = (rack?: Tile[]) => {
@@ -86,7 +110,7 @@ export const TileCounter: FC<TileCounterProps> = ({ tileBag, boardMap, myRack, o
       <PopoverContent className="w-80">
         <div className="space-y-2">
           <div className="text-sm font-medium">Unseen letters</div>
-          <div className="text-xs text-muted-foreground">Excludes opponent rack</div>
+          <div className="text-xs text-muted-foreground">Includes opponent rack</div>
           {error && (
             <div className="text-xs text-destructive">{error}</div>
           )}
