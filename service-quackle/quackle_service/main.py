@@ -1324,15 +1324,16 @@ async def best_move(req: Request):
             rebuilt = _reconstruct_tiles_from_raw_move(raw_move, result.get("words"))
             if rebuilt:
                 tiles_out = rebuilt
-        # Normalize ALL output coordinates to 0-based for the frontend
-        def _to_zero_based(t: dict) -> dict:
+        # Bridge already returns 0-based coordinates; pass through unchanged
+        # Keep a light validation to ensure integers where possible
+        def _ensure_ints(t: dict) -> dict:
             try:
                 r = int(t.get("row"))
                 c = int(t.get("col"))
+                return {**t, "row": r, "col": c}
             except Exception:
                 return t
-            return {**t, "row": r - 1, "col": c - 1}
-        tiles_out = [_to_zero_based(t) for t in tiles_out]
+        tiles_out = [_ensure_ints(t) for t in tiles_out]
 
         return {
             "tiles": tiles_out,
