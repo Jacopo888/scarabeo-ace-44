@@ -1,10 +1,10 @@
-import { FC, useEffect, useMemo, useState } from 'react'
+import { FC, useMemo } from 'react'
 import { Card, CardContent } from './ui/card'
 import { Badge } from './ui/badge'
 import { cn } from '@/lib/utils'
 import type { PlacedTile, Tile } from '@/types/game'
+import { TILE_DISTRIBUTION } from '@/types/game'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
-import { quackleBagSummary } from '@/services/quackleClient'
 
 interface TileCounterProps {
   tileBag?: any[]
@@ -14,82 +14,58 @@ interface TileCounterProps {
   className?: string
 }
 
-export const TileCounter: FC<TileCounterProps> = ({ tileBag, boardMap, myRack, opponentRack, className }) => {
-  const [bagCount, setBagCount] = useState<number>(tileBag?.length || 0)
-  const [unseenBy, setUnseenBy] = useState<Record<string, number> | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export const TileCounter: FC<TileCounterProps> = ({ tileBag, boardMap, myRack, opponentRack: _opponentRack, className }) => {
+  // Pure client-side computation to avoid backend discrepancies
+  const bagCount = (tileBag?.length || 0)
 
-  const boardPayload = useMemo(() => {
-    if (!boardMap) return null
-    // Build a canonical 15x15 grid payload for the backend
-    const size = 15
-    const grid: string[] = Array.from({ length: size }, () => '.'.repeat(size))
-
-    const applyTile = (r: number, c: number, v: PlacedTile | any) => {
-      if (!Number.isFinite(r) || !Number.isFinite(c)) return
-      const row = Math.max(0, Math.min(size - 1, Math.floor(r)))
-      const col = Math.max(0, Math.min(size - 1, Math.floor(c)))
-      const isBlank = !!(v?.isBlank)
-      const ch = isBlank ? '?' : String(v?.letter || '').toUpperCase().slice(0, 1)
-      if (!ch || ch === '.') return
-      const rowStr = grid[row]
-      grid[row] = rowStr.slice(0, col) + ch + rowStr.slice(col + 1)
+  // Build per-letter distribution from TILE_DISTRIBUTION
+  const baseDist = useMemo(() => {
+    const d: Record<string, number> = {}
+    for (const t of TILE_DISTRIBUTION) {
+      const k = t.isBlank ? '?' : (t.letter || '').toUpperCase()
+      d[k] = (d[k] || 0) + 1
     }
+    return d
+  }, [])
 
+  const boardCounts = useMemo(() => {
+    const d: Record<string, number> = {}
+    if (!boardMap) return d
+    const push = (v: any) => {
+      if (!v) return
+      const k = v.isBlank ? '?' : String(v.letter || '').toUpperCase().slice(0,1)
+      if (!k || k === '.') return
+      d[k] = (d[k] || 0) + 1
+    }
     if (boardMap instanceof Map) {
-      for (const [k, v] of boardMap.entries()) {
-        const [rs, cs] = String(k).split(',')
-        applyTile(Number(rs), Number(cs), v)
-      }
-    } else if (typeof boardMap === 'object' && boardMap) {
-      for (const [k, v] of Object.entries(boardMap as Record<string, PlacedTile>)) {
-        const [rs, cs] = String(k).split(',')
-        applyTile(Number(rs), Number(cs), v)
-      }
+      for (const [, v] of boardMap.entries()) push(v)
+    } else {
+      for (const v of Object.values(boardMap as Record<string, PlacedTile>)) push(v)
     }
-
-    return { rows: size, cols: size, grid }
+    return d
   }, [boardMap])
 
-  const rackToString = (rack?: Tile[]) => {
-    if (!rack) return ''
-    return rack.map(t => (t.isBlank ? '?' : (t.letter || '').toUpperCase())).join('').slice(0, 7)
-  }
-
-  useEffect(() => {
-    let cancelled = false
-    async function run() {
-      if (!boardPayload || !myRack) {
-        setBagCount(tileBag?.length || 0)
-        setUnseenBy(null)
-        return
-      }
-      try {
-        setLoading(true)
-        setError(null)
-        const payload: any = {
-          board: boardPayload,
-          rack: rackToString(myRack),
-        }
-        if (opponentRack) payload.opponent_rack = rackToString(opponentRack)
-        const res = await quackleBagSummary(payload)
-        if (cancelled) return
-        setBagCount(typeof res.bag_count === 'number' ? res.bag_count : (tileBag?.length || 0))
-        setUnseenBy(res.unseen_by_letter || res.remaining_by_letter || null)
-      } catch (e: any) {
-        if (!cancelled) {
-          setError(String(e?.message || e))
-          setBagCount(tileBag?.length || 0)
-          setUnseenBy(null)
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+  const myCounts = useMemo(() => {
+    const d: Record<string, number> = {}
+    for (const t of (myRack || [])) {
+      const k = t.isBlank ? '?' : (t.letter || '').toUpperCase()
+      d[k] = (d[k] || 0) + 1
     }
-    run()
-    return () => { cancelled = true }
-  }, [boardPayload, myRack, opponentRack, tileBag?.length])
+    return d
+  }, [myRack])
+
+  const unseenBy = useMemo(() => {
+    // Unseen letters from my perspective: total - board - my rack
+    const letters = [
+      'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','?'
+    ]
+    const d: Record<string, number> = {}
+    for (const k of letters) {
+      const v = (baseDist[k] || 0) - (boardCounts[k] || 0) - (myCounts[k] || 0)
+      d[k] = v > 0 ? v : 0
+    }
+    return d
+  }, [baseDist, boardCounts, myCounts])
 
   return (
     <Popover>
@@ -101,7 +77,7 @@ export const TileCounter: FC<TileCounterProps> = ({ tileBag, boardMap, myRack, o
                 Tiles in bag
               </span>
               <Badge variant="secondary" className="text-base font-bold min-w-8 justify-center">
-                {loading ? '…' : bagCount}
+                {bagCount}
               </Badge>
             </div>
           </CardContent>
@@ -111,13 +87,7 @@ export const TileCounter: FC<TileCounterProps> = ({ tileBag, boardMap, myRack, o
         <div className="space-y-2">
           <div className="text-sm font-medium">Unseen letters</div>
           <div className="text-xs text-muted-foreground">Includes opponent rack</div>
-          {error && (
-            <div className="text-xs text-destructive">{error}</div>
-          )}
-          {!error && !unseenBy && (
-            <div className="text-xs text-muted-foreground">No data available.</div>
-          )}
-          {!error && unseenBy && (
+          {unseenBy && (
             <div className="grid grid-cols-6 gap-1">
               {['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','?']
                 .filter(k => (unseenBy[k] ?? 0) > 0)
