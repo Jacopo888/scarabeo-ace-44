@@ -172,15 +172,7 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
                   }}
                   onPickupTile={pickupTile}
                 />
-                <div className="flex justify-end mt-4">
-                  <TileCounter
-                    tileBag={game?.tile_bag || []}
-                    boardMap={gameState.board}
-                    myRack={getCurrentRack() as any}
-                    opponentRack={(game.player1_id === user.id ? game.player2_rack : game.player1_rack) as any}
-                    className="w-32 text-xs"
-                  />
-                </div>
+                {/* Tile counter moved below rack/actions */}
               </CardContent>
             </Card>
 
@@ -205,7 +197,7 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
                   />
                   
                   {isMyTurn && (
-                    <div className="flex gap-2 mt-4">
+                    <div className="flex gap-2 mt-4 items-center flex-wrap">
                       <Button
                         onClick={submitMove}
                         disabled={!canSubmitMove}
@@ -213,18 +205,15 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
                       >
                         Submit Move ({pendingTiles.length} tiles)
                       </Button>
-                      <Button
-                        variant="outline"
-                        onClick={passTurn}
-                      >
-                        Pass Turn
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setExchangeOpen(true)}
-                      >
-                        Exchange Tiles
-                      </Button>
+                      <Button variant="outline" onClick={passTurn}>Pass Turn</Button>
+                      <Button variant="outline" onClick={() => setExchangeOpen(true)}>Exchange Tiles</Button>
+                      <TileCounter
+                        tileBag={game?.tile_bag || []}
+                        boardMap={gameState.board}
+                        myRack={getCurrentRack() as any}
+                        opponentRack={(game.player1_id === user.id ? game.player2_rack : game.player1_rack) as any}
+                        className="w-40 text-xs ml-auto"
+                      />
                     </div>
                   )}
                   

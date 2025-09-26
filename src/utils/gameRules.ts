@@ -127,8 +127,9 @@ export const canEndGame = (
   // Game ends when:
   // 1. A player uses all their tiles and the bag is empty
   if (tileBag.length === 0 && players.some(player => player.rack.length === 0)) return true
-  // 2. All players pass three times each
-  if (passCount >= players.length * 3) return true
+  // 2. Consecutive passes across the game reach 2 per player (e.g., for 2 players: 4 total consecutive passes)
+  //    Note: passCount is the total number of consecutive passes since the last non-pass move.
+  if (passCount >= players.length * 2) return true
   // 3. No more valid moves possible
   if (noMovesAvailable) return true
   return false

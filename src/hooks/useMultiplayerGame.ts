@@ -511,13 +511,14 @@ export const useMultiplayerGame = (gameId: string) => {
       let player1ScoreAfter = game.player1_score
       let player2ScoreAfter = game.player2_score
 
-      const endGame = canEndGame(
+      const endOnPasses = newPassCount >= 4 // two consecutive passes per player (2 players)
+      const endGame = endOnPasses || canEndGame(
         [
           { rack: game.player1_rack },
           { rack: game.player2_rack }
         ],
         game.tile_bag,
-        newPassCount
+        0
       )
 
       if (endGame) {

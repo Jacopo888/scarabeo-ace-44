@@ -393,11 +393,11 @@ export const useGame = () => {
     setGameState(prev => {
       const newPassCounts = [...(prev.passCounts || Array(prev.players.length).fill(0))]
       newPassCounts[prev.currentPlayerIndex] += 1
-      const totalPasses = newPassCounts.reduce((sum, c) => sum + c, 0)
-      const endGame = canEndGame(
+      const bothPassedTwice = newPassCounts.every(c => c >= 2)
+      const endGame = bothPassedTwice || canEndGame(
         prev.players.map(p => ({ rack: p.rack })),
         prev.tileBag,
-        totalPasses
+        0
       )
 
       if (endGame) {

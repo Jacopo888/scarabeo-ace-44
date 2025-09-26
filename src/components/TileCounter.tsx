@@ -74,7 +74,7 @@ export const TileCounter: FC<TileCounterProps> = ({ tileBag, boardMap, myRack, o
           <CardContent className="p-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-muted-foreground">
-                Tessere nel sacchetto
+                Tiles in bag
               </span>
               <Badge variant="secondary" className="text-base font-bold min-w-8 justify-center">
                 {loading ? '…' : bagCount}
@@ -85,13 +85,13 @@ export const TileCounter: FC<TileCounterProps> = ({ tileBag, boardMap, myRack, o
       </PopoverTrigger>
       <PopoverContent className="w-80">
         <div className="space-y-2">
-          <div className="text-sm font-medium">Lettere non uscite</div>
-          <div className="text-xs text-muted-foreground">Include rack avversario</div>
+          <div className="text-sm font-medium">Unseen letters</div>
+          <div className="text-xs text-muted-foreground">Excludes opponent rack</div>
           {error && (
             <div className="text-xs text-destructive">{error}</div>
           )}
           {!error && !unseenBy && (
-            <div className="text-xs text-muted-foreground">Nessun dato disponibile.</div>
+            <div className="text-xs text-muted-foreground">No data available.</div>
           )}
           {!error && unseenBy && (
             <div className="grid grid-cols-6 gap-1">

@@ -9,8 +9,8 @@ describe('canEndGame', () => {
     expect(canEndGame([{ rack: [] }, { rack: [tile] }], [])).toBe(true)
   })
 
-  it('detects six consecutive passes', () => {
-    expect(canEndGame([{ rack: [tile] }, { rack: [tile] }], [tile], 6)).toBe(true)
+  it('detects four consecutive passes (2 per player)', () => {
+    expect(canEndGame([{ rack: [tile] }, { rack: [tile] }], [tile], 4)).toBe(true)
   })
 
   it('detects when no moves remain', () => {

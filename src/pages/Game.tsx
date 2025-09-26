@@ -227,15 +227,7 @@ const GameContent = () => {
                 ))}
               </div>
             </div>
-            <div className="flex justify-end mt-4">
-              <TileCounter
-                tileBag={gameState.tileBag as any}
-                boardMap={gameState.board as any}
-                myRack={myRackForBag as any}
-                opponentRack={opponentRackForBag as any}
-                className="w-32 text-xs"
-              />
-            </div>
+            {/* Tile counter moved below rack/actions */}
             <div className="mt-4 sm:mt-6 space-y-4 pb-20 sm:pb-0">
               <TileRack
                 tiles={rackToShow}
@@ -276,6 +268,13 @@ const GameContent = () => {
                   >
                     Reshuffle Tiles
                   </Button>
+                  <TileCounter
+                    tileBag={gameState.tileBag as any}
+                    boardMap={gameState.board as any}
+                    myRack={myRackForBag as any}
+                    opponentRack={opponentRackForBag as any}
+                    className="w-40 text-xs"
+                  />
                 </div>
               )}
               {gameState.gameStatus === 'playing' && (
