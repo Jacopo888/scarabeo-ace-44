@@ -934,52 +934,47 @@ int main(int argc, char** argv){
           
           debugLog("Move details: startRow=" + std::to_string(startRow) + ", startCol=" + std::to_string(startCol) + ", isHorizontal=" + std::string(isHorizontal ? "true" : "false"));
           
-          // Precompute coordinates along the word path and skip only
-          // cells that are already occupied on the input board. This
-          // guarantees correct alignment across intersections.
-          std::vector<std::pair<int,int>> placeCoords;
-          placeCoords.reserve(tilesStr.length());
+          // Walk along the word path step-by-step to keep perfect alignment
+          // with tilesStr (which may include '.' placeholders for existing tiles).
           {
             int rr = startRow;
             int cc = startCol;
             auto adv = [&](int &r, int &c) { if (isHorizontal) ++c; else ++r; };
-            int guard = 0;
-            while (placeCoords.size() < tilesStr.length() && guard++ < 40) {
-              if (!originalBoardSquares.count({rr, cc})) {
-                placeCoords.emplace_back(rr, cc);
+
+            for (size_t i = 0; i < tilesStr.length(); ++i) {
+              Quackle::Letter tileValue = tilesStr[i];
+              // Determine if this step uses an existing board tile using either
+              // the original board occupancy or a visible '.' from Quackle.
+              std::string uv = alphabetParams->userVisible(tileValue);
+              bool isDotPlaceholder = (!uv.empty() && uv[0] == '.');
+              bool occupied = originalBoardSquares.count({rr, cc}) > 0;
+
+              if (!(isDotPlaceholder || occupied)) {
+                bool tileBlank = alphabetParams->isBlankLetter(tileValue) || tileValue == QUACKLE_BLANK_MARK;
+                Quackle::Letter baseLetter = tileValue;
+                if (alphabetParams->isBlankLetter(tileValue)) {
+                  baseLetter = alphabetParams->clearBlankness(tileValue);
+                }
+
+                // Visible letter (for blanks use the base letter), never emit '.'
+                std::string letterText = alphabetParams->userVisible(tileBlank ? baseLetter : tileValue);
+                if (letterText.empty() || (letterText.size() == 1 && letterText[0] == '.')) {
+                  letterText = tileBlank ? "?" : "";
+                }
+
+                json tileJson;
+                tileJson["letter"] = letterText;
+                tileJson["isBlank"] = tileBlank;
+                tileJson["points"] = tileBlank ? 0 : alphabetParams->score(baseLetter);
+                tileJson["row"] = rr;
+                tileJson["col"] = cc;
+                tiles.push_back(tileJson);
+                primaryWord += letterText;
               }
+
+              // Advance along the word path for next character
               adv(rr, cc);
             }
-          }
-
-          // Create tile representations with the computed coordinates
-          for (size_t i = 0; i < tilesStr.length() && i < placeCoords.size(); ++i) {
-            json tileJson;
-            Quackle::Letter tileValue = tilesStr[i];
-            bool tileBlank = alphabetParams->isBlankLetter(tileValue) || tileValue == QUACKLE_BLANK_MARK;
-            Quackle::Letter baseLetter = tileValue;
-            if (alphabetParams->isBlankLetter(tileValue)) {
-              baseLetter = alphabetParams->clearBlankness(tileValue);
-            }
-
-          // Use the base letter's visible character for blanks too, but keep isBlank=true and points=0
-          // Quackle's userVisible(tileValue) may return "." for blanks; we want the represented letter instead.
-          std::string letterText = alphabetParams->userVisible(tileBlank ? baseLetter : tileValue);
-          if (letterText.empty()) {
-            // As a last resort, represent blanks as '?' (client will ignore if needed)
-            letterText = tileBlank ? "?" : "";
-          }
-
-          tileJson["letter"] = letterText;
-          tileJson["isBlank"] = tileBlank;
-          tileJson["points"] = tileBlank ? 0 : alphabetParams->score(baseLetter);
-
-            // Assign the precomputed coordinate (0-based)
-            tileJson["row"] = placeCoords[i].first;
-            tileJson["col"] = placeCoords[i].second;
-
-            tiles.push_back(tileJson);
-            primaryWord += letterText;
           }
           
           std::string mainWord = alphabetParams->userVisible(best.wordTiles());
