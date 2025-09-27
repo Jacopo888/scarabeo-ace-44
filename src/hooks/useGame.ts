@@ -737,6 +737,20 @@ export const useGame = () => {
     }
   }, [difficulty, gameState.players.length])
 
+  // Initialize Local Game (human vs human) when no difficulty is chosen
+  useEffect(() => {
+    const activeDifficulty = difficulty
+    if (!activeDifficulty && gameState.players.length === 0) {
+      const newState = initializeGameState()
+      console.log('[useGame] Initializing LOCAL game (no difficulty)')
+      setGameState(newState)
+      setPendingTiles([])
+      setIsSurrendered(false)
+      setMoveHistory([])
+      gameIdRef.current = crypto.randomUUID()
+    }
+  }, [difficulty, gameState.players.length, initializeGameState])
+
   return {
     gameState,
     pendingTiles,

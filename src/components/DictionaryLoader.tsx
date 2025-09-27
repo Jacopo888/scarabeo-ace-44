@@ -8,16 +8,8 @@ import { AlertTriangle, CheckCircle } from 'lucide-react';
 export const DictionaryLoader: React.FC = () => {
   const { isLoading, isLoaded, error, wordCount } = useDictionary();
 
-  if (!isLoading && isLoaded) {
-    return (
-      <Alert className="mb-4">
-        <CheckCircle className="h-4 w-4" />
-        <AlertDescription>
-          Dictionary loaded with {wordCount.toLocaleString()} words
-        </AlertDescription>
-      </Alert>
-    );
-  }
+  // Success banner intentionally hidden to reduce UI noise
+  if (!isLoading && isLoaded) return null;
 
   if (error) {
     return (

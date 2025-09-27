@@ -47,16 +47,8 @@ export const QuackleHealthCheck = () => {
     )
   }
 
-  if (isHealthy === true) {
-    return (
-      <Alert className="mb-4 border-green-200 bg-green-50">
-        <CheckCircle className="h-4 w-4 text-green-600" />
-        <AlertDescription className="text-green-700">
-          Quackle AI engine is ready! {corsOrigins ? `(CORS: ${corsOrigins.join(', ') || 'none'})` : ''}
-        </AlertDescription>
-      </Alert>
-    )
-  }
+  // Healthy: no UI banner to keep pages clean
+  if (isHealthy === true) return null
 
   return null
 }

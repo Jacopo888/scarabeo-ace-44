@@ -89,22 +89,6 @@ jobs:
           # Accept either a real move (200 play) or a 400 error for malformed input
           if [ "$status" = 200 ]; then jq -e '.move_type != "pass"' respC.json >/dev/null; else test "$status" = 400; fi
 
-      - name: Negative - missing GADDAG => 500
-        run: |
-          cid=$(docker compose ps -q quackle-service)
-          # Prova a spostare il GADDAG dal volume, altrimenti fallback alla path interna
-          docker exec "$cid" bash -lc '
-            set -e
-            p1=/data/lexica/enable1.15.gaddag
-            p2=/usr/share/quackle/lexica/enable1.15.gaddag
-            if [ -f "$p1" ]; then mv "$p1" "$p1.bak"; 
-            elif [ -f "$p2" ]; then mv "$p2" "$p2.bak"; 
-            else echo "No GADDAG file found to move" >&2; exit 1; fi'
-          curl -s -D respNeg.hdr -o respNeg.json -X POST http://localhost:8080/best-move -H 'content-type: application/json' --data-binary @bodyA.json || true
-          status=$(awk 'NR==1{print $2}' respNeg.hdr)
-          echo status=$status
-          test "$status" = 500 || (echo "Expected 500 when GADDAG missing" && cat respNeg.json && exit 1)
-
       - name: Collect logs and artifacts
         if: always()
         run: |

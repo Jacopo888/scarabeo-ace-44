@@ -41,13 +41,13 @@ const GameContent = () => {
   } = useGameContext()
   const { difficulty } = useQuackleContext()
 
-  // Show loading state while waiting for game initialization
+  // Show loading while waiting a very short time for contexts to initialize
   if (gameState.players.length === 0) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-[50vh] bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Setting up your game...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-3"></div>
+          <p className="text-muted-foreground text-sm">Setting up your game...</p>
         </div>
       </div>
     )
@@ -173,7 +173,7 @@ const GameContent = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
+    <div className="container mx-auto p-2 sm:p-4 md:p-6 max-w-[1400px]">
       <BlankTileDialog
         open={!!blankTile}
         onOpenChange={(open) => {
@@ -197,9 +197,9 @@ const GameContent = () => {
       </div>
 
       <div className="space-y-6">
-        <div className="space-y-6">
-          <div className="bg-card p-2 sm:p-6 rounded-lg shadow-lg relative">
-            <div className="flex justify-center">
+        <div className="bg-card p-2 sm:p-4 md:p-6 rounded-lg shadow-lg">
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4">
+            <div className="flex items-center justify-center min-h-[60vh]">
               <ScrabbleBoard
                 disabled={isBotTurn || currentPlayer.isBot}
                 selectedTile={selectedTile}
@@ -218,24 +218,26 @@ const GameContent = () => {
                 }}
                 onPickupTile={pickupTile}
               />
-              <div className="absolute bottom-2 right-2 bg-secondary rounded p-2 text-sm shadow">
-                {gameState.players.map(p => (
-                  <div key={p.id} className="flex justify-between gap-4">
-                    <span>{p.name}</span>
-                    <span className="font-medium">{p.score}</span>
-                  </div>
-                ))}
-              </div>
             </div>
-            {/* Tile counter moved below rack/actions */}
-            <div className="mt-4 sm:mt-6 space-y-4 pb-20 sm:pb-0">
+            <div className="flex flex-col gap-3">
+              <div className="bg-muted/40 rounded p-3">
+                <div className="font-medium mb-2">Scores</div>
+                <div className="space-y-1">
+                  {gameState.players.map(p => (
+                    <div key={p.id} className="flex justify-between gap-4 text-sm">
+                      <span>{p.name}</span>
+                      <span className="font-semibold">{p.score}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
               <TileRack
                 tiles={rackToShow}
                 selectedTiles={!isBotTurn && selectedTileIndex !== null ? [selectedTileIndex] : []}
                 onTileSelect={!isBotTurn ? handleTileSelect : undefined}
               />
               {!isBotTurn && (
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex flex-wrap justify-center xl:justify-start gap-2">
                   <Button
                     onClick={confirmMove}
                     disabled={pendingTiles.length === 0}
@@ -280,7 +282,7 @@ const GameContent = () => {
               {gameState.gameStatus === 'playing' && (
                 <Button
                   variant="destructive"
-                  className="w-full"
+                  className="w-full mt-1"
                   onClick={surrenderGame}
                 >
                   Surrender

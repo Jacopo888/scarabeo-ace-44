@@ -108,11 +108,17 @@ export const ScrabbleBoard = ({
 
     const updateScale = () => {
       const boardWidth = boardRef.current?.scrollWidth || 0
+      const boardHeight = boardRef.current?.scrollHeight || 0
       const styles = getComputedStyle(container)
       const paddingLeft = parseFloat(styles.paddingLeft) || 0
       const paddingRight = parseFloat(styles.paddingRight) || 0
-      const available = (container.clientWidth || window.innerWidth) - (paddingLeft + paddingRight)
-      const scale = boardWidth > 0 ? Math.min(1, available / boardWidth) : 1
+      const paddingTop = parseFloat(styles.paddingTop) || 0
+      const paddingBottom = parseFloat(styles.paddingBottom) || 0
+      const availableW = (container.clientWidth || window.innerWidth) - (paddingLeft + paddingRight)
+      const availableH = (container.clientHeight || window.innerHeight) - (paddingTop + paddingBottom)
+      const scaleW = boardWidth > 0 ? availableW / boardWidth : 1
+      const scaleH = boardHeight > 0 ? availableH / boardHeight : 1
+      const scale = Math.min(1, scaleW, scaleH)
       setBoardScale(scale)
     }
 
