@@ -1,27 +1,16 @@
-# Welcome to your Lovable project
-
-## Project info
-
-**URL**: https://lovable.dev/projects/c72bd105-8134-406f-8d24-e609c43ca3b0
+# Scarabeo-Ace-44
 
 ## How can I edit this code?
 
-There are several ways of editing your application.
+There are several ways of editing this application locally.
 
-**Use Lovable**
+**Use your preferred IDE (local development)**
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/c72bd105-8134-406f-8d24-e609c43ca3b0) and start prompting.
+Clone the repository e lavora in locale. Assicurati di avere Node.js e npm installati (consigliato: gestirli con [nvm](https://github.com/nvm-sh/nvm#installing-and-updating)).
 
-Changes made via Lovable will be committed automatically to this repo.
+Questo progetto usa npm come package manager.
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-This project uses npm as its package manager.
-
-Follow these steps:
+Passi rapidi:
 
 ```sh
 # Step 1: Clone the repository using the project's Git URL.
@@ -45,19 +34,17 @@ Unit tests are executed with [Vitest](https://vitest.dev/):
 npm test
 ```
 
-**Edit a file directly in GitHub**
+**Edit directly in GitHub**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- Apri il file da modificare
+- Clicca l'icona matita (Edit) in alto a destra
+- Esegui le modifiche e fai commit nella branch desiderata
 
-**Use GitHub Codespaces**
+**Usare GitHub Codespaces (opzionale)**
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- Vai alla pagina principale del repository
+- Clicca su "Code" → tab "Codespaces"
+- Crea un nuovo Codespace e sviluppa direttamente nel browser
 
 ## What technologies are used for this project?
 
@@ -155,15 +142,11 @@ Test rapidi lato FE:
 
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/c72bd105-8134-406f-8d24-e609c43ca3b0) and click on Share -> Publish.
+Puoi distribuire i servizi dove preferisci (Railway, Render, VPS, Docker Swarm/K8s). In questo repo trovi:
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- Dockerfile e docker-compose per avviare localmente il microservizio Quackle
+- Workflow GitHub Actions per smoke test del servizio
+- Variabili d’ambiente documentate nelle sezioni dedicate
 
 ## Blank tiles
 
