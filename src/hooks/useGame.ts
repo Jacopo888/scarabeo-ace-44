@@ -4,61 +4,18 @@ import { GameState, Player, Tile, PlacedTile, TILE_DISTRIBUTION } from '@/types/
 import { validateMoveLogic } from '@/utils/moveValidation'
 import { findNewWordsFormed } from '@/utils/newWordFinder'
 import { calculateNewMoveScore } from '@/utils/newScoring'
-import { canEndGame, calculateEndGamePenalty } from '@/utils/gameRules'
+import { canEndGame } from '@/utils/gameRules'
 import { useToast } from '@/hooks/use-toast'
 import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
 import type { GameMove } from './useGameAnalysis'
 import { Difficulty } from '@/components/DifficultyModal'
 import { toastOnce } from '@/lib/toastOnce'
+import { sanitizeQuackleTile } from '@/lib/game/tiles'
+import { shuffleArray, drawTiles } from '@/lib/game/random'
+import { computeFinalPlayers } from '@/lib/game/endgame'
 
-  const sanitizeQuackleTile = (tile: PlacedTile): PlacedTile | null => {
-    if (!tile) return null
-
-    const rawLetter = (tile.letter ?? '').toString().trim()
-
-    // Skip placeholder dots sent by Quackle
-    if (!rawLetter || rawLetter === '.') {
-      return null
-    }
-
-    const upperLetter = rawLetter.toUpperCase()
-    const isBlank = tile.isBlank || upperLetter === '?'
-    // Service returns 0-based coordinates: ensure finite integers within [0,14]
-    const rowRaw = (tile as any).row
-    const colRaw = (tile as any).col
-    const rowNum = Number(rowRaw)
-    const colNum = Number(colRaw)
-    if (!Number.isFinite(rowNum) || !Number.isFinite(colNum)) return null
-    if (!Number.isInteger(rowNum) || !Number.isInteger(colNum)) return null
-    if (rowNum < 0 || rowNum > 14 || colNum < 0 || colNum > 14) return null
-    const row = rowNum
-    const col = colNum
-
-    return {
-      ...tile,
-      letter: upperLetter,
-      isBlank,
-      points: isBlank ? 0 : (Number(tile.points) || 0),
-      row,
-      col
-    }
-  }
-
-const shuffleArray = <T,>(array: T[]): T[] => {
-  const shuffled = [...array]
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-  }
-  return shuffled
-}
-
-const drawTiles = (bag: Tile[], count: number): { drawn: Tile[], remaining: Tile[] } => {
-  const drawn = bag.slice(0, count)
-  const remaining = bag.slice(count)
-  return { drawn, remaining }
-}
+  // helpers estratti in src/lib/game
 
 export const useGame = () => {
   const { toast } = useToast()
@@ -283,16 +240,7 @@ export const useGame = () => {
       )
 
       if (endGame) {
-        const p1Penalty = calculateEndGamePenalty(newPlayers[0].rack)
-        const p2Penalty = calculateEndGamePenalty(newPlayers[1].rack)
-        let p1Score = newPlayers[0].score - p1Penalty
-        let p2Score = newPlayers[1].score - p2Penalty
-        if (p1Score > p2Score) p1Score += p2Penalty
-        else if (p2Score > p1Score) p2Score += p1Penalty
-        const finalPlayers: Player[] = [
-          { ...newPlayers[0], score: p1Score },
-          { ...newPlayers[1], score: p2Score }
-        ]
+        const finalPlayers: Player[] = computeFinalPlayers(newPlayers)
         return {
           ...prev,
           board: newBoard,
@@ -404,16 +352,7 @@ export const useGame = () => {
       )
 
       if (endGame) {
-        const p1Penalty = calculateEndGamePenalty(prev.players[0].rack)
-        const p2Penalty = calculateEndGamePenalty(prev.players[1].rack)
-        let p1Score = prev.players[0].score - p1Penalty
-        let p2Score = prev.players[1].score - p2Penalty
-        if (p1Score > p2Score) p1Score += p2Penalty
-        else if (p2Score > p1Score) p2Score += p1Penalty
-        const finalPlayers: Player[] = [
-          { ...prev.players[0], score: p1Score },
-          { ...prev.players[1], score: p2Score }
-        ]
+        const finalPlayers: Player[] = computeFinalPlayers(prev.players)
         return {
           ...prev,
           players: finalPlayers,
@@ -460,16 +399,7 @@ export const useGame = () => {
       )
 
       if (endGame) {
-        const p1Penalty = calculateEndGamePenalty(newPlayers[0].rack)
-        const p2Penalty = calculateEndGamePenalty(newPlayers[1].rack)
-        let p1Score = newPlayers[0].score - p1Penalty
-        let p2Score = newPlayers[1].score - p2Penalty
-        if (p1Score > p2Score) p1Score += p2Penalty
-        else if (p2Score > p1Score) p2Score += p1Penalty
-        const finalPlayers: Player[] = [
-          { ...newPlayers[0], score: p1Score },
-          { ...newPlayers[1], score: p2Score }
-        ]
+        const finalPlayers: Player[] = computeFinalPlayers(newPlayers)
         return {
           ...prev,
           players: finalPlayers,
@@ -600,16 +530,7 @@ export const useGame = () => {
         )
 
         if (endGame) {
-          const p1Penalty = calculateEndGamePenalty(newPlayers[0].rack)
-          const p2Penalty = calculateEndGamePenalty(newPlayers[1].rack)
-          let p1Score = newPlayers[0].score - p1Penalty
-          let p2Score = newPlayers[1].score - p2Penalty
-          if (p1Score > p2Score) p1Score += p2Penalty
-          else if (p2Score > p1Score) p2Score += p1Penalty
-          const finalPlayers: Player[] = [
-            { ...newPlayers[0], score: p1Score },
-            { ...newPlayers[1], score: p2Score }
-          ]
+          const finalPlayers: Player[] = computeFinalPlayers(newPlayers)
           return {
             ...prev,
             board: newBoard,
