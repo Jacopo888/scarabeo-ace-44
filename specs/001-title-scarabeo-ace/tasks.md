@@ -21,64 +21,64 @@
   - Path: CI pipeline
 
 ## Wave 0 — Safety Nets & Mapping
-- [ ] T001 Create coords golden fixture file
+- [x] T001 Create coords golden fixture file
   - Path: `fixtures/coords/test_payload.json`
   - Content: A1, H8, O15 cases; shared by FE + service tests
-- [ ] T002 [P] FE test: coordinates round-trip encoding/decoding
+- [x] T002 [P] FE test: coordinates round-trip encoding/decoding
   - Path: `src/__tests__/coords.roundtrip.test.ts`
   - Dep: T001
-- [ ] T003 [P] Service test (pytest): coordinates round-trip
+- [x] T003 [P] Service test (pytest): coordinates round-trip
   - Path: `service-quackle/tests/test_coords_roundtrip.py`
   - Dep: T001
-- [ ] T004 Create quackle payload golden fixture
+- [x] T004 Create quackle payload golden fixture
   - Path: `fixtures/quackle/test_payload.json`
-- [ ] T005 [P] Service test: payload shape snapshot
+- [x] T005 [P] Service test: payload shape snapshot
   - Path: `service-quackle/tests/test_quackle_payload_snapshot.py`
   - Dep: T004
-- [ ] T006 Create health readiness golden fixture
+- [x] T006 Create health readiness golden fixture
   - Path: `fixtures/health/expected.json`
-- [ ] T007 [P] Service integration test: /health matches fixture (engine_ready and sizes>0)
+- [x] T007 [P] Service integration test: /health matches fixture (engine_ready and sizes>0)
   - Path: `service-quackle/tests/test_health_golden.py`
   - Dep: T006
-- [ ] T008 Property-based tests: placements & anchors
+- [x] T008 Property-based tests: placements & anchors
   - Path: `service-quackle/tests/test_property_placements.py`
   - Notes: low count, deterministic seed
-- [ ] T009 [P] Inventory report: big files
+- [x] T009 [P] Inventory report: big files
   - Path: `docs/inventory/big-files.md`
-- [ ] T010 [P] Inventory report: long files
+- [x] T010 [P] Inventory report: long files
   - Path: `docs/inventory/long-files.md`
-- [ ] T011 [P] "Map before move" docs for top 5 long/complex files
+- [x] T011 [P] "Map before move" docs for top 5 long/complex files
   - Path: `docs/readme_<path-with-dots>.md`
 
 ## Wave 1 — Debloat & Bootstrap
-- [ ] T012 Update .gitignore with heavy/derived patterns
+- [x] T012 Update .gitignore with heavy/derived patterns
   - Path: `.gitignore`
-- [ ] T013 Stop tracking lexica binaries
+- [x] T013 Stop tracking lexica binaries
   - Path: `lexica/` and others; use `git rm --cached`
-- [ ] T014 Remove strategy artifacts and add STRATEGY.md
+- [x] T014 Remove strategy artifacts and add STRATEGY.md
   - Path: `data/appdata/strategy/**` and `STRATEGY.md`
-- [ ] T015 Clean logs/tmp/venv and duplicated samples
+- [x] T015 Clean logs/tmp/venv and duplicated samples
   - Path: `.venv/`, `logs/`, `*.log`, `*.tmp`, duplicates
-- [ ] T016 Canonicalize fixture name to test_payload.json
+- [x] T016 Canonicalize fixture name to test_payload.json
   - Path: `fixtures/` and tests referencing old name
-- [ ] T017 CI job: repo size report (git count-objects + git-sizer)
+- [x] T017 CI job: repo size report (git count-objects + git-sizer)
   - Path: CI config
 
 ## Wave 2 — Lexica Runtime Bootstrap (no API shape change)
-- [ ] T018 Script `bootstrap_lexica`
+- [x] T018 Script `bootstrap_lexica`
   - Path: `service-quackle/scripts/bootstrap_lexica.sh` (or .py)
   - Behavior: read QUACKLE_LEXDIR, LEXICON_BASENAME=enable1, GADDAG_URL/DAWG_URL; download if missing; verify sizes>0; print sizes
-- [ ] T019 Wire bootstrap into startup
+- [x] T019 Wire bootstrap into startup
   - Path: `service-quackle/entrypoint.sh` or app startup
-- [ ] T020 Tests for missing/present lexica (health engine_ready)
+- [x] T020 Tests for missing/present lexica (health engine_ready)
   - Path: `service-quackle/tests/test_health_lexica_presence.py`
 
 ## Wave 3 — Service Boundary Simplification (FastAPI)
-- [ ] T021 Create single adapter for Quackle
+- [x] T021 Create single adapter for Quackle
   - Path: `service-quackle/quackle_service/adapters/quackle.py`
-- [ ] T022 DTOs + validation (Pydantic models)
+- [x] T022 DTOs + validation (Pydantic models)
   - Path: `service-quackle/quackle_service/models.py`
-- [ ] T023 Extract pure helpers (encoding, rack, timeouts) + tests
+- [x] T023 Extract pure helpers (encoding, rack, timeouts) + tests
   - Path: `service-quackle/quackle_service/lib/{encoding.py,rack.py,timeouts.py}`; tests in `service-quackle/tests/`
 
 ## Wave 4 — Frontend Simplification (Vite/React/TS)

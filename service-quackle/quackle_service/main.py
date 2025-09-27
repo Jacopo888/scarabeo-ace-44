@@ -18,6 +18,7 @@ from .lib.encoding import (
     coord_map_from_grid as _coord_map_from_grid_pure,
 )
 from .lib.timeouts import to_subprocess_timeout_s
+from .adapters.quackle import best_move as _adapter_best_move
 
 # Configure logging to stderr
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -940,7 +941,8 @@ async def debug_probe(request: Request):
 
         # Optionally call the bridge to ensure it's reachable and to surface errors; not mandatory for probe
         payload = {"board": board_out, "rack": rack_norm}
-        result = _call_bridge(payload)
+        # Route via adapter boundary
+        result = _adapter_best_move(payload)
 
         return {
             "took_ms": result.get("time_ms", 0),
@@ -968,18 +970,25 @@ async def bag_summary(req: Request):
     try:
         raw = await req.body()
         body = json.loads(raw.decode("utf-8")) if raw else {}
-        rack_norm = _normalize_rack_flexible(body.get("rack"))
-        board_out = _normalize_board_for_bridge(body.get("board"))
+        # Parse via DTO mantenendo compatibilità (alias opponentRack)
+        from .models import BagSummaryRequest  # import locale per evitare cicli
+        try:
+            dto = BagSummaryRequest(**body)
+        except Exception:
+            # In caso di payload non valido, degradare a formato precedente senza cambiare error policy
+            dto = None
+        rack_norm = _normalize_rack_flexible((dto.rack if dto else body.get("rack")))
+        board_out = _normalize_board_for_bridge((dto.board if dto else body.get("board")))
         base = _english_tile_distribution()
-        dist = _merge_distribution_override(base, body.get("distribution"))
+        dist = _merge_distribution_override(base, (dto.distribution if dto else body.get("distribution")))
 
         # Unseen from the player's perspective = base - board - player rack
         unseen_count, unseen_by_letter = _count_unseen(board_out["grid"], rack_norm, dist)
 
         # Optionally compute the actual bag (excluding opponent rack if provided)
-        opp_raw = body.get("opponent_rack") if isinstance(body, dict) else None
+        opp_raw = (dto.opponent_rack if dto else (body.get("opponent_rack") if isinstance(body, dict) else None))
         if opp_raw is None and isinstance(body, dict):
-            opp_raw = body.get("opponentRack")  # camelCase alternative
+            opp_raw = body.get("opponentRack")  # camelCase alternative (fallback)
         opp_rack = _normalize_rack_flexible(opp_raw)
 
         bag_by_letter = dict(unseen_by_letter)
@@ -1403,8 +1412,8 @@ async def best_move(req: Request):
         if isinstance(diff_raw, str) and diff_raw.strip().lower() in {"easy", "medium", "hard"}:
             payload["difficulty"] = diff_raw.strip().lower()
 
-        # Call bridge
-        result = _call_bridge(payload)
+        # Call bridge via adapter (lazy-imports _call_bridge to avoid cycles)
+        result = _adapter_best_move(payload)
         print("[DEBUG] Bridge result summary:", {
             'tiles_len': len(result.get('tiles', [])),
             'move_type': result.get('move_type'),
@@ -1491,7 +1500,7 @@ def debug_sample_moves():
         board_out = _normalize_board_for_bridge({
             "rows": 15, "cols": 15, "grid": ["."*15 for _ in range(15)]
         })
-        res = _call_bridge({"board": board_out, "rack": "AEIRSTZ"})
+        res = _adapter_best_move({"board": board_out, "rack": "AEIRSTZ"})
         cases.append({
             "name": "empty+AEIRSTZ",
             "ok": (not res.get("engine_fallback") and res.get("move_type") != "pass"),
@@ -1507,7 +1516,7 @@ def debug_sample_moves():
         board_out = _normalize_board_for_bridge({
             "rows": 15, "cols": 15, "grid": grid
         })
-        res = _call_bridge({"board": board_out, "rack": "HELLO??"})
+        res = _adapter_best_move({"board": board_out, "rack": "HELLO??"})
         cases.append({
             "name": "centerA+HELLO??",
             "ok": (not res.get("engine_fallback") and res.get("move_type") != "pass"),
@@ -1519,7 +1528,7 @@ def debug_sample_moves():
     # Case 3: Legacy B format (15 strings grid)
     try:
         board_out = _normalize_board_for_bridge(["."*15 for _ in range(15)])
-        res = _call_bridge({"board": board_out, "rack": "AEIRSTZ"})
+        res = _adapter_best_move({"board": board_out, "rack": "AEIRSTZ"})
         cases.append({
             "name": "legacyB+AEIRSTZ",
             "ok": (not res.get("engine_fallback") and res.get("move_type") != "pass"),

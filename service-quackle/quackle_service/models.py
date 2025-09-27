@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Any, Optional, List
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 import re
 
 
@@ -50,3 +50,11 @@ class RackString(BaseModel):
         if re.fullmatch(r"[A-Z\?\*]{0,7}", s or "") is None:
             raise ValueError("invalid_rack_format")
         return s
+
+
+class BagSummaryRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    board: Any
+    rack: Any
+    opponent_rack: Optional[Any] = Field(default=None, alias="opponentRack")
+    distribution: Optional[dict] = None
