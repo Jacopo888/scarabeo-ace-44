@@ -73,14 +73,17 @@ export const useGame = () => {
   const gameIdRef = useRef<string>(crypto.randomUUID())
   const botMoveInFlightRef = useRef(false)
   
-  // Initialize game state with proper bot mode detection
+  // Legge la modalità dai parametri URL (default: local)
+  const urlMode = (searchParams.get('mode') || 'local') as 'local' | 'quackle'
+
+  // Initialize game state in base alla modalità scelta
   const initializeGameState = useCallback((): GameState => {
-    console.log('[useGame] Initializing game with difficulty:', difficulty)
+    console.log('[useGame] Initializing game with mode:', urlMode, 'difficulty:', difficulty)
     const shuffledBag = shuffleArray(TILE_DISTRIBUTION)
     const player1Tiles = drawTiles(shuffledBag, 7)
     const player2Tiles = drawTiles(player1Tiles.remaining, 7)
 
-    const gameMode: 'human' | 'quackle' = difficulty ? 'quackle' : 'human'
+    const gameMode: 'human' | 'quackle' = (urlMode === 'quackle') ? 'quackle' : 'human'
     const startingPlayerIndex = Math.floor(Math.random() * 2)
 
     return {
@@ -88,26 +91,26 @@ export const useGame = () => {
       players: [
         {
           id: 'player1',
-          name: difficulty ? 'You' : 'Player 1',
+          name: gameMode === 'quackle' ? 'You' : 'Player 1',
           score: 0,
           rack: player1Tiles.drawn,
           isBot: false
         },
         {
           id: 'player2',
-          name: difficulty ? `Quackle (${difficulty})` : 'Player 2',
+          name: gameMode === 'quackle' ? `Quackle (${difficulty || 'easy'})` : 'Player 2',
           score: 0,
           rack: player2Tiles.drawn,
-          isBot: !!difficulty
+          isBot: gameMode === 'quackle'
         }
       ],
       currentPlayerIndex: startingPlayerIndex,
       tileBag: player2Tiles.remaining,
-      gameStatus: difficulty ? 'playing' : 'waiting',
+      gameStatus: gameMode === 'quackle' ? 'playing' : 'waiting',
       gameMode,
       passCounts: [0, 0]
     }
-  }, [difficulty])
+  }, [difficulty, urlMode])
 
   // Initialize with empty state and wait for difficulty
   const [gameState, setGameState] = useState<GameState>(() => ({
@@ -687,11 +690,10 @@ export const useGame = () => {
     }
   }, [urlDifficulty, difficulty, setDifficulty])
 
-  // Effect to initialize game when difficulty is available (idempotent)
+  // Effect per inizializzare la modalità Quackle quando richiesto
   useEffect(() => {
     const activeDifficulty = difficulty
-    console.log('[useGame] Active difficulty:', activeDifficulty)
-    if (activeDifficulty && gameState.players.length === 0) {
+    if (urlMode === 'quackle' && gameState.players.length === 0) {
       console.log('[useGame] Initializing game with difficulty:', activeDifficulty)
       
       // Initialize game state directly here to avoid circular dependency
@@ -699,7 +701,7 @@ export const useGame = () => {
       const player1Tiles = drawTiles(shuffledBag, 7)
       const player2Tiles = drawTiles(player1Tiles.remaining, 7)
 
-      const gameMode: 'human' | 'quackle' = 'quackle'
+  const gameMode: 'human' | 'quackle' = 'quackle'
       const startingPlayerIndex = Math.floor(Math.random() * 2)
 
       const newGameState: GameState = {
@@ -714,7 +716,7 @@ export const useGame = () => {
           },
           {
             id: 'player2',
-            name: `Quackle (${activeDifficulty})`,
+            name: `Quackle (${activeDifficulty || 'easy'})`,
             score: 0,
             rack: player2Tiles.drawn,
             isBot: true
@@ -735,21 +737,20 @@ export const useGame = () => {
       setMoveHistory([])
       gameIdRef.current = crypto.randomUUID()
     }
-  }, [difficulty, gameState.players.length])
+  }, [urlMode, difficulty, gameState.players.length])
 
-  // Initialize Local Game (human vs human) when no difficulty is chosen
+  // Initialize Local Game (human vs human) quando mode=local
   useEffect(() => {
-    const activeDifficulty = difficulty
-    if (!activeDifficulty && gameState.players.length === 0) {
+    if (urlMode === 'local' && gameState.players.length === 0) {
       const newState = initializeGameState()
-      console.log('[useGame] Initializing LOCAL game (no difficulty)')
+      console.log('[useGame] Initializing LOCAL game')
       setGameState(newState)
       setPendingTiles([])
       setIsSurrendered(false)
       setMoveHistory([])
       gameIdRef.current = crypto.randomUUID()
     }
-  }, [difficulty, gameState.players.length, initializeGameState])
+  }, [urlMode, gameState.players.length, initializeGameState])
 
   return {
     gameState,

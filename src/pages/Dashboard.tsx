@@ -10,6 +10,9 @@ import { GameRecord } from '@/types/multiplayer'
 import { supabase } from '@/integrations/supabase/client'
 import { useToast } from '@/hooks/use-toast'
 import { Clock, Trophy, Users, Target } from 'lucide-react'
+import { DifficultyModal, Difficulty } from '@/components/DifficultyModal'
+import { useNavigate } from 'react-router-dom'
+import { useQuackleContext } from '@/contexts/QuackleContext'
 
 export default function Dashboard() {
   const { user, profile, signOut } = useAuth()
@@ -17,6 +20,9 @@ export default function Dashboard() {
   const [activeGames, setActiveGames] = useState<GameRecord[]>([])
   const [preferredDuration, setPreferredDuration] = useState<'1h' | '6h' | '24h' | '48h'>('24h')
   const { toast } = useToast()
+  const navigate = useNavigate()
+  const { setDifficulty } = useQuackleContext()
+  const [showDiffModal, setShowDiffModal] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -139,6 +145,14 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-6xl mx-auto">
+        <DifficultyModal
+          open={showDiffModal}
+          onOpenChange={setShowDiffModal}
+          onSelectDifficulty={(d: Difficulty) => {
+            setDifficulty(d)
+            navigate(`/game?mode=quackle&difficulty=${d}`)
+          }}
+        />
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -146,7 +160,7 @@ export default function Dashboard() {
             <p className="text-muted-foreground">Welcome, {profile.display_name || profile.username}!</p>
           </div>
           <div className="flex items-center gap-4">
-            <Link to="/game">
+            <Link to="/game?mode=local">
               <Button variant="outline">Local Game</Button>
             </Link>
             <Button variant="outline" onClick={signOut}>Logout</Button>
@@ -247,11 +261,9 @@ export default function Dashboard() {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Link to="/game">
-                <Button variant="outline" className="w-full">
-                  Play vs Bot
-                </Button>
-              </Link>
+              <Button variant="outline" className="w-full" onClick={() => setShowDiffModal(true)}>
+                Play vs Bot
+              </Button>
               <Link to="/dictionary">
                 <Button variant="outline" className="w-full">
                   Dictionary

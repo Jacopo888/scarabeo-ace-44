@@ -21,8 +21,8 @@ export const PlayButtons = () => {
   const handleDifficultySelect = (difficulty: Difficulty) => {
     console.log('[PlayButtons] Setting difficulty:', difficulty)
     setDifficulty(difficulty)
-    // Navigate with difficulty in URL to persist state
-    navigate(`/game?difficulty=${difficulty}`)
+    // Naviga esplicitamente alla modalità Quackle con difficoltà
+    navigate(`/game?mode=quackle&difficulty=${difficulty}`)
   }
   
   const handleQuickMatch = () => {
@@ -63,7 +63,7 @@ export const PlayButtons = () => {
               <CardTitle>Play Local</CardTitle>
             </CardHeader>
             <CardContent>
-              <Button variant="default" className="w-full" onClick={() => { setDifficulty(null); navigate('/game') }}>
+              <Button variant="default" className="w-full" onClick={() => { setDifficulty(null); navigate('/game?mode=local') }}>
                 Start
               </Button>
             </CardContent>
