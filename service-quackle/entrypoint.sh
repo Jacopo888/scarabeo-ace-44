@@ -8,6 +8,11 @@ set -euo pipefail
 mkdir -p "$QUACKLE_LEXDIR" "$QUACKLE_APPDATA_DIR"
 echo "[BOOT] Ensured dirs LEXDIR=$QUACKLE_LEXDIR APPDATA=$QUACKLE_APPDATA_DIR PORT=$PORT"
 
+# Bootstrap lexica if missing and URLs provided (idempotent)
+if [ -x "$(dirname "$0")/scripts/bootstrap_lexica.sh" ]; then
+  "$(dirname "$0")/scripts/bootstrap_lexica.sh" || echo "[BOOT] bootstrap_lexica skipped or failed, proceeding if mounted files exist"
+fi
+
 echo "[BOOT] Ensuring strategy files in /data/appdata/strategy ..."
 need_sync=0
 for f in default_english/syn2 default_english/vcplace default_english/superleaves default_english/worths default/bogowin; do
