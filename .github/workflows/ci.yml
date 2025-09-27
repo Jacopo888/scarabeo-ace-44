@@ -43,3 +43,9 @@ jobs:
         run: |
           echo "Git count-objects (human readable):"
           git count-objects -vH || true
+          echo "\nTop 20 largest files (current checkout):"
+          ls -alhR | awk '{print $5 "\t" $9}' | sort -h -r | head -n 20 || true
+          echo "\nAttempting git-sizer (optional):"
+          curl -fsSL https://github.com/github/git-sizer/releases/latest/download/git-sizer-linux-amd64.zip -o /tmp/git-sizer.zip || true
+          (cd /tmp && unzip -o git-sizer.zip >/dev/null 2>&1 && sudo mv git-sizer /usr/local/bin/git-sizer || true)
+          git-sizer || true

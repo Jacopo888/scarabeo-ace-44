@@ -27,3 +27,45 @@ dist-ssr
 service-quackle/.venv/
 service-quackle/**/__pycache__/
 .env.compose
+
+# General caches and temps
+*.cache
+*.tmp
+*.temp
+tmp/
+.cache/
+.pytest_cache/
+.mypy_cache/
+coverage/
+
+# Vite/Frontend caches
+.vite/
+.vite-cache/
+
+# Engine/Quackle build outputs and lexica (derived)
+engine/quackle_wrapper/build/
+engine/lexica/
+engine/lexica_src/build/
+engine/app/*.bin
+engine/app/*.o
+engine/app/*.so
+engine/app/*.dll
+engine/app/*.dylib
+
+# Data and strategy (derived)
+data/appdata/strategy/
+temp_lexica/
+lexica/
+
+# Keep directory structure with explicit placeholders
+!data/appdata/strategy/.keep
+!temp_lexica/.keep
+!lexica/.keep
+!engine/lexica/.keep
+!logs/.keep
+
+# Logs and runtime outputs (redundant to top-level but explicit)
+logs/
+**/*.log
+*.out
+*.err
