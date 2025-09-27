@@ -1,0 +1,56 @@
+openapi: 3.0.3
+info:
+  title: Scarabeo-Ace-44 Stable Contracts
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /health:
+    get:
+      summary: Health probe
+      responses:
+        '200':
+          description: Engine readiness
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  engine_ready:
+                    type: boolean
+                  gaddag_size:
+                    type: integer
+                    format: int64
+                  dawg_size:
+                    type: integer
+                    format: int64
+  /best-move:
+    post:
+      summary: Compute best move for given board and rack
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                board:
+                  type: object
+                rack:
+                  type: string
+      responses:
+        '200':
+          description: Best move result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  top_move:
+                    type: object
+                  moves:
+                    type: array
+                    items:
+                      type: object
+        '4XX':
+          description: Validation errors (taxonomy unchanged)
