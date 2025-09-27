@@ -1416,6 +1416,16 @@ async def best_move(req: Request):
         print(f"[DEBUG] rack_norm len={len(rack_norm)} rack='{rack_norm}'")
         print(f"[DEBUG] board_norm rows={board_out.get('rows')} cols={board_out.get('cols')} non_empty={non_empty}")
 
+        # If rack is empty, no move is possible: return a PASS deterministically (avoid hitting the bridge)
+        if len(rack_norm) == 0:
+            return {
+                "tiles": [],
+                "score": 0,
+                "words": [],
+                "move_type": "pass",
+                "engine_fallback": False
+            }
+
         # Preflight lexicon only in production to keep tests fast
         if ENV_MODE == 'prod' and not SKIP_LEXICON_CHECK:
             ok, dawg, gaddag = ensure_lexicon_ready()
@@ -1463,6 +1473,15 @@ async def best_move(req: Request):
                     status = 500
             elif err.startswith("exec_failed") or err.startswith("bridge_failed_rc") or err == "strategy_missing":
                 status = 502
+            # If rack has fewer than 7 tiles, degrade engine errors to a deterministic PASS
+            if len(rack_norm) < 7:
+                return {
+                    "tiles": [],
+                    "score": 0,
+                    "words": [],
+                    "move_type": "pass",
+                    "engine_fallback": False
+                }
             body = {k: v for k, v in result.items() if k in {"engine_fallback", "error", "stderr", "ldd", "rc"}}
             return JSONResponse(body or {"engine_fallback": True, "error": err}, status_code=status)
 

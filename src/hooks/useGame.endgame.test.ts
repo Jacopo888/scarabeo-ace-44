@@ -19,9 +19,9 @@ vi.mock('@/contexts/DictionaryContext', () => ({
   useDictionary: () => ({ isValidWord: () => true })
 }))
 
-// Mock search params
+// Mock search params to start in quackle mode
 vi.mock('react-router-dom', () => ({
-  useSearchParams: () => [new URLSearchParams(), vi.fn()]
+  useSearchParams: () => [new URLSearchParams('mode=quackle&difficulty=easy'), vi.fn()]
 }))
 
 // Dynamic quackle mock: difficulty enabled and a move that consumes the whole rack

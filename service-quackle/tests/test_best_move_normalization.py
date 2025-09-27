@@ -114,10 +114,12 @@ def test_D_board_placements(monkeypatch):
 
 def test_F_errors():
     client = make_client()
-    # Rack less than 7
+    # Rack less than 7: now accepted and returns a deterministic pass
     r1 = client.post("/best-move", json={"rack": "HELLO?", "board": {"grid": ["."*15 for _ in range(15)]}})
-    assert r1.status_code == 400
-    assert r1.json().get("error") == "rack_must_be_7_chars"
+    assert r1.status_code == 200, r1.text
+    j1 = r1.json()
+    assert j1.get("engine_fallback") is False
+    assert j1.get("move_type") == "pass"
 
     # Invalid characters
     r2 = client.post("/best-move", json={"rack": "HELLO1?", "board": {"grid": ["."*15 for _ in range(15)]}})
