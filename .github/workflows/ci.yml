@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, "**" ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  node-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            rating-api/package-lock.json
+
+      - name: Install dependencies (root)
+        run: npm ci || npm i
+
+      - name: Lint (root)
+        run: npm run lint
+
+      - name: Test (frontend)
+        run: npm test -- --run
+
+      - name: Install dependencies (rating-api)
+        run: npm --prefix rating-api ci || npm --prefix rating-api i
+
+      - name: Test (rating-api)
+        run: npm --prefix rating-api test -- --run
+
+      - name: Repo size report
+        if: always()
+        run: |
+          echo "Git count-objects (human readable):"
+          git count-objects -vH || true
