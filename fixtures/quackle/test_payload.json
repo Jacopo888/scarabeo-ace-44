@@ -1,0 +1,7 @@
+{
+  "rack": "AEIRSTZ",
+  "board": {
+    "8,8": { "letter": "A", "isBlank": false }
+  },
+  "difficulty": "medium"
+}
