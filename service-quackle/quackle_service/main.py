@@ -11,6 +11,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import logging
+from .lib.rack import normalize_rack_flexible as _rack_pure_normalize
+from .lib.encoding import (
+    is_coord_map as _is_coord_map_pure,
+    squares_from_coord_map as _squares_from_coord_map_pure,
+    coord_map_from_grid as _coord_map_from_grid_pure,
+)
+from .lib.timeouts import to_subprocess_timeout_s
 
 # Configure logging to stderr
 logging.basicConfig(stream=sys.stderr, level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -508,70 +515,21 @@ def normalize_rack(raw: Any) -> str:
     return raw
 
 def _normalize_rack_flexible(raw: Any) -> str:
-    """Like normalize_rack but allows 0..7 tiles. Returns uppercase string.
-    Accepts string or list (of letters or tile objects with 'letter').
-    """
-    if raw is None:
-        return ""
-    if isinstance(raw, list):
-        try:
-            parts: List[str] = []
-            for el in raw:
-                if isinstance(el, dict) and "letter" in el:
-                    parts.append(str(el["letter"]))
-                else:
-                    parts.append(str(el))
-            raw = ''.join(parts)
-        except Exception:
-            raw = ''.join([str(x) for x in raw])
-    raw = str(raw).replace(" ", "").upper()
-    if not re.fullmatch(r"[A-Z\?\*]{0,7}", raw or ""):
+    """Wrap the pure helper and map ValueError to HTTPException(400)."""
+    try:
+        return _rack_pure_normalize(raw)
+    except ValueError:
         raise HTTPException(status_code=400, detail="invalid_rack_format")
-    return raw
 
 def _is_coord_map(d: Dict[str, Any]) -> bool:
-    if not isinstance(d, dict):
-        return False
-    if not d:
-        return True  # empty board map is valid
-    # Heuristic: any key like "<int>,<int>"
-    for k in d.keys():
-        if isinstance(k, str) and re.fullmatch(r"\d+,\d+", k):
-            return True
-    return False
+    return _is_coord_map_pure(d)
 
 def _squares_from_coord_map(coord_map: Dict[str, Any], rows: int, cols: int) -> List[List[Optional[str]]]:
-    squares: List[List[Optional[str]]] = [[None for _ in range(cols)] for _ in range(rows)]
-    for k, v in coord_map.items():
-        if not isinstance(k, str) or not re.fullmatch(r"\d+,\d+", k):
-            raise HTTPException(status_code=400, detail="malformed_board")
-        r_str, c_str = k.split(',')
-        # Bridge expects 1-based; accept both but clamp/validate later; here we convert to 0-based indices
-        try:
-            r1 = int(r_str)
-            c1 = int(c_str)
-        except Exception:
-            raise HTTPException(status_code=400, detail="malformed_board")
-        # Convert 1-based to 0-based, but if clients sent 0-based, these will be -1 which is invalid later
-        r0 = r1 - 1
-        c0 = c1 - 1
-        if not (0 <= r0 < rows and 0 <= c0 < cols):
-            # Try interpreting as 0-based if clearly in 0..14 and 1-based check failed
-            if 0 <= r1 < rows and 0 <= c1 < cols:
-                r0, c0 = r1, c1
-            else:
-                raise HTTPException(status_code=400, detail="invalid_board_coordinate")
-        letter = None
-        is_blank = False
-        if isinstance(v, dict):
-            letter = str(v.get("letter", "")).upper()
-            is_blank = bool(v.get("isBlank") or v.get("is_blank") or False)
-        else:
-            letter = str(v).upper()
-        if not letter or letter == ".":
-            continue
-        squares[r0][c0] = "?" if is_blank or letter in ("?", "*") else letter[:1]
-    return squares
+    try:
+        return _squares_from_coord_map_pure(coord_map, rows, cols)
+    except ValueError as e:
+        msg = str(e) if str(e) in {"malformed_board", "invalid_board_coordinate"} else "malformed_board"
+        raise HTTPException(status_code=400, detail=msg)
 
 def normalize_board(board_in: Any) -> Tuple[int, int, int, int, List[List[Optional[str]]], Dict[str, Dict[str, Any]]]:
     """Normalizes different input shapes into a 15x15 squares matrix and a bridge-ready coord map.
@@ -754,28 +712,10 @@ def _normalize_board_for_bridge(board_input: Any) -> Dict[str, Any]:
     return {"rows": 15, "cols": 15, "grid": grid}
 
 def _grid_to_coordmap(grid: list[str]) -> dict[str, dict]:
-    """
-    Convert a 15x15 grid ('.' empty, letters placed) into a coordinate map:
-      "r,c" (1-based) -> {"letter": <A-Z>, "isBlank": bool}
-    Notes:
-      - Skips unknown placeholders. For blanks ('?' or '*') we cannot infer the chosen letter
-        from a single-character grid, so we skip them to avoid invalid board letters.
-    """
-    if not (isinstance(grid, list) and len(grid) == 15):
-        raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
-    out: dict[str, dict] = {}
-    for r, row in enumerate(grid, start=1):
-        if not isinstance(row, str) or len(row) != 15:
-            raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
-        for c, ch in enumerate(row, start=1):
-            if ch == '.':
-                continue
-            ch_up = str(ch).upper()[:1]
-            # Skip blanks if we cannot infer assigned letter from grid
-            if ch_up in ('?', '*'):
-                continue
-            out[f"{r},{c}"] = {"letter": ch_up, "isBlank": False}
-    return out
+    try:
+        return _coord_map_from_grid_pure(grid)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 def _sanitize_coordmap_for_bridge(board_in: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     """
@@ -1151,7 +1091,7 @@ def _call_bridge_simple_op(op: str) -> Dict[str, Any]:
             input=stdin_str.encode("utf-8"),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=max(1, TIMEOUT_MS // 1000),
+            timeout=to_subprocess_timeout_s(TIMEOUT_MS),
             env=child_env,
         )
         try:
@@ -1290,7 +1230,7 @@ def _call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
                 input=stdin_str.encode("utf-8"),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                timeout=max(1, TIMEOUT_MS // 1000),
+                timeout=to_subprocess_timeout_s(TIMEOUT_MS),
                 env=child_env,
             )
         except OSError as e:
