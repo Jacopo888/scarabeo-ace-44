@@ -144,14 +144,23 @@ def _lex_paths():
     return dawg, gaddag
 
 def ensure_lexicon_ready():
-    dawg, gaddag = _lex_paths()
+    """Evaluate lexicon existence using current environment variables at call time.
+    Returns (ok, dawg_path, gaddag_path).
+    """
+    # Read dynamic env each time to support tests that monkeypatch env per request
+    lexicon_name = os.getenv("LEXICON_NAME", os.getenv("QUACKLE_LEXICON", "enable1.15").strip()).strip()
+    lexdir = os.getenv("QUACKLE_LEXDIR", "/data/lexica").strip()
+    skip = os.getenv("QUACKLE_SKIP_LEXICON_CHECK", "").strip().lower() in {"1","true","yes","on"}
+    base = os.path.normpath(lexdir)
+    dawg = os.path.join(base, f"{lexicon_name}.dawg")
+    gaddag = os.path.join(base, f"{lexicon_name}.gaddag")
     try:
         ok = (os.path.isfile(dawg) and os.path.getsize(dawg) > 0 and
               os.path.isfile(gaddag) and os.path.getsize(gaddag) > 0)
     except Exception:
         ok = False
     # In non-prod environments OR when explicitly skipped, allow running without files
-    if not ok and (SKIP_LEXICON_CHECK or (ENV_MODE and ENV_MODE.lower() in {"test", "dev", "development"})):
+    if not ok and (skip or (ENV_MODE and ENV_MODE.lower() in {"test", "dev", "development"})):
         return True, dawg, gaddag
     return ok, dawg, gaddag
 
@@ -838,8 +847,13 @@ def debug_strategy():
 
 @app.get("/health")
 def health():
+    # Read dynamic env for accurate, test-friendly reporting
+    lexicon_name = os.getenv("LEXICON_NAME", os.getenv("QUACKLE_LEXICON", "enable1.15").strip()).strip()
+    lexdir = os.getenv("QUACKLE_LEXDIR", "/data/lexica").strip()
+    appdata = os.getenv("QUACKLE_APPDATA_DIR", "/data/appdata").strip()
+    skip = os.getenv("QUACKLE_SKIP_LEXICON_CHECK", "").strip().lower() in {"1","true","yes","on"}
+
     ok, dawg, gaddag = ensure_lexicon_ready()
-    appdata = APPDATA
     strat_en = os.path.join(appdata, "strategy", "default_english")
     strat_def = os.path.join(appdata, "strategy", "default")
     def exists(p):
@@ -858,7 +872,7 @@ def health():
                 word_count = sum(1 for _ in f)
     except Exception:
         word_count = None
-    engine_ready = (os.path.exists(BRIDGE_BIN) and os.access(BRIDGE_BIN, os.X_OK) and (ok or SKIP_LEXICON_CHECK))
+    engine_ready = (os.path.exists(BRIDGE_BIN) and os.access(BRIDGE_BIN, os.X_OK) and (ok or skip))
     strat_debug = _strategy_inventory()
     payload = {
         "status": "ok",
@@ -866,9 +880,9 @@ def health():
         "engine_ready": engine_ready,
         "bridge_path": BRIDGE_BIN,
         "timeout_ms": TIMEOUT_MS,
-        "lexicon": QUACKLE_LEXICON,
-        "lexdir": QUACKLE_LEXDIR,
-        "lexicon_check_skipped": SKIP_LEXICON_CHECK,
+        "lexicon": lexicon_name,
+        "lexdir": lexdir,
+        "lexicon_check_skipped": skip,
         "bridge_ruleset": "en",
         "board_schema": "coord_map_1based",
         "payload_sanitize": True,
@@ -1071,8 +1085,8 @@ def health_lexicon():
     ok, dawg, gaddag = ensure_lexicon_ready()
     status = 200 if ok else 503
     body = {
-        "lexicon_name": LEXICON_NAME,
-        "lex_dir": LEXDIR,
+        "lexicon_name": os.getenv("LEXICON_NAME", os.getenv("QUACKLE_LEXICON", "enable1.15").strip()).strip(),
+        "lex_dir": os.getenv("QUACKLE_LEXDIR", "/data/lexica").strip(),
         "lexicon_ok": ok,
         "dawg_path": dawg,
         "gaddag_path": gaddag,
