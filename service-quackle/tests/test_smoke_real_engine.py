@@ -22,7 +22,7 @@ def have_real_engine():
 
 def have_gaddag():
     lexdir = os.environ.get('QUACKLE_LEXDIR', '/data/lexica')
-    lexicon = os.environ.get('QUACKLE_LEXICON', 'enable1')
+    lexicon = os.environ.get('QUACKLE_LEXICON', 'enable1.15')
     p = Path(lexdir) / f'{lexicon}.gaddag'
     return p.exists() and p.stat().st_size > 0
 

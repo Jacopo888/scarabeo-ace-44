@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Advanced debugging script for GADDAG loading issues
-GADDAG_PATH="${GADDAG_PATH:-/app/lexica/enable1.gaddag}"
+GADDAG_PATH="${GADDAG_PATH:-/app/lexica/enable1.15.gaddag}"
 WRAPPER_PATH="/app/bin/engine_wrapper"
 
 echo "[debug] Starting GADDAG debugging session"
@@ -62,7 +62,7 @@ echo "[debug] Running with GDB to get backtrace..."
 cat > /tmp/gdb_commands << 'EOF'
 set logging file /tmp/gdb_output.log
 set logging on
-run --gaddag /app/lexica/enable1.gaddag --ruleset it
+run --gaddag /app/lexica/enable1.15.gaddag --ruleset it
 bt
 quit
 EOF

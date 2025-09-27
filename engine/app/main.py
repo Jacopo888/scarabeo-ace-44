@@ -11,7 +11,7 @@ from app.models import MoveRequest, MoveResponse
 from typing import Optional
 
 APP_PORT = int(os.getenv("PORT", "8080"))
-GADDAG_PATH = os.getenv("GADDAG_PATH", "/app/lexica/enable1.gaddag")
+GADDAG_PATH = os.getenv("GADDAG_PATH", "/app/lexica/enable1.15.gaddag")
 RULESET = os.getenv("RULESET", "en")
 
 app = FastAPI(title="Scarabeo Engine", version="0.1.0")
@@ -106,7 +106,7 @@ def ask_engine(payload: dict, timeout_ms: int) -> dict:
 @app.on_event("startup")
 def _on_startup():
     # Optional GADDAG check at startup
-    gaddag_path = os.environ.get("GADDAG_PATH", "/app/lexica/enable1.gaddag")
+    gaddag_path = os.environ.get("GADDAG_PATH", "/app/lexica/enable1.15.gaddag")
     if os.environ.get("RUN_GADDAG_CHECK", "0") == "1":
         try:
             subprocess.run(
@@ -145,7 +145,7 @@ def health_lexicon():
     except Exception:
         lex_ok = False
     return {
-        "lexicon_name": "enable1",
+        "lexicon_name": "enable1.15",
         "lex_dir": os.path.dirname(GADDAG_PATH),
         "lexicon_ok": bool(ok_fs and lex_ok),
         "gaddag_path": GADDAG_PATH,

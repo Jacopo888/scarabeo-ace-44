@@ -103,13 +103,13 @@ Il microservizio `service-quackle` usa Quackle reale con GADDAG completo. Non ci
   - `GADDAG_URL=https://.../enable1.15.gaddag`
   - `DAWG_URL=https://.../enable1.15.dawg`
  Verifica che `enable1.15.gaddag` e `enable1.15.dawg` esistano e abbiano dimensione > 0. In caso contrario, `engine_ready:false` e `/best-move` risponde 500 `lexicon_not_ready`.
-  - `GADDAG_URL=https://.../enable1.gaddag`
-  - `DAWG_URL=https://.../enable1.dawg`
+  - `GADDAG_URL=https://.../enable1.15.gaddag`
+  - `DAWG_URL=https://.../enable1.15.dawg`
 
 All'avvio (lifespan FastAPI) il servizio:
 1) Crea le directory `QUACKLE_LEXDIR` e `QUACKLE_APPDATA_DIR` in modo idempotente.
 2) Scarica i file da `GADDAG_URL`/`DAWG_URL` se impostati, salvandoli in `QUACKLE_LEXDIR`.
-3) Verifica che `enable1.gaddag` e `enable1.dawg` esistano e abbiano dimensione > 0. In caso contrario, `engine_ready:false` e `/best-move` risponde 500 `lexicon_not_ready`.
+3) Verifica che `enable1.15.gaddag` e `enable1.15.dawg` esistano e abbiano dimensione > 0. In caso contrario, `engine_ready:false` e `/best-move` risponde 500 `lexicon_not_ready`.
 
 ### Endpoint principali
 - `GET /health` restituisce:

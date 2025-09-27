@@ -4,7 +4,7 @@ set -euo pipefail
 # Critical smoke test for GADDAG loading
 # This script MUST pass for the build to succeed
 
-GADDAG_PATH="${GADDAG_PATH:-/app/lexica/enable1.gaddag}"
+GADDAG_PATH="${GADDAG_PATH:-/app/lexica/enable1.15.gaddag}"
 WRAPPER_PATH="/app/bin/engine_wrapper"
 ALPHABET_PATH="${QUACKLE_ALPHABET:-}"
 
@@ -47,7 +47,7 @@ echo "[smoke] Testing GADDAG loading..."
 TEMP_SCRIPT=$(mktemp)
 cat > "$TEMP_SCRIPT" << 'EOF'
 #!/bin/bash
-echo '{"op":"ping"}' | timeout 30s /app/bin/engine_wrapper --gaddag /app/lexica/enable1.gaddag --ruleset it 2>&1
+echo '{"op":"ping"}' | timeout 30s /app/bin/engine_wrapper --gaddag /app/lexica/enable1.15.gaddag --ruleset it 2>&1
 echo "EXIT_CODE:$?"
 EOF
 

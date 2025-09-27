@@ -112,7 +112,7 @@ ALLOW_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if 
 # ------------------------------
 # Runtime configuration (volume-first)
 # ------------------------------
-LEXICON_NAME = os.getenv("LEXICON_NAME", os.getenv("QUACKLE_LEXICON", "enable1").strip()).strip()
+LEXICON_NAME = os.getenv("LEXICON_NAME", os.getenv("QUACKLE_LEXICON", "enable1.15").strip()).strip()
 LEXDIR = os.getenv("QUACKLE_LEXDIR", "/data/lexica").strip()
 APPDATA = os.getenv("QUACKLE_APPDATA_DIR", "/data/appdata").strip()
 TIMEOUT_MS = int(os.getenv("QUACKLE_TIMEOUT_MS", "8000"))

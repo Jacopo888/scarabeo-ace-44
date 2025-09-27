@@ -90,7 +90,7 @@ curl -sS -X POST http://localhost:8080/api/v1/move \
 ### GADDAG Generation Pipeline
 1. **Wordlist**: `lexica_src/enable1.txt` (172K+ words, uppercase)
 2. **Build tools**: `makegaddag` compiled with same Quackle version as runtime
-3. **Output**: `enable1.gaddag` (~17MB) with MD5 integrity checks
+3. **Output**: `enable1.15.gaddag` (~17MB) with MD5 integrity checks
 4. **Validation**: Build-time smoke test ensures GADDAG loads without segfault
 
 ### Quackle Integration
@@ -161,7 +161,7 @@ docker build -t scarabeo-engine:fresh -f engine/Dockerfile engine
 - **No volumes required**: Lexicon baked into image  
 - Set environment variables:
   - `RULESET=it` (or `en`)
-  - `GADDAG_PATH=/app/lexica/enable1.gaddag`
+  - `GADDAG_PATH=/app/lexica/enable1.15.gaddag`
   - `RUN_GADDAG_CHECK=1` (optional startup validation)
 
 ## Development Notes

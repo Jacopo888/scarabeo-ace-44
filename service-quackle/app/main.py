@@ -142,8 +142,8 @@ class RequestLoggerMiddleware(BaseHTTPMiddleware):
 app.add_middleware(RequestLoggerMiddleware)
 
 BRIDGE_BIN = os.getenv("QUACKLE_BRIDGE_BIN", "/usr/local/bin/quackle_bridge")
-QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "enable1")
-QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/data/quackle/lexica/enable1")
+QUACKLE_LEXICON = os.getenv("QUACKLE_LEXICON", "enable1.15")
+QUACKLE_LEXDIR = os.getenv("QUACKLE_LEXDIR", "/data/lexica")
 
 # Additional envs used for preflight/diagnostics (align with Dockerfile defaults)
 LEXICON_NAME = os.getenv("LEXICON_NAME", QUACKLE_LEXICON)

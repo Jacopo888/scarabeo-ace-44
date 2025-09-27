@@ -5,7 +5,7 @@ set -euo pipefail
 echo "=== SMOKE TESTS FOR ENGLISH RULESET ==="
 
 WRAPPER="/app/bin/engine_wrapper"
-GADDAG="/app/lexica/enable1.gaddag"
+GADDAG="/app/lexica/enable1.15.gaddag"
 
 # Test 1: Ping test
 echo "Test 1: Ping test"

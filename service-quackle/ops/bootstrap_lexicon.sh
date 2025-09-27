@@ -2,9 +2,9 @@
 set -euo pipefail
 umask 022
 
-LEXICON_NAME="${LEXICON_NAME:-enable1}"
+LEXICON_NAME="${LEXICON_NAME:-enable1.15}"
 # Sanitize LEX_DIR to avoid accidental newlines/spaces from env
-RAW_LEX_DIR="${LEX_DIR:-/data/quackle/lexica/enable1}"
+RAW_LEX_DIR="${LEX_DIR:-/data/lexica}"
 # remove trailing CR/LF and surrounding spaces
 LEX_DIR="$(printf '%s' "${RAW_LEX_DIR}" | tr -d '\r' | sed -E 's/[[:space:]]+$//' | sed -E 's/^[[:space:]]+//')"
 DAWG_URL="${DAWG_URL:-}"

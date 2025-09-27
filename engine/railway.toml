@@ -14,6 +14,6 @@ internal_port = 8080
 
 [variables]
 RULESET = "it"
-GADDAG_PATH = "/app/lexica/enable1.gaddag"
+GADDAG_PATH = "/app/lexica/enable1.15.gaddag"
 
 

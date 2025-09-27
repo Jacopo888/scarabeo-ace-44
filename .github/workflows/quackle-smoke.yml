@@ -10,6 +10,10 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Lessici corretti per il servizio
+      GADDAG_URL: https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexica/enable1.15.gaddag
+      DAWG_URL:   https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexica/enable1.15.dawg
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,8 +26,11 @@ jobs:
           docker compose build quackle-service
 
       - name: Start service
+        env:
+          GADDAG_URL: ${{ env.GADDAG_URL }}
+          DAWG_URL: ${{ env.DAWG_URL }}
         run: |
-          docker compose up -d quackle-service
+          GADDAG_URL="$GADDAG_URL" DAWG_URL="$DAWG_URL" docker compose up -d quackle-service
 
       - name: Wait for service
         run: |
@@ -39,6 +46,13 @@ jobs:
         run: |
           curl -sf http://localhost:8080/health | tee health.json
           curl -sf http://localhost:8080/health/lexicon | tee health_lexicon.json || true
+      
+      - name: Assert lexicon ready (exists + name)
+        run: |
+          curl -sf http://localhost:8080/debug/lexicon | tee debug_lexicon.json
+          jq -e '.lexicon_name == "enable1.15"' debug_lexicon.json >/dev/null
+          jq -e '.dawg_exists == true' debug_lexicon.json >/dev/null
+          jq -e '.gaddag_exists == true' debug_lexicon.json >/dev/null
 
       - name: Smoke A - empty board + AEIRSTZ
         run: |
@@ -78,7 +92,14 @@ jobs:
       - name: Negative - missing GADDAG => 500
         run: |
           cid=$(docker compose ps -q quackle-service)
-          docker exec "$cid" bash -lc 'mv /usr/share/quackle/lexica/enable1.gaddag /usr/share/quackle/lexica/enable1.gaddag.bak'
+          # Prova a spostare il GADDAG dal volume, altrimenti fallback alla path interna
+          docker exec "$cid" bash -lc '
+            set -e
+            p1=/data/lexica/enable1.15.gaddag
+            p2=/usr/share/quackle/lexica/enable1.15.gaddag
+            if [ -f "$p1" ]; then mv "$p1" "$p1.bak"; 
+            elif [ -f "$p2" ]; then mv "$p2" "$p2.bak"; 
+            else echo "No GADDAG file found to move" >&2; exit 1; fi'
           curl -s -D respNeg.hdr -o respNeg.json -X POST http://localhost:8080/best-move -H 'content-type: application/json' --data-binary @bodyA.json || true
           status=$(awk 'NR==1{print $2}' respNeg.hdr)
           echo status=$status

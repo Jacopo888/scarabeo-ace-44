@@ -54,12 +54,12 @@ RUN set -euo pipefail; \
   if [ -f "output.gaddag" ] && [ -s "output.gaddag" ]; then \
     echo "GADDAG generated successfully"; \
     ls -lh output.gaddag; \
-    mkdir -p /out_lexica && cp -f output.gaddag /out_lexica/enable1.gaddag; \
+  mkdir -p /out_lexica && cp -f output.gaddag /out_lexica/enable1.15.gaddag; \
   else \
     echo "FATAL: GADDAG generation failed (manual tool)"; \
     exit 1; \
   fi; \
-  echo "Final GADDAG:"; ls -lh /out_lexica/enable1.gaddag;
+  echo "Final GADDAG:"; ls -lh /out_lexica/enable1.15.gaddag;
 
 # Sanity check: esistenza di liblibquackle.a e struttura file (niente /src richiesto)
 RUN test -f /src/third_party/quackle/build/liblibquackle.a
@@ -122,7 +122,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8080 \
     RULESET=en \
-    GADDAG_PATH=/app/lexica/enable1.gaddag
+  GADDAG_PATH=/app/lexica/enable1.15.gaddag
 
 WORKDIR /app
 
@@ -134,7 +134,7 @@ COPY app/ /app/app/
 # copia wrapper e lexicon generato baked-in
 RUN mkdir -p /app/bin /app/lexica
 COPY --from=wrapper-normal /build/engine_wrapper /app/bin/engine_wrapper
-COPY --from=quackle-base /out_lexica/enable1.gaddag /app/lexica/enable1.gaddag
+COPY --from=quackle-base /out_lexica/enable1.15.gaddag /app/lexica/enable1.15.gaddag
 # bring the source wordlist to runtime for empty-board fast path
 RUN mkdir -p /app/lexica_src
 COPY --from=quackle-base /src/enable1.txt /app/lexica_src/enable1.txt
@@ -146,10 +146,10 @@ ENV QUACKLE_ALPHABET=/app/alphabets/english.quackle_alphabet
 COPY --from=quackle-base /src/third_party/quackle/data /usr/share/quackle/data
 ENV QUACKLE_APPDATA_DIR=/usr/share/quackle/data
 
-ENV GADDAG_PATH=/app/lexica/enable1.gaddag
+ENV GADDAG_PATH=/app/lexica/enable1.15.gaddag
 
 # Sanity check: verifica che il file GADDAG esista e non sia vuoto
-RUN test -s /app/lexica/enable1.gaddag && ls -lh /app/lexica/enable1.gaddag
+RUN test -s /app/lexica/enable1.15.gaddag && ls -lh /app/lexica/enable1.15.gaddag
 
 COPY scripts/init_lexicon.sh /app/scripts/init_lexicon.sh
 COPY scripts/verify_runtime.sh /app/scripts/verify_runtime.sh
@@ -165,7 +165,7 @@ RUN chmod +x /app/scripts/*.sh \
  && /app/scripts/init_lexicon.sh \
  && /app/scripts/verify_runtime.sh \
  && echo "=== CRITICAL SMOKE TEST: GADDAG must load and respond to ping (EN) ===" \
- && timeout 30s bash -c 'echo '\''{"op":"ping"}'\'' | /app/bin/engine_wrapper --gaddag /app/lexica/enable1.gaddag --ruleset en' \
+ && timeout 30s bash -c 'echo '\''{"op":"ping"}'\'' | /app/bin/engine_wrapper --gaddag /app/lexica/enable1.15.gaddag --ruleset en' \
  && echo "✓ GADDAG SMOKE TEST PASSED (EN)" \
  && echo "✓ Build completed - compute tests will run at runtime"
 
@@ -185,7 +185,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8080 RULESET=en \
     QUACKLE_ALPHABET=/app/alphabets/english.quackle_alphabet \
     QUACKLE_APPDATA_DIR=/usr/share/quackle/data \
-    GADDAG_PATH=/app/lexica/enable1.gaddag \
+  GADDAG_PATH=/app/lexica/enable1.15.gaddag \
     ASAN_OPTIONS=abort_on_error=1:halt_on_error=1:detect_leaks=0:symbolize=1:malloc_context_size=50
 
 COPY pyproject.toml /app/pyproject.toml
@@ -195,7 +195,7 @@ RUN mkdir -p /app/bin /app/lexica /app/alphabets /usr/share/quackle/data
 
 # copy assets from quackle-base stage (shared)
 COPY --from=quackle-base /src/third_party/quackle/data/alphabets/english.quackle_alphabet /app/alphabets/english.quackle_alphabet
-COPY --from=quackle-base /out_lexica/enable1.gaddag /app/lexica/enable1.gaddag
+COPY --from=quackle-base /out_lexica/enable1.15.gaddag /app/lexica/enable1.15.gaddag
 COPY --from=quackle-base /src/third_party/quackle/data /usr/share/quackle/data
 
 # ASAN wrapper binary

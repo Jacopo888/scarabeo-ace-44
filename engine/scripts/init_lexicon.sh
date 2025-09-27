@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-: "${GADDAG_PATH:=/app/lexica/enable1.gaddag}"
+: "${GADDAG_PATH:=/app/lexica/enable1.15.gaddag}"
 
 if [[ -f "$GADDAG_PATH" ]]; then
   echo "[init_lexicon] found $GADDAG_PATH"

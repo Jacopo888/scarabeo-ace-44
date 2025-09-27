@@ -108,10 +108,10 @@ COPY quackle_service /srv/quackle_service
 
 # Variabili di default (modificabili in deploy)
 ENV CORS_ORIGINS="https://preview--scarabeo-ace-44.lovable.app,https://scarabeo-ace-44.lovable.app,http://localhost:5173,http://127.0.0.1:5173"
-ENV QUACKLE_LEXICON="enable1"
+ENV QUACKLE_LEXICON="enable1.15"
 ENV QUACKLE_LEXDIR="/data/lexica"
 ENV QUACKLE_APPDATA_DIR="/data/appdata"
-ENV LEXICON_NAME="enable1"
+ENV LEXICON_NAME="enable1.15"
 
 # Nota: Nessun lessico baked-in. I file saranno forniti via volume /data/lexica o
 # scaricati a runtime tramite le variabili GADDAG_URL/DAWG_URL.
