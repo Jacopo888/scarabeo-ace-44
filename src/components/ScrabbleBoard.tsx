@@ -7,7 +7,9 @@ import { getSquareColor, getSquareText } from '@/components/board/utils'
 import type { Tile as StoreTile } from '@/store/game'
 import type { Tile as GameTile, PlacedTile } from '@/types/game'
 import { useGameStore } from '@/store/game'
-import { boardKey, canPlaceAt, coerceToStoreTile, getBoardTile, getPendingAt } from '@/lib/game/board'
+import { boardKey, getBoardTile, getPendingAt } from '@/lib/game/board'
+import { useBoardDnD } from '@/hooks/useBoardDnD'
+import { BoardSquare } from '@/components/BoardSquare'
 
 interface ScrabbleBoardProps {
   disabled?: boolean
@@ -31,11 +33,9 @@ export const ScrabbleBoard = ({
   onPickupTile,
   highlightSquares = []
 }: ScrabbleBoardProps) => {
-  const [dragOverSquare, setDragOverSquare] = useState<string | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
   const [boardScale, setBoardScale] = useState(1)
   const [hoverSquare, setHoverSquare] = useState<string | null>(null)
-  const [draggingTile, setDraggingTile] = useState<string | null>(null)
   const storeBoard = useGameStore(s => s.board)
   const storePlaceTile = useGameStore(s => s.placeTile)
   
@@ -72,115 +72,45 @@ export const ScrabbleBoard = ({
     
     return () => ro.disconnect()
   }, [])
-  const handleDrop = (e: React.DragEvent, row: number, col: number) => {
-    if (disabled) return
-    e.preventDefault()
-    setDragOverSquare(null)
-    const key = boardKey(row, col)
-    const currentTile = getBoardTile(board as any, row, col)
-    const pendingTile = getPendingAt(pendingTiles, row, col)
-
-    if (currentTile || pendingTile) {
-      return
-    }
-    
-    try {
-      const data = JSON.parse(e.dataTransfer.getData("application/json"))
-      if (data.source === "rack") {
-        placeTileHandler(row, col, data.tile as any)
-      } else if (data.source === "board") {
-        if (data.row === row && data.col === col) return
-        if (onPickupTile) {
-          onPickupTile(data.row, data.col)
-          placeTileHandler(row, col, data.tile as any)
-        }
-      }
-    } catch (error) {
-      console.error("Failed to parse drop data:", error)
-    }
-  }
-
-  const handleDragOver = (e: React.DragEvent, key: string) => {
-    if (disabled) return
-    const [r, c] = key.split(',').map(Number)
-    const currentTile = getBoardTile(board as any, r, c)
-    const pendingTile = getPendingAt(pendingTiles, r, c)
-
-    if (!currentTile && !pendingTile) {
-      e.preventDefault()
-      setDragOverSquare(key)
-    }
-  }
-
-  const handleDragLeave = () => {
-    setDragOverSquare(null)
-  }
-
-  const handleSquareClick = (row: number, col: number) => {
-    if (disabled) return
-    if (!selectedTile) return
-
-    const key = boardKey(row, col)
-    const currentTile = getBoardTile(board as any, row, col)
-    const pendingTile = getPendingAt(pendingTiles, row, col)
-
-    if (currentTile || pendingTile) {
-      return
-    }
-
-    // Convert GameTile to StoreTile format if needed
-    const tileToPlace = coerceToStoreTile(selectedTile as StoreTile | GameTile)
-
-    placeTileHandler(row, col, tileToPlace)
-    onUseSelectedTile?.()
-  }
-
-  const handleTileDragStart = (
-    e: React.DragEvent,
-    row: number,
-    col: number,
-    tile: StoreTile | GameTile
-  ) => {
-    setDraggingTile(`${row},${col}`)
-    const { row: _r, col: _c, ...tileData } = tile as any
-    e.dataTransfer.setData(
-      "application/json",
-      JSON.stringify({ source: "board", row, col, tile: tileData })
-    )
-  }
-
-  const handleTileDragEnd = () => {
-    setDraggingTile(null)
-  }
+  const {
+    dragOverSquare,
+    draggingTile,
+    handleDrop,
+    handleDragOver,
+    handleDragLeave,
+    handleSquareClick,
+    handleTileDragStart,
+    handleTileDragEnd,
+  } = useBoardDnD({
+    disabled,
+    board: board as any,
+    pendingTiles,
+    selectedTile: selectedTile || null,
+    placeTile: placeTileHandler,
+    onPickupTile,
+    onUseSelectedTile
+  })
 
   const renderSquare = (row: number, col: number) => {
     const key = boardKey(row, col)
-    const specialType = SPECIAL_SQUARES[key as keyof typeof SPECIAL_SQUARES]
-    
     // Get tile from board (Map or 2D array)
     const currentTile = getBoardTile(board as any, row, col)
-    
     // Check if there's a pending tile at this position
     const pendingTile = getPendingAt(pendingTiles, row, col)
     const displayTile = pendingTile || currentTile
-    
     const isDragOver = dragOverSquare === key
-    
-    // Check if this square should be highlighted
     const highlight = highlightSquares.find(h => h.row === row && h.col === col)
-    
+
     return (
-      <div
+      <BoardSquare
         key={key}
-        className={cn(
-          "w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10 border border-board-border flex items-center justify-center text-[8px] xs:text-[9px] sm:text-[10px] md:text-xs font-bold rounded relative box-border shrink-0",
-          getSquareColor(specialType || ""),
-          !currentTile && "cursor-pointer",
-          isDragOver && "ring-2 ring-primary ring-opacity-50 bg-primary/10",
-          hoverSquare === key && "square-hover",
-          highlight?.type === 'anchor' && "ring-2 ring-yellow-400 bg-yellow-100/50",
-          highlight?.type === 'hint' && "ring-2 ring-blue-400 bg-blue-100/50"
-        )}
+        row={row}
+        col={col}
+        displayTile={displayTile as any}
+        pending={!!pendingTile}
+        disabled={disabled}
+        isDragOver={isDragOver}
+        isHover={hoverSquare === key}
         onDrop={(e) => handleDrop(e, row, col)}
         onDragOver={(e) => handleDragOver(e, key)}
         onDragLeave={handleDragLeave}
@@ -193,25 +123,11 @@ export const ScrabbleBoard = ({
             onPickupTile(row, col)
           }
         }}
-      >
-        {displayTile ? (
-          <ScrabbleTile
-            letter={displayTile.letter}
-            points={('value' in displayTile ? displayTile.value : displayTile.points) as number}
-            isOnBoard={true}
-            draggable={!!pendingTile && !disabled}
-            isDragging={draggingTile === key}
-            onDragStart={pendingTile ? (e) => handleTileDragStart(e, row, col, displayTile as any) : undefined}
-            onDragEnd={pendingTile ? handleTileDragEnd : undefined}
-            className={cn(
-              "text-[9px] sm:text-[10px]",
-              pendingTile && "ring-2 ring-primary/50"
-            )}
-          />
-        ) : (
-          getSquareText(specialType || "")
-        )}
-      </div>
+        onTileDragStart={pendingTile ? (e) => handleTileDragStart(e, row, col, displayTile as any) : undefined}
+        onTileDragEnd={pendingTile ? handleTileDragEnd : undefined}
+        isDragging={draggingTile === key}
+        highlight={highlight ? highlight.type : null}
+      />
     )
   }
 
