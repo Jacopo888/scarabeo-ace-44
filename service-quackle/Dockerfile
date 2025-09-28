@@ -54,6 +54,7 @@ WORKDIR /srv
 
 # Compila il vero bridge C++ linkando la libquackle 
 COPY bridge/quackle_bridge.cpp /srv/bridge/quackle_bridge.cpp
+COPY bridge/include /srv/bridge/include
 RUN LIBQ=$(find /tmp/quackle/build \( -name "libquackle.a" -o -name "liblibquackle.a" \) -print -quit) && \
     [ -n "$LIBQ" ] || { echo "libquackle library not found"; exit 1; } && \
     echo "Using libquackle at: $LIBQ" && \
@@ -61,7 +62,8 @@ RUN LIBQ=$(find /tmp/quackle/build \( -name "libquackle.a" -o -name "liblibquack
       -I/tmp/quackle \
       -I/tmp/quackle/src/libquackle/include \
       -I/tmp/quackle/src/libquackle \
-      -I/tmp/quackle/src \
+    -I/tmp/quackle/src \
+    -I/srv/bridge \
       /srv/bridge/quackle_bridge.cpp \
       "$LIBQ" \
       -o /srv/bridge/engine_wrapper \
