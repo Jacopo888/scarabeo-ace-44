@@ -1,7 +1,8 @@
 import json
 from typing import Tuple
 
-from quackle_service import main as m
+from quackle_service.normalization import grid_to_coordmap
+from quackle_service.lib.encoding import squares_from_coord_map, grid_from_squares
 
 
 def test_zero_one_string_roundtrip():
@@ -19,10 +20,13 @@ def test_zero_one_string_roundtrip():
         grid[r0] = ''.join(row)
 
         # Convert grid to 1-based coord map
-        coord_map = m._grid_to_coordmap(grid)
+        coord_map = grid_to_coordmap(grid)
         assert case['one'] in coord_map
         assert coord_map[case['one']]['letter'] == 'X'
 
-        # Sanitize pass-through does not drop the coordinate
-        sanitized = m._sanitize_coordmap_for_bridge({case['one']: {'letter': 'X', 'isBlank': False}})
-        assert case['one'] in sanitized
+    # Roundtrip via squares/grid utilities preserves the coordinate
+    squares = squares_from_coord_map({case['one']: {'letter': 'X', 'isBlank': False}}, 15, 15)
+    grid_rt = grid_from_squares(squares)
+    # back to coord_map should include the same coordinate (letter non-blank)
+    coord_map_rt = grid_to_coordmap(grid_rt)
+    assert case['one'] in coord_map_rt

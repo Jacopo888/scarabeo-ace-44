@@ -17,8 +17,8 @@ def test_bridge_payload_snapshot(monkeypatch):
 
     sent_payload: Dict[str, Any] = {}
 
-    # Patch bridge to capture exactly what we send
-    import quackle_service.main as m
+    # Patch symbol usato dalla rotta e il gate dei lexicon
+    import quackle_service.routes_best_move as rb
 
     def fake_call_bridge(payload: Dict[str, Any]):
         nonlocal sent_payload
@@ -32,8 +32,8 @@ def test_bridge_payload_snapshot(monkeypatch):
             "engine_fallback": False
         }
 
-    monkeypatch.setattr(m, "_call_bridge", fake_call_bridge)
-    monkeypatch.setattr(m, "ensure_lexicon_ready", lambda: (True, "/tmp/dawg", "/tmp/gaddag"))
+    monkeypatch.setattr(rb, "_adapter_best_move", fake_call_bridge)
+    monkeypatch.setattr(rb, "ensure_lexicon_ready", lambda: (True, "/tmp/dawg", "/tmp/gaddag"))
 
     # Build input body equivalent to the golden (grid -> coord map with center A)
     grid = ["." * 15 for _ in range(15)]

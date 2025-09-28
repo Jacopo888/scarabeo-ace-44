@@ -1,6 +1,6 @@
 import random
 from typing import List, Optional
-from quackle_service.main import _normalize_board_for_bridge
+from quackle_service.normalization import normalize_board_for_bridge as _normalize_board_for_bridge
 
 
 def make_empty_grid(n: int = 15) -> List[str]:

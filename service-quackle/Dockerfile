@@ -103,7 +103,6 @@ RUN rm -rf /tmp/quackle
 # Installazione dipendenze Python e codice FastAPI
 COPY requirements.txt /srv/requirements.txt
 RUN pip install --no-cache-dir -r /srv/requirements.txt
-COPY app /srv/app
 COPY quackle_service /srv/quackle_service
 
 # Variabili di default (modificabili in deploy)

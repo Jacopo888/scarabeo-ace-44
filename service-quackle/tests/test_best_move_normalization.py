@@ -21,9 +21,9 @@ def fake_play_response():
 
 
 def patch_bridge(monkeypatch, assert_fn=None):
-    import quackle_service.main as m
+    import quackle_service.routes_best_move as rb
 
-    def _fake_call_bridge(payload):
+    def _fake_best_move(payload):
         # Payload to bridge should be normalized
         assert isinstance(payload.get("rack"), str)
         assert re.fullmatch(r"[A-Z\?\*]{7}", payload["rack"]) is not None
@@ -33,7 +33,9 @@ def patch_bridge(monkeypatch, assert_fn=None):
             assert_fn(payload)
         return fake_play_response()
 
-    monkeypatch.setattr(m, "_call_bridge", _fake_call_bridge)
+    monkeypatch.setattr(rb, "_adapter_best_move", _fake_best_move)
+    # Evita check lexicon durante i test
+    monkeypatch.setattr(rb, "ensure_lexicon_ready", lambda: (True, "", ""))
 
 
 def test_A_board_grid_empty(monkeypatch):
@@ -154,9 +156,9 @@ def test_G_crossword_letters_from_raw_move(monkeypatch):
             }
         }
 
-    import quackle_service.main as m
-    monkeypatch.setattr(m, "_call_bridge", fake_bridge)
-    monkeypatch.setattr(m, "ensure_lexicon_ready", lambda: (True, "", ""))
+    import quackle_service.routes_best_move as rb
+    monkeypatch.setattr(rb, "_adapter_best_move", fake_bridge)
+    monkeypatch.setattr(rb, "ensure_lexicon_ready", lambda: (True, "", ""))
 
     body = {
         "rack": "AEIRSTZ",
@@ -191,9 +193,9 @@ def test_H_blank_tiles_preserve_letter(monkeypatch):
             }
         }
 
-    import quackle_service.main as m
-    monkeypatch.setattr(m, "_call_bridge", fake_bridge_blank)
-    monkeypatch.setattr(m, "ensure_lexicon_ready", lambda: (True, "", ""))
+    import quackle_service.routes_best_move as rb
+    monkeypatch.setattr(rb, "_adapter_best_move", fake_bridge_blank)
+    monkeypatch.setattr(rb, "ensure_lexicon_ready", lambda: (True, "", ""))
 
     body = {
         "rack": "AEIRSTZ",
