@@ -1,17 +1,7 @@
 import { createContext, useContext, ReactNode } from 'react'
 import { useGame } from '@/hooks/useGame'
 import { GameState, Player, Tile, PlacedTile } from '@/types/game'
-// Minimal move history entry type; keep a light shape
-type GameMoveLite = {
-  move_index: number
-  word: string | null
-  score_earned: number
-  rack_before: any[]
-  player_id: string
-  row?: number
-  col?: number
-  dir?: 'H' | 'V'
-}
+import type { GameMoveLite } from '@/types/localGame'
 
 interface GameContextType {
   gameState: GameState

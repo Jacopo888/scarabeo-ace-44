@@ -12,6 +12,7 @@ import { shouldEndGameAfterMove, applyEndgamePenalties } from '@/lib/multiplayer
 import { useDictionary } from '@/contexts/DictionaryContext'
 import { buildGameState } from '@/lib/multiplayer/state'
 import { fetchGameWithProfiles, submitMoveForGame, exchangeTilesForGame, passTurnForGame, surrenderGameForGame } from '@/services/multiplayer'
+import { reportGameResult } from '@/services/rating'
 
 const API_BASE = import.meta.env.VITE_RATING_API_URL || (import.meta.env.MODE === 'development' ? '/api' : '')
 
@@ -178,22 +179,7 @@ export const useMultiplayerGame = (gameId: string) => {
       })
 
       if (endGame) {
-        const mode =
-          game.turn_duration === '1h' ? 'blitz'
-          : game.turn_duration === '6h' ? 'rapid'
-          : 'async'
-        if (API_BASE) {
-          fetch(`${API_BASE}/rating/report`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              player1Id: Number(game.player1_id),
-              player2Id: Number(game.player2_id),
-              winnerId: winnerId ? Number(winnerId) : null,
-              mode
-            })
-          }).catch(err => console.error('rating report error', err))
-        }
+        reportGameResult(game, winnerId).catch(() => {})
       }
 
     } catch (error) {
@@ -255,22 +241,7 @@ export const useMultiplayerGame = (gameId: string) => {
       })
 
       if (endGame) {
-        const mode =
-          game.turn_duration === '1h' ? 'blitz'
-          : game.turn_duration === '6h' ? 'rapid'
-          : 'async'
-        if (API_BASE) {
-          fetch(`${API_BASE}/rating/report`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              player1Id: Number(game.player1_id),
-              player2Id: Number(game.player2_id),
-              winnerId: winnerId ? Number(winnerId) : null,
-              mode
-            })
-          }).catch(err => console.error('rating report error', err))
-        }
+        reportGameResult(game, winnerId).catch(() => {})
       }
 
     } catch (error) {
@@ -293,22 +264,7 @@ export const useMultiplayerGame = (gameId: string) => {
 
   const { winnerId } = await surrenderGameForGame({ game, userId: user.id })
 
-      const mode =
-        game.turn_duration === '1h' ? 'blitz'
-        : game.turn_duration === '6h' ? 'rapid'
-        : 'async'
-      if (API_BASE) {
-        fetch(`${API_BASE}/rating/report`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            player1Id: Number(game.player1_id),
-            player2Id: Number(game.player2_id),
-            winnerId: winnerId ? Number(winnerId) : null,
-            mode
-          })
-        }).catch(err => console.error('rating report error', err))
-      }
+      reportGameResult(game, winnerId).catch(() => {})
 
       toast({
         title: 'You surrendered',

@@ -1,27 +1,17 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { GameState, Player, Tile, PlacedTile, TILE_DISTRIBUTION } from '@/types/game'
+import { GameState, Player, Tile, PlacedTile } from '@/types/game'
 import { validateMoveLogic } from '@/utils/moveValidation'
 import { findNewWordsFormed } from '@/utils/newWordFinder'
 import { calculateNewMoveScore } from '@/utils/newScoring'
-import { canEndGame } from '@/utils/gameRules'
 import { useToast } from '@/hooks/use-toast'
 import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
-type GameMoveLite = {
-  move_index: number
-  word: string | null
-  score_earned: number
-  rack_before: any[]
-  player_id: string
-  row?: number
-  col?: number
-  dir?: 'H' | 'V'
-}
+import type { GameMoveLite } from '@/types/localGame'
 import { Difficulty } from '@/components/DifficultyModal'
 import { toastOnce } from '@/lib/toastOnce'
 import { sanitizeQuackleTile } from '@/lib/game/tiles'
-import { shuffleArray, drawTiles } from '@/lib/game/random'
+import { shuffleArray } from '@/lib/game/random'
 import { applyBotMove } from '@/lib/game/botMove'
 import { initGameState } from '@/lib/game/init'
 import { applyPassTurn } from '@/lib/game/actions'
@@ -31,6 +21,7 @@ import { applyExchangeTiles } from '@/lib/game/actionsExchange'
 import { applyEndTurn } from '@/lib/game/actionsEndTurn'
 import { applyPlaceTile } from '@/lib/game/actionsPlace'
 import { applyPickupTile } from '@/lib/game/actionsPickup'
+import { buildHistoryEntry, contiguousSummary } from '@/lib/game/quackleUtils'
 
   // helpers estratti in src/lib/game
 
@@ -206,19 +197,7 @@ export const useGame = () => {
         .filter((tile): tile is PlacedTile => tile !== null)
 
       // Diagnostics for continuity and bounds
-      if (sanitizedTiles.length > 0) {
-        const rows = sanitizedTiles.map(t => t.row)
-        const cols = sanitizedTiles.map(t => t.col)
-        const isH = sanitizedTiles.every(t => t.row === sanitizedTiles[0].row)
-        const ordered = [...sanitizedTiles].sort((a,b)=> isH ? a.col - b.col : a.row - b.row)
-        const contiguous = ordered.every((t,i,arr) => i===0 || (isH ? t.col === arr[i-1].col + 1 : t.row === arr[i-1].row + 1))
-        // eslint-disable-next-line no-console
-        console.log('[useGame] sanitize summary:', { count: sanitizedTiles.length, minRow: Math.min(...rows), maxRow: Math.max(...rows), minCol: Math.min(...cols), maxCol: Math.max(...cols), isH, contiguous })
-        if (!contiguous) {
-          // eslint-disable-next-line no-console
-          console.warn('[useGame] Non-contiguous bot tiles after sanitize; check indexing or anchor handling.', ordered)
-        }
-      }
+      if (sanitizedTiles.length > 0) contiguousSummary(sanitizedTiles)
 
       if (sanitizedTiles.length === 0) {
         passTurn()
@@ -230,22 +209,9 @@ export const useGame = () => {
   const applied = applyBotMove(snapshot, { sanitizedTiles, score: move.score, words: move.words })
   setGameState(applied.next)
 
-  // Record move (best-effort)
+      // Record move (best-effort)
       try {
-        const isHorizontal = sanitizedTiles.every(t => t.row === sanitizedTiles[0].row)
-        const ordered = [...sanitizedTiles].sort((a, b) => isHorizontal ? a.col - b.col : a.row - b.row)
-        const placedString = ordered.map(t => t.letter).join('')
-        const row = Math.min(...sanitizedTiles.map(t => t.row))
-        const col = Math.min(...sanitizedTiles.map(t => t.col))
-  const moveInfo: Omit<GameMoveLite, 'move_index'> = {
-          word: placedString,
-          score_earned: move.score,
-          rack_before: current.rack,
-          player_id: current.id,
-          row,
-          col,
-          dir: isHorizontal ? 'H' : 'V'
-        }
+        const moveInfo = buildHistoryEntry(current, sanitizedTiles, move.score)
         setMoveHistory(prev => [...prev, { ...moveInfo, move_index: prev.length + 1 }])
       } catch {}
     } catch (error) {

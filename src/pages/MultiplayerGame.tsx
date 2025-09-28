@@ -1,11 +1,6 @@
 import { useParams, Navigate, Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { ScrabbleBoard } from '@/components/ScrabbleBoard'
-import { TileRack } from '@/components/TileRack'
-import { TileCounter } from '@/components/TileCounter'
 import { ExchangeTilesDialog } from '@/components/ExchangeTilesDialog'
 import { GameChat } from '@/components/GameChat'
 import { useState, useEffect } from 'react'
@@ -13,9 +8,13 @@ import { BlankTileDialog } from '@/components/BlankTileDialog'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { useMultiplayerGame } from '@/hooks/useMultiplayerGame'
 import { useAuth } from '@/contexts/AuthContext'
-import { Clock, User, Trophy, ArrowLeft } from 'lucide-react'
 import { usePlayerRating } from '@/hooks/usePlayerRating'
-import { formatTimeRemaining } from '@/utils/timeUtils'
+import { MultiplayerHeader } from '@/components/multiplayer/MultiplayerHeader'
+import { BoardPanel } from '@/components/multiplayer/BoardPanel'
+import { RackAndActions } from '@/components/multiplayer/RackAndActions'
+import { ScoreCard } from '@/components/multiplayer/ScoreCard'
+import { GameInfoCard } from '@/components/multiplayer/GameInfoCard'
+import { ActionsCard } from '@/components/multiplayer/ActionsCard'
 
 export default function MultiplayerGame() {
   const { gameId } = useParams<{ gameId: string }>()
@@ -132,44 +131,32 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
         }}
       />
       <div className="container mx-auto p-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <Link to="/dashboard">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Dashboard
-              </Button>
-            </Link>
-            <h1 className="text-2xl font-bold">Multiplayer Game</h1>
-          </div>
-          <Badge variant={isMyTurn ? "default" : "secondary"}>
-            {gameStatus}
-          </Badge>
-        </div>
+        <MultiplayerHeader gameStatus={gameStatus} />
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Game Board */}
           <div className="lg:col-span-3">
             <Card>
               <CardContent className="p-6">
-                <ScrabbleBoard
-                  disabled={!isMyTurn}
+                <BoardPanel
+                  isMyTurn={isMyTurn}
                   selectedTile={selectedTile as any}
                   onUseSelectedTile={clearSelectedTile}
                   boardMap={gameState.board}
                   pendingTiles={pendingTiles}
                   onPlaceTile={(row, col, tile) => {
-                    const gameTile = 'value' in tile && !('points' in tile)
-                      ? { letter: tile.letter, points: (tile as any).value, isBlank: (tile as any).isBlank }
-                      : tile as any
-                    if (gameTile.isBlank && gameTile.letter === '') {
+                    const t: any = tile
+                    const gameTile: any = 'value' in t && !('points' in t)
+                      ? { letter: t.letter, points: t.value, isBlank: t.isBlank }
+                      : t
+                    if (gameTile?.isBlank && gameTile.letter === '') {
                       setBlankTile({ row, col, tile: gameTile })
                     } else {
                       placeTile(row, col, gameTile)
                     }
                   }}
                   onPickupTile={pickupTile}
+                  onRequestBlank={(row, col, tile) => setBlankTile({ row, col, tile })}
                 />
                 {/* Tile counter moved below rack/actions */}
               </CardContent>
@@ -189,40 +176,24 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <TileRack
-                    tiles={currentRack as any}
-                    selectedTiles={selectedTileIndex !== null ? [selectedTileIndex] : []}
+                  <RackAndActions
+                    currentRack={currentRack as any}
+                    selectedTileIndex={selectedTileIndex}
                     onTileSelect={handleTileSelect}
+                    isMyTurn={isMyTurn}
+                    canSubmitMove={canSubmitMove}
+                    pendingCount={pendingTiles.length}
+                    submitMove={submitMove}
+                    passTurn={passTurn}
+                    onOpenExchange={() => setExchangeOpen(true)}
+                    tileCounter={{
+                      tileBag: game?.tile_bag || [],
+                      boardMap: gameState.board,
+                      myRack: getCurrentRack() as any,
+                      opponentRack: (game.player1_id === user.id ? game.player2_rack : game.player1_rack) as any,
+                      className: "w-40 text-xs ml-auto"
+                    }}
                   />
-                  
-                  {isMyTurn && (
-                    <div className="flex gap-2 mt-4 items-center flex-wrap">
-                      <Button
-                        onClick={submitMove}
-                        disabled={!canSubmitMove}
-                        className="flex-1"
-                      >
-                        Submit Move ({pendingTiles.length} tiles)
-                      </Button>
-                      <Button variant="outline" onClick={passTurn}>Pass Turn</Button>
-                      <Button variant="outline" onClick={() => setExchangeOpen(true)}>Exchange Tiles</Button>
-                      <TileCounter
-                        tileBag={game?.tile_bag || []}
-                        boardMap={gameState.board}
-                        myRack={getCurrentRack() as any}
-                        opponentRack={(game.player1_id === user.id ? game.player2_rack : game.player1_rack) as any}
-                        className="w-40 text-xs ml-auto"
-                      />
-                    </div>
-                  )}
-                  
-                  {!isMyTurn && (
-                    <div className="mt-4 p-3 bg-muted rounded-lg text-center">
-                      <p className="text-muted-foreground">
-                        Waiting for opponent's turn...
-                      </p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             )}
@@ -230,109 +201,22 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
 
           {/* Game Info Sidebar */}
           <div className="space-y-6">
-            {/* Scores */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5" />
-                  Scores
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    <span>
-                      You {myRating !== undefined && (
-                        <span className="text-xs text-muted-foreground">({myRating})</span>
-                      )}
-                    </span>
-                  </div>
-                  <span className="font-bold text-lg">{myScore}</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    <span>
-                      {opponent?.name || 'Opponent'}{' '}
-                      {opponentRating !== undefined && (
-                        <span className="text-xs text-muted-foreground">({opponentRating})</span>
-                      )}
-                    </span>
-                  </div>
-                  <span className="font-bold text-lg">{opponent?.score || 0}</span>
-                </div>
-              </CardContent>
-            </Card>
+            <ScoreCard
+              myScore={myScore}
+              myRating={myRating}
+              opponentName={opponent?.name}
+              opponentScore={opponent?.score || 0}
+              opponentRating={opponentRating}
+            />
 
-            {/* Game Info */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Game Info
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <p className="text-sm text-muted-foreground">Status:</p>
-                  <p className="font-semibold">{gameStatus}</p>
-                </div>
-                
-                {game.turn_deadline && (
-                  <div>
-                    <p className="text-sm text-muted-foreground">Time remaining:</p>
-                    <p className="font-semibold">{formatTimeRemaining(game.turn_deadline)}</p>
-                  </div>
-                )}
-                
-                <div>
-                  <p className="text-sm text-muted-foreground">Turn duration:</p>
-                  <p className="font-semibold">
-                    {game.turn_duration === '1h' ? '1 hour' :
-                     game.turn_duration === '6h' ? '6 hours' :
-                     game.turn_duration === '24h' ? '24 hours' : '48 hours'}
-                  </p>
-                </div>
-                
-                <div>
-                  <p className="text-sm text-muted-foreground">Opponent:</p>
-                  <p className="font-semibold">{opponent?.name || 'Waiting...'}</p>
-                </div>
-              </CardContent>
-            </Card>
+            <GameInfoCard
+              gameStatus={gameStatus}
+              turn_deadline={game.turn_deadline}
+              turn_duration={game.turn_duration}
+              opponentName={opponent?.name}
+            />
 
-            {/* Game Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Link to="/dashboard">
-                  <Button variant="outline" className="w-full">
-                    Back to Dashboard
-                  </Button>
-                </Link>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => window.location.reload()}
-                >
-                  Refresh Game
-                </Button>
-                {/* Extra buttons removed */}
-                {game.status === 'active' && (
-                  <Button
-                    variant="destructive"
-                    className="w-full"
-                    onClick={surrenderGame}
-                  >
-                    Surrender
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+            <ActionsCard isActive={game.status === 'active'} onSurrender={surrenderGame} />
             {/* Extra results removed */}
           </div>
         </div>
