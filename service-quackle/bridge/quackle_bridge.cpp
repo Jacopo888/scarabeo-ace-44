@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <set>
 #include "include/bridge_utils.hpp"
+#include "include/validation_utils.hpp"
 #include "nlohmann/json.hpp"
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -217,9 +218,8 @@ int main(int argc, char** argv){
     int boardCells = 0;
     int minRow = 15, maxRow = -1, minCol = 15, maxCol = -1;
     for (auto it = jboard.begin(); it != jboard.end(); ++it) {
-      int r = 0, c = 0; char comma;
-      std::istringstream sscoord(it.key());
-      if (!(sscoord >> r >> comma >> c) || comma != ',') {
+      int r = 0, c = 0;
+      if (!parse_coord_key(it.key(), r, c)) {
         debugLog("ERROR: Invalid board coordinate format: " + std::string(it.key()));
         std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"malformed_coordinate"})" << std::endl;
         return 64;
