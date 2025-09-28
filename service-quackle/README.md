@@ -89,3 +89,12 @@ Smoketest (produzione):
 # opzionale: BASE_URL override
 BASE_URL="https://service-quackle-production.up.railway.app" bash ./scripts/smoketest-railway.sh
 ```
+
+### GitHub Actions: railway-smoke
+
+- Workflow: `.github/workflows/railway-smoke.yml`
+- Segreti richiesti su GitHub repo:
+  - `RAILWAY_BASE_URL` – URL pubblico dell'istanza (es. `https://service-quackle-production.up.railway.app`)
+- Esecuzione: manuale (Workflow Dispatch) o giornaliera (schedule 06:00 UTC)
+- Cosa fa: esegue `scripts/smoketest-railway.sh` e carica il log come artefatto (`railway-smoke-log`).
+
