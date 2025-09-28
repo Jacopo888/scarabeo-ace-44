@@ -14,6 +14,7 @@ import { buildGameState } from '@/lib/multiplayer/state'
 import { fetchGameWithProfiles, submitMoveForGame, exchangeTilesForGame, passTurnForGame, surrenderGameForGame } from '@/services/multiplayer'
 import { reportGameResult } from '@/services/rating'
 import { getOpponentInfo as _getOpponentInfo, getMyScore as _getMyScore, getCurrentRack as _getCurrentRack } from '@/lib/multiplayer/selectors'
+import { computeValidatedMove, applyPendingTilesToBoard } from '@/lib/multiplayer/moveUtils'
 
 const API_BASE = import.meta.env.VITE_RATING_API_URL || (import.meta.env.MODE === 'development' ? '/api' : '')
 
@@ -125,43 +126,17 @@ export const useMultiplayerGame = (gameId: string) => {
     try {
       setLoading(true)
 
-      // Prepare board map for validation and scoring
-      const boardMap = new Map<string, PlacedTile>(
-        Object.entries(game.board_state || {}) as [string, PlacedTile][]
-      )
-
-      const validation = validateMoveLogic(boardMap, pendingTiles)
-      if (!validation.isValid) {
-        toast({
-          title: 'Invalid move',
-          description: validation.errors.join(', '),
-          variant: 'destructive',
-        })
+      // Prepare board and compute validated move via pure helpers
+      const boardMap = new Map<string, PlacedTile>(Object.entries(game.board_state || {}) as [string, PlacedTile][])
+      const outcome = computeValidatedMove(boardMap, pendingTiles, { validateMoveLogic, findNewWordsFormed, calculateNewMoveScore, isValidWord })
+      if (!outcome.ok) {
+        toast({ title: 'Invalid move', description: (outcome.errors || []).join(', '), variant: 'destructive' })
         setLoading(false)
         return
       }
-
-      const newWords = findNewWordsFormed(boardMap, pendingTiles)
-      const invalid = newWords.filter(w => !isValidWord(w.word))
-      if (invalid.length > 0) {
-        toast({
-          title: 'Invalid words',
-          description: invalid.map(w => w.word).join(', '),
-          variant: 'destructive',
-        })
-        setLoading(false)
-        return
-      }
-
-      const moveScore = calculateNewMoveScore(newWords, pendingTiles)
-
-      // Apply tiles to board map
-      pendingTiles.forEach(tile => {
-        const key = `${tile.row},${tile.col}`
-        boardMap.set(key, tile)
-      })
-
-      const newBoardState = Object.fromEntries(boardMap)
+      const moveScore = outcome.score
+      const newWords = outcome.newWords
+      const newBoardState = applyPendingTilesToBoard(boardMap, pendingTiles) as any
 
       // Remove used tiles from rack more carefully to prevent duplicates
       const { endGame, winnerId } = await submitMoveForGame({
@@ -174,10 +149,7 @@ export const useMultiplayerGame = (gameId: string) => {
       })
 
       setPendingTiles([])
-      toast({
-        title: "Move submitted!",
-        description: `Hai guadagnato ${moveScore} punti`
-      })
+      toast({ title: "Move submitted!", description: `Hai guadagnato ${moveScore} punti` })
 
       if (endGame) {
         reportGameResult(game, winnerId).catch(() => {})

@@ -22,6 +22,7 @@ import { applyEndTurn } from '@/lib/game/actionsEndTurn'
 import { applyPlaceTile } from '@/lib/game/actionsPlace'
 import { applyPickupTile } from '@/lib/game/actionsPickup'
 import { buildHistoryEntry, contiguousSummary } from '@/lib/game/quackleUtils'
+import { summarizeMoveInfo } from '@/lib/game/moveUtils'
 
   // helpers estratti in src/lib/game
 
@@ -91,15 +92,14 @@ export const useGame = () => {
         return prev
       }
 
-      // Clear pending tiles and toast success
-      setPendingTiles([])
-  const moveWords = res.moveInfo?.words ?? (res.moveInfo?.word ? [res.moveInfo.word] : [])
-      const delta = res.moveInfo?.score_earned ?? 0
-      toast({ title: 'Move confirmed!', description: `+${delta} points for words: ${moveWords.join(', ')}` })
+    // Clear pending tiles and toast success
+    setPendingTiles([])
+    const { words: moveWords, score: delta } = summarizeMoveInfo(res.moveInfo)
+    toast({ title: 'Move confirmed!', description: `+${delta} points for words: ${moveWords.join(', ')}` })
 
   // Record move
       if (res.moveInfo) {
-  setMoveHistory(prevMH => [...prevMH, { ...(res.moveInfo as any), move_index: prevMH.length + 1 }])
+        setMoveHistory(prevMH => [...prevMH, { ...(res.moveInfo as any), move_index: prevMH.length + 1 }])
       }
 
       return res.next!
@@ -204,9 +204,9 @@ export const useGame = () => {
         return
       }
 
-      // Apply bot move to game state (delegated)
-  toast({ title: 'Quackle played!', description: `Quackle scored ${move.score} points with: ${move.words.join(', ')}` })
-  const applied = applyBotMove(snapshot, { sanitizedTiles, score: move.score, words: move.words })
+    // Apply bot move to game state (delegated)
+    toast({ title: 'Quackle played!', description: `Quackle scored ${move.score} points with: ${move.words.join(', ')}` })
+    const applied = applyBotMove(snapshot, { sanitizedTiles, score: move.score, words: move.words })
   setGameState(applied.next)
 
       // Record move (best-effort)
