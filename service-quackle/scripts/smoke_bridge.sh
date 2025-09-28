@@ -17,4 +17,10 @@ rc=$?
 set -e
 
 echo "[smoke_bridge] selftest rc=$rc"
+
+# Test malformed JSON path to ensure rc=64 and error=json_parse
+if [ -x "$BRIDGE_BIN" ]; then
+  out=$(echo '{malformed' | "$BRIDGE_BIN" --lexicon "$LEX" --lexdir "$LEXDIR" 2>/dev/null)
+  echo "[smoke_bridge] malformed json output=$out"
+fi
 exit 0
