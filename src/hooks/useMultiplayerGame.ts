@@ -13,6 +13,7 @@ import { useDictionary } from '@/contexts/DictionaryContext'
 import { buildGameState } from '@/lib/multiplayer/state'
 import { fetchGameWithProfiles, submitMoveForGame, exchangeTilesForGame, passTurnForGame, surrenderGameForGame } from '@/services/multiplayer'
 import { reportGameResult } from '@/services/rating'
+import { getOpponentInfo as _getOpponentInfo, getMyScore as _getMyScore, getCurrentRack as _getCurrentRack } from '@/lib/multiplayer/selectors'
 
 const API_BASE = import.meta.env.VITE_RATING_API_URL || (import.meta.env.MODE === 'development' ? '/api' : '')
 
@@ -282,44 +283,11 @@ export const useMultiplayerGame = (gameId: string) => {
     }
   }
 
-  const getOpponentInfo = () => {
-    if (!game || !user) return null
+  const getOpponentInfo = () => (game && user ? _getOpponentInfo(game, user.id) : null)
 
-    const isPlayer1 = game.player1_id === user.id
-    const opponent = isPlayer1 ? game.player2 : game.player1
+  const getMyScore = () => (game && user ? _getMyScore(game, user.id) : 0)
 
-    return {
-      id: isPlayer1 ? game.player2_id : game.player1_id,
-      name: opponent?.display_name || opponent?.username || 'Opponent',
-      score: isPlayer1 ? game.player2_score : game.player1_score
-    }
-  }
-
-  const getMyScore = () => {
-    if (!game || !user) return 0
-    return game.player1_id === user.id ? game.player1_score : game.player2_score
-  }
-
-  const getCurrentRack = () => {
-    if (!game || !user) return []
-    const baseRack = game.player1_id === user.id ? game.player1_rack : game.player2_rack
-
-    // Remove tiles that are currently pending placement
-    const rackCopy = [...baseRack]
-    pendingTiles.forEach(tile => {
-      const index = rackCopy.findIndex(r => {
-        if (tile.isBlank && r.isBlank) return true
-        return (
-          r.letter === tile.letter &&
-          r.points === tile.points &&
-          r.isBlank === tile.isBlank
-        )
-      })
-      if (index !== -1) rackCopy.splice(index, 1)
-    })
-
-    return rackCopy
-  }
+  const getCurrentRack = () => (game && user ? _getCurrentRack(game, user.id, pendingTiles) : [])
 
   return {
     game,
