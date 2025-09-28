@@ -72,3 +72,20 @@ GADDAG_URL=https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexic
 ## Note d'integrazione
 - In endgame, rack con meno di 7 lettere sono accettate; rack vuota => risposta `pass` senza chiamare il bridge.
 - `/health` riporta `engine_ready` in base all’eseguibile del bridge e alla presenza/skip dei lessici.
+
+## Railway: env di produzione e smoketest
+
+Principali variabili in produzione (Railway):
+
+- `CORS_ORIGINS`: `https://scarabeo-ace-44.lovable.app, https://preview--scarabeo-ace-44.lovable.app, https://scarabeo-ace-44-production.up.railway.app`
+- `QUACKLE_APPDATA_DIR`: `/data/appdata`
+- `QUACKLE_LEXDIR`: `/data/lexica`
+- `LEXICON_NAME` / `QUACKLE_LEXICON`: `enable1.15`
+- `DAWG_URL` / `GADDAG_URL`: URL pubblici ai file del lessico (DAWG/GADDAG)
+
+Smoketest (produzione):
+
+```bash
+# opzionale: BASE_URL override
+BASE_URL="https://service-quackle-production.up.railway.app" bash ./scripts/smoketest-railway.sh
+```

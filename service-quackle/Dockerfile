@@ -57,7 +57,7 @@ COPY bridge/quackle_bridge.cpp /srv/bridge/quackle_bridge.cpp
 RUN LIBQ=$(find /tmp/quackle/build \( -name "libquackle.a" -o -name "liblibquackle.a" \) -print -quit) && \
     [ -n "$LIBQ" ] || { echo "libquackle library not found"; exit 1; } && \
     echo "Using libquackle at: $LIBQ" && \
-    g++ -O2 -DNDEBUG -fno-omit-frame-pointer -std=c++17 \
+        g++ -O2 -DNDEBUG -fno-omit-frame-pointer -std=c++17 -Wall -Wextra -Wpedantic \
       -I/tmp/quackle \
       -I/tmp/quackle/src/libquackle/include \
       -I/tmp/quackle/src/libquackle \
