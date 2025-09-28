@@ -7,12 +7,11 @@ import { useToast } from '@/hooks/use-toast'
 import { validateMoveLogic } from '@/utils/moveValidation'
 import { findNewWordsFormed } from '@/utils/newWordFinder'
 import { calculateNewMoveScore } from '@/utils/newScoring'
-import { canEndGame, calculateEndGamePenalty } from '@/utils/gameRules'
 import { shuffleArray, drawTiles } from '@/lib/multiplayer/tiles'
-import { calculatePrimaryWord } from '@/lib/multiplayer/utils'
 import { shouldEndGameAfterMove, applyEndgamePenalties } from '@/lib/multiplayer/endgame'
 import { useDictionary } from '@/contexts/DictionaryContext'
 import { buildGameState } from '@/lib/multiplayer/state'
+import { fetchGameWithProfiles, submitMoveForGame, exchangeTilesForGame, passTurnForGame, surrenderGameForGame } from '@/services/multiplayer'
 
 const API_BASE = import.meta.env.VITE_RATING_API_URL || (import.meta.env.MODE === 'development' ? '/api' : '')
 
@@ -63,19 +62,7 @@ export const useMultiplayerGame = (gameId: string) => {
           }
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'moves',
-          filter: `game_id=eq.${gameId}`
-        },
-        () => {
-          // Refetch game when new move is made
-          fetchGame()
-        }
-      )
+      // Removed 'moves' INSERT subscription; games UPDATE is sufficient to refresh state
       .subscribe()
 
     return () => {
@@ -87,22 +74,9 @@ export const useMultiplayerGame = (gameId: string) => {
     if (!gameId || !user) return
 
     try {
-      const { data, error } = await supabase
-        .from('games')
-        .select(`
-          *,
-          player1:profiles!games_player1_id_fkey(username, display_name),
-          player2:profiles!games_player2_id_fkey(username, display_name)
-        `)
-        .eq('id', gameId)
-        .single()
-
-      if (error) {
-        throw error
-      }
-
-      setGame(data as unknown as GameRecord)
-      updateGameState(data as unknown as GameRecord)
+      const data = await fetchGameWithProfiles(gameId)
+      setGame(data)
+      updateGameState(data)
     } catch (error) {
       console.error('Error fetching game:', error)
       toast({
@@ -144,7 +118,7 @@ export const useMultiplayerGame = (gameId: string) => {
   // calculatePrimaryWord now imported from lib/multiplayer/utils
 
   // getNextMoveIndex removed; we can compute next index client-side when needed if we fetch last move
-    const submitMove = async () => {
+  const submitMove = async () => {
 
     try {
       setLoading(true)
@@ -188,110 +162,14 @@ export const useMultiplayerGame = (gameId: string) => {
       const newBoardState = Object.fromEntries(boardMap)
 
       // Remove used tiles from rack more carefully to prevent duplicates
-      const isPlayer1 = game.player1_id === user.id
-      const currentRack = [...(isPlayer1 ? game.player1_rack : game.player2_rack)] as Tile[]
-      let newRack = [...currentRack]
-
-      pendingTiles.forEach(placedTile => {
-        const tileIndex = newRack.findIndex(rackTile => {
-          if (placedTile.isBlank && rackTile.isBlank) return true
-          return (
-            rackTile.letter === placedTile.letter &&
-            rackTile.points === placedTile.points &&
-            rackTile.isBlank === placedTile.isBlank
-          )
-        })
-        if (tileIndex !== -1) {
-          newRack.splice(tileIndex, 1)
-        }
+      const { endGame, winnerId } = await submitMoveForGame({
+        game,
+        userId: user.id,
+        pendingTiles,
+        newBoardState: newBoardState as any,
+        moveScore,
+        words: newWords.map(w => w.word)
       })
-
-      // Draw new tiles to refill rack
-      const tilesNeeded = 7 - newRack.length
-      const { drawn, remaining } =
-        tilesNeeded > 0 && game.tile_bag.length > 0
-          ? drawTiles(game.tile_bag, Math.min(tilesNeeded, game.tile_bag.length))
-          : { drawn: [], remaining: game.tile_bag }
-      newRack = [...newRack, ...drawn]
-
-      // Determine next player
-      const nextPlayerId = game.current_player_id === game.player1_id 
-        ? game.player2_id 
-        : game.player1_id
-
-      // Update game state
-      const gameUpdate: Partial<GameRecord> = {
-        board_state: newBoardState,
-        tile_bag: remaining,
-        current_player_id: nextPlayerId,
-        pass_count: 0,
-        updated_at: new Date().toISOString(),
-      }
-
-        const player1RackAfter = isPlayer1 ? newRack : game.player1_rack
-        const player2RackAfter = isPlayer1 ? game.player2_rack : newRack
-
-      let player1ScoreAfter = game.player1_score
-      let player2ScoreAfter = game.player2_score
-
-      if (isPlayer1) {
-        player1ScoreAfter += moveScore
-        gameUpdate.player1_rack = newRack
-      } else {
-        player2ScoreAfter += moveScore
-        gameUpdate.player2_rack = newRack
-      }
-
-      const endGame = shouldEndGameAfterMove(
-        player1RackAfter,
-        player2RackAfter,
-        remaining
-      )
-
-      if (endGame) {
-        const { p1, p2 } = applyEndgamePenalties(
-          player1ScoreAfter,
-          player2ScoreAfter,
-          player1RackAfter,
-          player2RackAfter
-        )
-        player1ScoreAfter = p1
-        player2ScoreAfter = p2
-        gameUpdate.status = 'completed'
-        gameUpdate.winner_id =
-          player1ScoreAfter > player2ScoreAfter
-            ? game.player1_id
-            : player2ScoreAfter > player1ScoreAfter
-              ? game.player2_id
-              : null
-      }
-
-      gameUpdate.player1_score = player1ScoreAfter
-      gameUpdate.player2_score = player2ScoreAfter
-
-      // Update game in database
-      const { error: gameError } = await supabase
-        .from('games')
-        .update(gameUpdate as any)
-        .eq('id', game.id)
-
-      if (gameError) throw gameError
-
-      // Record the move
-      const { error: moveError } = await supabase
-        .from('moves')
-        .insert({
-          game_id: game.id,
-          player_id: user.id,
-          move_type: 'place_tiles',
-          tiles_placed: pendingTiles as any,
-          words_formed: newWords.map(w => w.word) as any,
-          score_earned: moveScore,
-          board_state_after: newBoardState as any,
-          rack_after: newRack as any,
-        })
-
-      if (moveError) throw moveError
 
       setPendingTiles([])
       toast({
@@ -311,7 +189,7 @@ export const useMultiplayerGame = (gameId: string) => {
             body: JSON.stringify({
               player1Id: Number(game.player1_id),
               player2Id: Number(game.player2_id),
-              winnerId: gameUpdate.winner_id ? Number(gameUpdate.winner_id) : null,
+              winnerId: winnerId ? Number(winnerId) : null,
               mode
             })
           }).catch(err => console.error('rating report error', err))
@@ -345,60 +223,7 @@ export const useMultiplayerGame = (gameId: string) => {
     try {
       setLoading(true)
 
-      const isPlayer1 = game.player1_id === user.id
-      const rack = isPlayer1 ? [...game.player1_rack] : [...game.player2_rack]
-      const tilesToReturn: Tile[] = []
-
-      const sorted = [...indexes].sort((a, b) => b - a)
-      sorted.forEach(i => {
-        const t = rack[i]
-        if (t) {
-          tilesToReturn.push(t)
-          rack.splice(i, 1)
-        }
-      })
-
-      const bagWithReturned = shuffleArray([...game.tile_bag, ...tilesToReturn])
-      const { drawn, remaining } = drawTiles(bagWithReturned, indexes.length)
-      const newRack = [...rack, ...drawn]
-
-      const nextPlayerId = game.current_player_id === game.player1_id
-        ? game.player2_id
-        : game.player1_id
-
-      const gameUpdate: Partial<GameRecord> = {
-        tile_bag: remaining,
-        current_player_id: nextPlayerId,
-        pass_count: 0,
-        updated_at: new Date().toISOString()
-      }
-
-      if (isPlayer1) {
-        gameUpdate.player1_rack = newRack
-      } else {
-        gameUpdate.player2_rack = newRack
-      }
-
-      const { error: gameError } = await supabase
-        .from('games')
-        .update(gameUpdate as any)
-        .eq('id', game.id)
-
-      if (gameError) throw gameError
-
-      const { error: moveError } = await supabase
-        .from('moves')
-        .insert({
-          game_id: game.id,
-          player_id: user.id,
-          move_type: 'exchange_tiles',
-          tiles_exchanged: tilesToReturn as any,
-          score_earned: 0,
-          board_state_after: game.board_state as any,
-          rack_after: newRack as any
-        })
-
-      if (moveError) throw moveError
+      await exchangeTilesForGame({ game, userId: user.id, indexes })
 
       toast({
         title: 'Tiles exchanged',
@@ -422,70 +247,14 @@ export const useMultiplayerGame = (gameId: string) => {
     try {
       setLoading(true)
 
-      const nextPlayerId = game.current_player_id === game.player1_id 
-        ? game.player2_id 
-        : game.player1_id
-
-      const newPassCount = (game.pass_count || 0) + 1
-
-      const gameUpdate: Partial<GameRecord> = {
-        current_player_id: nextPlayerId,
-        pass_count: newPassCount,
-        updated_at: new Date().toISOString()
-      }
-
-      let player1ScoreAfter = game.player1_score
-      let player2ScoreAfter = game.player2_score
-
-      const endOnPasses = newPassCount >= 4 // two consecutive passes per player (2 players)
-      const endGame = endOnPasses || shouldEndGameAfterMove(
-        game.player1_rack,
-        game.player2_rack,
-        game.tile_bag
-      )
-
-      if (endGame) {
-        const { p1, p2 } = applyEndgamePenalties(
-          player1ScoreAfter,
-          player2ScoreAfter,
-          game.player1_rack,
-          game.player2_rack
-        )
-        player1ScoreAfter = p1
-        player2ScoreAfter = p2
-        gameUpdate.status = 'completed'
-        gameUpdate.winner_id =
-          player1ScoreAfter > player2ScoreAfter
-            ? game.player1_id
-            : player2ScoreAfter > player1ScoreAfter
-              ? game.player2_id
-              : null
-        gameUpdate.player1_score = player1ScoreAfter
-        gameUpdate.player2_score = player2ScoreAfter
-      }
-
-      await supabase
-        .from('games')
-        .update(gameUpdate as any)
-        .eq('id', game.id)
-
-      await supabase
-        .from('moves')
-        .insert({
-          game_id: game.id,
-          player_id: user.id,
-          move_type: 'pass',
-          score_earned: 0,
-          board_state_after: game.board_state as any,
-          rack_after: (game.player1_id === user.id ? game.player1_rack : game.player2_rack) as any
-        })
+  const { endGame, winnerId } = await passTurnForGame({ game, userId: user.id })
 
       toast({
         title: "Turn passed",
         description: "You passed the turn"
       })
 
-      if (gameUpdate.status === 'completed') {
+      if (endGame) {
         const mode =
           game.turn_duration === '1h' ? 'blitz'
           : game.turn_duration === '6h' ? 'rapid'
@@ -497,7 +266,7 @@ export const useMultiplayerGame = (gameId: string) => {
             body: JSON.stringify({
               player1Id: Number(game.player1_id),
               player2Id: Number(game.player2_id),
-              winnerId: gameUpdate.winner_id ? Number(gameUpdate.winner_id) : null,
+              winnerId: winnerId ? Number(winnerId) : null,
               mode
             })
           }).catch(err => console.error('rating report error', err))
@@ -522,29 +291,7 @@ export const useMultiplayerGame = (gameId: string) => {
     try {
       setLoading(true)
 
-      const opponentId = game.player1_id === user.id ? game.player2_id : game.player1_id
-
-      const gameUpdate: Partial<GameRecord> = {
-        status: 'completed',
-        winner_id: opponentId,
-        updated_at: new Date().toISOString()
-      }
-
-      await supabase
-        .from('games')
-        .update(gameUpdate as any)
-        .eq('id', game.id)
-
-      await supabase
-        .from('moves')
-        .insert({
-          game_id: game.id,
-          player_id: user.id,
-          move_type: 'resign',
-          score_earned: 0,
-          board_state_after: game.board_state as any,
-          rack_after: (game.player1_id === user.id ? game.player1_rack : game.player2_rack) as any
-        })
+  const { winnerId } = await surrenderGameForGame({ game, userId: user.id })
 
       const mode =
         game.turn_duration === '1h' ? 'blitz'
@@ -557,7 +304,7 @@ export const useMultiplayerGame = (gameId: string) => {
           body: JSON.stringify({
             player1Id: Number(game.player1_id),
             player2Id: Number(game.player2_id),
-            winnerId: Number(opponentId),
+            winnerId: winnerId ? Number(winnerId) : null,
             mode
           })
         }).catch(err => console.error('rating report error', err))

@@ -96,11 +96,24 @@ export const NotificationSystem = () => {
             // Check if this move is in a game the user is playing
             checkIfUserGame(move.game_id).then(isUserGame => {
               if (isUserGame) {
+                // Build human-friendly summary with words and score if available
+                const words = Array.isArray(move.words_formed) ? move.words_formed.filter((w: any) => typeof w === 'string') : []
+                const wordsPart = words.length > 0 ? `: ${words.join(', ')}` : ''
+                const scorePart = typeof move.score_earned === 'number' ? ` (+${move.score_earned})` : ''
+                const title = "Mossa dell'avversario"
+                const message = `L'avversario ha giocato${wordsPart}${scorePart}`
+
                 addNotification({
                   type: 'move_made',
-                  title: "Opponent's move",
-                  message: 'Your opponent made a move',
+                  title,
+                  message,
                   gameId: move.game_id
+                })
+
+                // Also show a toast for immediate feedback
+                toast({
+                  title,
+                  description: message
                 })
               }
             })
