@@ -84,9 +84,10 @@
 ## Wave 4 — Frontend Simplification (Vite/React/TS)
 - [ ] T024 [P] Split long files (>400 LOC) and move utils to `src/lib/`
   - Path: `src/**/*.{ts,tsx}`
-- [ ] T025 Unify HTTP client with timeouts + optional idempotency key
+  - Progress: helpers estratti da `src/hooks/useGame.ts` in `src/lib/game/{tiles.ts,random.ts,endgame.ts,botMove.ts}`; hook aggiornato e test verdi.
+- [x] T025 Unify HTTP client with timeouts + optional idempotency key
   - Path: `src/services/httpClient.ts`
-- [ ] T026 UI smokes with React Testing Library
+- [x] T026 UI smokes with React Testing Library
   - Path: `src/__tests__/ui.smoke.test.tsx`
 
 ## Wave 5 — rating-api tidy (Express)

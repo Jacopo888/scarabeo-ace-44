@@ -14,6 +14,10 @@ import { toastOnce } from '@/lib/toastOnce'
 import { sanitizeQuackleTile } from '@/lib/game/tiles'
 import { shuffleArray, drawTiles } from '@/lib/game/random'
 import { computeFinalPlayers } from '@/lib/game/endgame'
+import { applyBotMove } from '@/lib/game/botMove'
+import { initGameState } from '@/lib/game/init'
+import { applyPassTurn } from '@/lib/game/actions'
+import { applyConfirmMove } from '@/lib/game/actionsConfirm'
 
   // helpers estratti in src/lib/game
 
@@ -36,37 +40,7 @@ export const useGame = () => {
   // Initialize game state in base alla modalità scelta
   const initializeGameState = useCallback((): GameState => {
     console.log('[useGame] Initializing game with mode:', urlMode, 'difficulty:', difficulty)
-    const shuffledBag = shuffleArray(TILE_DISTRIBUTION)
-    const player1Tiles = drawTiles(shuffledBag, 7)
-    const player2Tiles = drawTiles(player1Tiles.remaining, 7)
-
-    const gameMode: 'human' | 'quackle' = (urlMode === 'quackle') ? 'quackle' : 'human'
-    const startingPlayerIndex = Math.floor(Math.random() * 2)
-
-    return {
-      board: new Map(),
-      players: [
-        {
-          id: 'player1',
-          name: gameMode === 'quackle' ? 'You' : 'Player 1',
-          score: 0,
-          rack: player1Tiles.drawn,
-          isBot: false
-        },
-        {
-          id: 'player2',
-          name: gameMode === 'quackle' ? `Quackle (${difficulty || 'easy'})` : 'Player 2',
-          score: 0,
-          rack: player2Tiles.drawn,
-          isBot: gameMode === 'quackle'
-        }
-      ],
-      currentPlayerIndex: startingPlayerIndex,
-      tileBag: player2Tiles.remaining,
-      gameStatus: gameMode === 'quackle' ? 'playing' : 'waiting',
-      gameMode,
-      passCounts: [0, 0]
-    }
+    return initGameState(urlMode, difficulty)
   }, [difficulty, urlMode])
 
   // Initialize with empty state and wait for difficulty
@@ -144,129 +118,29 @@ export const useGame = () => {
   }, [pendingTiles])
 
   const confirmMove = useCallback(() => {
-    if (pendingTiles.length === 0) {
-      toast({
-        title: "Error",
-        description: "No tiles to confirm",
-        variant: "destructive"
-      })
-      return
-    }
-
-    let moveInfo: Omit<GameMove, 'move_index'> | null = null
-
+    const deps = { validateMoveLogic, findNewWordsFormed, calculateNewMoveScore, isValidWord }
     setGameState(prev => {
-      // Validate the move using new logic
-      const validation = validateMoveLogic(prev.board, pendingTiles)
-
-      if (!validation.isValid) {
-        toast({
-          title: "Invalid move",
-          description: validation.errors.join(', '),
-          variant: "destructive"
-        })
+      const res = applyConfirmMove(prev, pendingTiles, deps)
+      if (!res.ok) {
+        const { error, errorCode } = res
+        const title = errorCode === 'empty' ? 'Error' : errorCode === 'invalid_move' ? 'Invalid move' : 'Invalid words'
+        toast({ title, description: error || '', variant: 'destructive' })
         return prev
       }
 
-      // Find only the new words formed by this move
-      const newWords = findNewWordsFormed(prev.board, pendingTiles)
-
-      // Validate all new words in dictionary
-      const invalidWords = newWords.filter(word => !isValidWord(word.word))
-      if (invalidWords.length > 0) {
-        toast({
-          title: "Invalid words",
-          description: `Invalid words: ${invalidWords.map(w => w.word).join(', ')}`,
-          variant: "destructive"
-        })
-        return prev
-      }
-
-      // Calculate score only for new words
-      const score = calculateNewMoveScore(newWords, pendingTiles)
-
-      // Add tiles to board
-      const newBoard = new Map(prev.board)
-      pendingTiles.forEach(tile => {
-        const key = `${tile.row},${tile.col}`
-        newBoard.set(key, tile)
-      })
-
-      // Update player score and rack
-      const currentPlayer = prev.players[prev.currentPlayerIndex]
-      const tilesNeeded = 7 - currentPlayer.rack.length
-
-      // Draw new tiles
-      const { drawn, remaining } = tilesNeeded > 0 && prev.tileBag.length > 0
-        ? drawTiles(prev.tileBag, Math.min(tilesNeeded, prev.tileBag.length))
-        : { drawn: [], remaining: prev.tileBag }
-
-      const newPlayers = [...prev.players]
-      newPlayers[prev.currentPlayerIndex] = {
-        ...currentPlayer,
-        score: currentPlayer.score + score,
-        rack: [...currentPlayer.rack, ...drawn]
-      }
-
-      // Prepare move info for analysis
-      const rackBefore = [...currentPlayer.rack, ...pendingTiles]
-      const row = Math.min(...pendingTiles.map(t => t.row))
-      const col = Math.min(...pendingTiles.map(t => t.col))
-      const dir = pendingTiles.every(t => t.row === pendingTiles[0].row) ? 'H' : 'V'
-      moveInfo = {
-        word: newWords[0]?.word || '',
-        score_earned: score,
-        rack_before: rackBefore,
-        player_id: currentPlayer.id,
-        row,
-        col,
-        dir
-      }
-
-      // Clear pending tiles
+      // Clear pending tiles and toast success
       setPendingTiles([])
+  const moveWords = res.moveInfo?.words ?? (res.moveInfo?.word ? [res.moveInfo.word] : [])
+      const delta = res.moveInfo?.score_earned ?? 0
+      toast({ title: 'Move confirmed!', description: `+${delta} points for words: ${moveWords.join(', ')}` })
 
-      toast({
-        title: "Move confirmed!",
-        description: `+${score} points for words: ${newWords.map(w => w.word).join(', ')}`
-      })
-
-      const newPassCounts = [...(prev.passCounts || Array(prev.players.length).fill(0))]
-      newPassCounts[prev.currentPlayerIndex] = 0
-      const nextPlayerIndex = (prev.currentPlayerIndex + 1) % prev.players.length
-      const endGame = canEndGame(
-        newPlayers.map(p => ({ rack: p.rack })),
-        remaining
-      )
-
-      if (endGame) {
-        const finalPlayers: Player[] = computeFinalPlayers(newPlayers)
-        return {
-          ...prev,
-          board: newBoard,
-          players: finalPlayers,
-          tileBag: remaining,
-          gameStatus: 'finished',
-          passCounts: newPassCounts,
-          lastMove: pendingTiles
-        }
+      // Record move for analysis
+      if (res.moveInfo) {
+        setMoveHistory(prevMH => [...prevMH, { ...res.moveInfo!, move_index: prevMH.length + 1 } as any])
       }
 
-      // Automatically end turn after successful move
-      return {
-        ...prev,
-        board: newBoard,
-        players: newPlayers,
-        tileBag: remaining,
-        currentPlayerIndex: nextPlayerIndex,
-        passCounts: newPassCounts,
-        lastMove: pendingTiles
-      }
+      return res.next!
     })
-
-    if (moveInfo) {
-      setMoveHistory(prev => [...prev, { ...moveInfo!, move_index: prev.length + 1 }])
-    }
   }, [pendingTiles, toast, isValidWord])
 
   const cancelMove = useCallback(() => {
@@ -341,32 +215,7 @@ export const useGame = () => {
 
   const passTurn = useCallback(() => {
     cancelMove()
-    setGameState(prev => {
-      const newPassCounts = [...(prev.passCounts || Array(prev.players.length).fill(0))]
-      newPassCounts[prev.currentPlayerIndex] += 1
-      const bothPassedTwice = newPassCounts.every(c => c >= 2)
-      const endGame = bothPassedTwice || canEndGame(
-        prev.players.map(p => ({ rack: p.rack })),
-        prev.tileBag,
-        0
-      )
-
-      if (endGame) {
-        const finalPlayers: Player[] = computeFinalPlayers(prev.players)
-        return {
-          ...prev,
-          players: finalPlayers,
-          gameStatus: 'finished',
-          passCounts: newPassCounts
-        }
-      }
-
-      return {
-        ...prev,
-        currentPlayerIndex: (prev.currentPlayerIndex + 1) % prev.players.length,
-        passCounts: newPassCounts
-      }
-    })
+    setGameState(prev => applyPassTurn(prev))
   }, [cancelMove])
 
   const surrenderGame = useCallback(() => {
@@ -481,78 +330,9 @@ export const useGame = () => {
         return
       }
 
-      // Apply bot move to game state
-      setGameState(prev => {
-        const newBoard = new Map(prev.board)
-        sanitizedTiles.forEach(tile => {
-          const key = `${tile.row},${tile.col}`
-          newBoard.set(key, {
-            letter: tile.letter,
-            points: tile.points,
-            row: tile.row,
-            col: tile.col,
-            isBlank: tile.isBlank || false
-          })
-        })
-
-        // Update bot rack and score
-        const currentPlayer = prev.players[prev.currentPlayerIndex]
-        const newRack = [...currentPlayer.rack]
-        sanitizedTiles.forEach(usedTile => {
-          const tileIndex = newRack.findIndex(t => {
-            if (usedTile.isBlank && t.isBlank) return true
-            return (t.letter || '').toUpperCase() === usedTile.letter && t.points === usedTile.points
-          })
-          if (tileIndex !== -1) newRack.splice(tileIndex, 1)
-        })
-
-        const tilesNeeded = 7 - newRack.length
-        const { drawn, remaining } = tilesNeeded > 0 && prev.tileBag.length > 0
-          ? drawTiles(prev.tileBag, Math.min(tilesNeeded, prev.tileBag.length))
-          : { drawn: [], remaining: prev.tileBag }
-
-        const newPlayers = [...prev.players]
-        newPlayers[prev.currentPlayerIndex] = {
-          ...currentPlayer,
-          score: currentPlayer.score + move.score,
-          rack: [...newRack, ...drawn]
-        }
-
-        const newPassCounts = [...(prev.passCounts || Array(prev.players.length).fill(0))]
-        newPassCounts[prev.currentPlayerIndex] = 0
-
-        toast({ title: 'Quackle played!', description: `Quackle scored ${move.score} points with: ${move.words.join(', ')}` })
-
-        // Check immediate endgame: if any rack is empty and bag is empty, finish without passing the turn
-        const endGame = canEndGame(
-          newPlayers.map(p => ({ rack: p.rack })),
-          remaining
-        )
-
-        if (endGame) {
-          const finalPlayers: Player[] = computeFinalPlayers(newPlayers)
-          return {
-            ...prev,
-            board: newBoard,
-            players: finalPlayers,
-            tileBag: remaining,
-            gameStatus: 'finished',
-            passCounts: newPassCounts,
-            lastMove: sanitizedTiles
-          }
-        }
-
-        // Otherwise continue normally to next turn
-        return {
-          ...prev,
-          board: newBoard,
-          players: newPlayers,
-          tileBag: remaining,
-          currentPlayerIndex: (prev.currentPlayerIndex + 1) % prev.players.length,
-          passCounts: newPassCounts,
-          lastMove: sanitizedTiles
-        }
-      })
+      // Apply bot move to game state (delegated)
+      toast({ title: 'Quackle played!', description: `Quackle scored ${move.score} points with: ${move.words.join(', ')}` })
+      setGameState(prev => applyBotMove(prev, { sanitizedTiles, score: move.score, words: move.words }).next)
 
       // Record move for analysis (best-effort)
       try {
@@ -616,40 +396,7 @@ export const useGame = () => {
     const activeDifficulty = difficulty
     if (urlMode === 'quackle' && gameState.players.length === 0) {
       console.log('[useGame] Initializing game with difficulty:', activeDifficulty)
-      
-      // Initialize game state directly here to avoid circular dependency
-      const shuffledBag = shuffleArray(TILE_DISTRIBUTION)
-      const player1Tiles = drawTiles(shuffledBag, 7)
-      const player2Tiles = drawTiles(player1Tiles.remaining, 7)
-
-  const gameMode: 'human' | 'quackle' = 'quackle'
-      const startingPlayerIndex = Math.floor(Math.random() * 2)
-
-      const newGameState: GameState = {
-        board: new Map(),
-        players: [
-          {
-            id: 'player1',
-            name: 'You',
-            score: 0,
-            rack: player1Tiles.drawn,
-            isBot: false
-          },
-          {
-            id: 'player2',
-            name: `Quackle (${activeDifficulty || 'easy'})`,
-            score: 0,
-            rack: player2Tiles.drawn,
-            isBot: true
-          }
-        ],
-        currentPlayerIndex: startingPlayerIndex,
-        tileBag: player2Tiles.remaining,
-        gameStatus: 'playing',
-        gameMode,
-        passCounts: [0, 0]
-      }
-      
+      const newGameState = initGameState('quackle', activeDifficulty)
       console.log('[useGame] New game state players:', newGameState.players.map(p => ({ name: p.name, isBot: p.isBot })))
       console.log('[useGame] Game status set to:', newGameState.gameStatus)
       setGameState(newGameState)
@@ -663,7 +410,7 @@ export const useGame = () => {
   // Initialize Local Game (human vs human) quando mode=local
   useEffect(() => {
     if (urlMode === 'local' && gameState.players.length === 0) {
-      const newState = initializeGameState()
+      const newState = initGameState('local', difficulty)
       console.log('[useGame] Initializing LOCAL game')
       setGameState(newState)
       setPendingTiles([])
@@ -671,7 +418,7 @@ export const useGame = () => {
       setMoveHistory([])
       gameIdRef.current = crypto.randomUUID()
     }
-  }, [urlMode, gameState.players.length, initializeGameState])
+  }, [urlMode, gameState.players.length, difficulty])
 
   return {
     gameState,
