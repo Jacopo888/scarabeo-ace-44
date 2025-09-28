@@ -4,14 +4,13 @@ import { db, redis } from './db';
 import { players, games } from './schema';
 import { eq, desc, and } from 'drizzle-orm';
 import { calculateElo, Mode } from './elo';
-// Removed puzzle/daily/analysis features to focus on core gameplay
 
 export const app = express();
 const port = Number(process.env.PORT) || 4000;
 app.use(cors());
 app.use(express.json());
 
-// NOTE: puzzle/daily/analysis routes removed
+// Routes trimmed to rating and ping only
 
 
 app.get('/ping', (_req, res) => {

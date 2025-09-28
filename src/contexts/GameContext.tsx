@@ -1,7 +1,7 @@
 import { createContext, useContext, ReactNode } from 'react'
 import { useGame } from '@/hooks/useGame'
 import { GameState, Player, Tile, PlacedTile } from '@/types/game'
-// Minimal move history entry type; analysis feature is disabled, so keep a light shape
+// Minimal move history entry type; keep a light shape
 type GameMoveLite = {
   move_index: number
   word: string | null

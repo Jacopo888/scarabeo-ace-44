@@ -15,7 +15,6 @@ import { useMultiplayerGame } from '@/hooks/useMultiplayerGame'
 import { useAuth } from '@/contexts/AuthContext'
 import { Clock, User, Trophy, ArrowLeft } from 'lucide-react'
 import { usePlayerRating } from '@/hooks/usePlayerRating'
-// Analysis removed per request
 import { formatTimeRemaining } from '@/utils/timeUtils'
 
 export default function MultiplayerGame() {
@@ -52,7 +51,7 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
   const [selectedTileIndex, setSelectedTileIndex] = useState<number | null>(null)
   const [exchangeOpen, setExchangeOpen] = useState(false)
   const [blankTile, setBlankTile] = useState<{ row: number, col: number, tile: any } | null>(null)
-  // Analysis disabled
+  // Extra features disabled
 
   const opponentId =
     game && user ? (game.player1_id === user.id ? game.player2_id : game.player1_id) : undefined
@@ -73,7 +72,7 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
     }
   }, [isMyTurn])
 
-  // No post-game analysis
+  // No post-game extras
 
   const handleExchange = (indexes: number[]) => {
     exchangeTiles(indexes)
@@ -322,7 +321,7 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
                 >
                   Refresh Game
                 </Button>
-                {/* Analysis button removed */}
+                {/* Extra buttons removed */}
                 {game.status === 'active' && (
                   <Button
                     variant="destructive"
@@ -334,8 +333,7 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
                 )}
               </CardContent>
             </Card>
-
-            {/* Analysis results removed */}
+            {/* Extra results removed */}
           </div>
         </div>
         

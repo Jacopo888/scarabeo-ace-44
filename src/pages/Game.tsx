@@ -6,11 +6,9 @@ import { TileCounter } from "@/components/TileCounter"
 import { TileRack } from "@/components/TileRack"
 import { TileActions } from "@/components/TileActions"
 import { DictionaryLoader } from "@/components/DictionaryLoader"
-// Analysis removed per request
 import { BlankTileDialog } from "@/components/BlankTileDialog"
 import { QuackleProvider, useQuackleContext } from "@/contexts/QuackleContext"
 import { QuackleHealthCheck } from "@/components/QuackleHealthCheck"
-// Tabs for analysis removed
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Trophy } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -57,7 +55,7 @@ const GameContent = () => {
   const { toast } = useToast()
   const [selectedTileIndex, setSelectedTileIndex] = useState<number | null>(null)
   const [blankTile, setBlankTile] = useState<{ row: number, col: number, tile: Tile } | null>(null)
-  // Analysis disabled
+  // UI extras disabled
 
   const humanPlayer = gameState.players.find(p => !p.isBot) || currentPlayer
   const rackToShow = gameState.gameMode === 'quackle' ? (humanPlayer?.rack || []) : (currentPlayer?.rack || [])
@@ -84,7 +82,7 @@ const GameContent = () => {
 
   const clearSelectedTile = () => setSelectedTileIndex(null)
 
-  // No analysis tab
+  // No extra tabs
 
   useEffect(() => {
     if (isBotTurn) {
@@ -92,7 +90,7 @@ const GameContent = () => {
     }
   }, [isBotTurn])
 
-  // No post-game analysis
+  // No post-game extras
 
   // Toast when Quackle has fewer than 5 tiles remaining
   useEffect(() => {

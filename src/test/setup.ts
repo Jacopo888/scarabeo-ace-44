@@ -15,7 +15,7 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
   })
 }
 
-// Polyfill ResizeObserver for libraries/components relying on it (e.g., Recharts ResponsiveContainer, custom hooks)
+// Polyfill ResizeObserver for libraries/components relying on it (e.g., components that expect it)
 if (typeof window !== 'undefined' && !(window as any).ResizeObserver) {
   class ResizeObserver {
     private callback: ResizeObserverCallback

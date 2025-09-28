@@ -106,7 +106,7 @@ export const useGame = () => {
       const delta = res.moveInfo?.score_earned ?? 0
       toast({ title: 'Move confirmed!', description: `+${delta} points for words: ${moveWords.join(', ')}` })
 
-      // Record move for analysis
+  // Record move
       if (res.moveInfo) {
   setMoveHistory(prevMH => [...prevMH, { ...(res.moveInfo as any), move_index: prevMH.length + 1 }])
       }
@@ -230,7 +230,7 @@ export const useGame = () => {
   const applied = applyBotMove(snapshot, { sanitizedTiles, score: move.score, words: move.words })
   setGameState(applied.next)
 
-      // Record move for analysis (best-effort)
+  // Record move (best-effort)
       try {
         const isHorizontal = sanitizedTiles.every(t => t.row === sanitizedTiles[0].row)
         const ordered = [...sanitizedTiles].sort((a, b) => isHorizontal ? a.col - b.col : a.row - b.row)

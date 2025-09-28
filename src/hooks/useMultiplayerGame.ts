@@ -8,24 +8,15 @@ import { validateMoveLogic } from '@/utils/moveValidation'
 import { findNewWordsFormed } from '@/utils/newWordFinder'
 import { calculateNewMoveScore } from '@/utils/newScoring'
 import { canEndGame, calculateEndGamePenalty } from '@/utils/gameRules'
+import { shuffleArray, drawTiles } from '@/lib/multiplayer/tiles'
+import { calculatePrimaryWord } from '@/lib/multiplayer/utils'
+import { shouldEndGameAfterMove, applyEndgamePenalties } from '@/lib/multiplayer/endgame'
 import { useDictionary } from '@/contexts/DictionaryContext'
+import { buildGameState } from '@/lib/multiplayer/state'
 
 const API_BASE = import.meta.env.VITE_RATING_API_URL || (import.meta.env.MODE === 'development' ? '/api' : '')
 
-const shuffleArray = <T,>(array: T[]): T[] => {
-  const shuffled = [...array]
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-  }
-  return shuffled
-}
-
-const drawTiles = (bag: Tile[], count: number): { drawn: Tile[]; remaining: Tile[] } => {
-  const drawn = bag.slice(0, count)
-  const remaining = bag.slice(count)
-  return { drawn, remaining }
-}
+// moved to lib/multiplayer/tiles
 
 export const useMultiplayerGame = (gameId: string) => {
   const [game, setGame] = useState<GameRecord | null>(null)
@@ -126,48 +117,9 @@ export const useMultiplayerGame = (gameId: string) => {
 
   const updateGameState = (gameData: GameRecord) => {
     if (!user) return
-
-    const boardEntries = Object.entries(gameData.board_state || {}).map(
-      ([key, val]) => {
-        const tile: PlacedTile = {
-          ...val,
-          isBlank: val.isBlank ?? (val.letter === '' && val.points === 0)
-        }
-        return [key, tile] as [string, PlacedTile]
-      }
-    )
-    const boardMap = new Map<string, PlacedTile>(boardEntries)
-
-    const normalizeRack = (rack: Tile[]): Tile[] =>
-      rack.map((t) => ({
-        letter: t.letter ?? '',
-        points: t.points ?? 0,
-        isBlank: t.isBlank ?? (t.letter === '' && t.points === 0),
-      }))
-
-    const state: GameState = {
-      players: [
-        {
-          id: gameData.player1_id,
-          name: 'Player 1',
-          score: gameData.player1_score,
-          rack: normalizeRack(gameData.player1_rack || []),
-        },
-        {
-          id: gameData.player2_id,
-          name: 'Player 2',
-          score: gameData.player2_score,
-          rack: normalizeRack(gameData.player2_rack || []),
-        },
-      ],
-      currentPlayerIndex: gameData.current_player_id === gameData.player1_id ? 0 : 1,
-      board: boardMap,
-      tileBag: gameData.tile_bag,
-      gameStatus: 'playing'
-    }
-
+    const { state, isMyTurn } = buildGameState(gameData, user.id)
     setGameState(state)
-    setIsMyTurn(gameData.current_player_id === user.id)
+    setIsMyTurn(isMyTurn)
   }
 
   const placeTile = useCallback((row: number, col: number, tile: Tile) => {
@@ -189,31 +141,9 @@ export const useMultiplayerGame = (gameId: string) => {
     setPendingTiles(prev => prev.filter(t => !(t.row === row && t.col === col)))
   }, [])
 
-  // Helper function to calculate the primary word from placed tiles
-  const calculatePrimaryWord = (tilesPlaced: any[], boardState: any) => {
-    if (tilesPlaced.length === 0) return ''
-    
-    // Sort tiles by position to determine word direction and order
-    const sortedTiles = [...tilesPlaced].sort((a, b) => {
-      if (a.row === b.row) return a.col - b.col
-      return a.row - b.row
-    })
-    
-    // Simple primary word extraction - in a real implementation this would be more sophisticated
-    return sortedTiles.map(tile => tile.letter).join('')
-  }
+  // calculatePrimaryWord now imported from lib/multiplayer/utils
 
-  // Helper function to get next move index for a game
-  const getNextMoveIndex = async (gameId: string): Promise<number> => {
-    const { data } = await supabase
-      .from('moves')
-      .select('move_index')
-      .eq('game_id', gameId)
-      .order('move_index', { ascending: false })
-      .limit(1)
-    
-    return data && data.length > 0 ? data[0].move_index + 1 : 1
-  }
+  // getNextMoveIndex removed; we can compute next index client-side when needed if we fetch last move
     const submitMove = async () => {
 
     try {
@@ -312,25 +242,21 @@ export const useMultiplayerGame = (gameId: string) => {
         gameUpdate.player2_rack = newRack
       }
 
-      const endGame = canEndGame(
-        [
-          { rack: player1RackAfter },
-          { rack: player2RackAfter }
-        ],
-        remaining,
-        0
+      const endGame = shouldEndGameAfterMove(
+        player1RackAfter,
+        player2RackAfter,
+        remaining
       )
 
       if (endGame) {
-        const p1Penalty = calculateEndGamePenalty(player1RackAfter)
-        const p2Penalty = calculateEndGamePenalty(player2RackAfter)
-        player1ScoreAfter -= p1Penalty
-        player2ScoreAfter -= p2Penalty
-        if (player1ScoreAfter > player2ScoreAfter) {
-          player1ScoreAfter += p2Penalty
-        } else if (player2ScoreAfter > player1ScoreAfter) {
-          player2ScoreAfter += p1Penalty
-        }
+        const { p1, p2 } = applyEndgamePenalties(
+          player1ScoreAfter,
+          player2ScoreAfter,
+          player1RackAfter,
+          player2RackAfter
+        )
+        player1ScoreAfter = p1
+        player2ScoreAfter = p2
         gameUpdate.status = 'completed'
         gameUpdate.winner_id =
           player1ScoreAfter > player2ScoreAfter
@@ -512,25 +438,21 @@ export const useMultiplayerGame = (gameId: string) => {
       let player2ScoreAfter = game.player2_score
 
       const endOnPasses = newPassCount >= 4 // two consecutive passes per player (2 players)
-      const endGame = endOnPasses || canEndGame(
-        [
-          { rack: game.player1_rack },
-          { rack: game.player2_rack }
-        ],
-        game.tile_bag,
-        0
+      const endGame = endOnPasses || shouldEndGameAfterMove(
+        game.player1_rack,
+        game.player2_rack,
+        game.tile_bag
       )
 
       if (endGame) {
-        const p1Penalty = calculateEndGamePenalty(game.player1_rack)
-        const p2Penalty = calculateEndGamePenalty(game.player2_rack)
-        player1ScoreAfter -= p1Penalty
-        player2ScoreAfter -= p2Penalty
-        if (player1ScoreAfter > player2ScoreAfter) {
-          player1ScoreAfter += p2Penalty
-        } else if (player2ScoreAfter > player1ScoreAfter) {
-          player2ScoreAfter += p1Penalty
-        }
+        const { p1, p2 } = applyEndgamePenalties(
+          player1ScoreAfter,
+          player2ScoreAfter,
+          game.player1_rack,
+          game.player2_rack
+        )
+        player1ScoreAfter = p1
+        player2ScoreAfter = p2
         gameUpdate.status = 'completed'
         gameUpdate.winner_id =
           player1ScoreAfter > player2ScoreAfter

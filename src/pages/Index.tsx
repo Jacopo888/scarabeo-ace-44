@@ -22,7 +22,7 @@ const Index = () => {
           <div>
             <h1 className="text-4xl font-bold mb-4">Welcome to Scrabble Online</h1>
             <p className="text-lg text-muted-foreground">
-              The best place to play Scrabble online with advanced analysis
+              The best place to play Scrabble online
             </p>
           </div>
           
