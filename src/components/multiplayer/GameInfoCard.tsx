@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Clock } from "lucide-react"
-import { formatTimeRemaining } from "@/utils/timeUtils"
+import { formatTimeRemaining } from "@/utils/time"
 import type { GameRecord } from "@/types/multiplayer"
 
 export function GameInfoCard(props: {
