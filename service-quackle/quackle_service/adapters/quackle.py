@@ -15,6 +15,6 @@ def best_move(payload: Dict[str, Any]) -> Dict[str, Any]:
     Returns the raw bridge result dict.
     """
     # In future we could inject timeouts, metrics, retries here.
-    # Lazy import to avoid circular dependency at module import time
+    # Lazy import from main to allow tests to monkeypatch main._call_bridge
     from ..main import _call_bridge  # type: ignore
     return _call_bridge(payload)

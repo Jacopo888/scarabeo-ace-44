@@ -12,6 +12,18 @@ FastAPI microservice that bridges the Quackle engine.
 - Board normalization: accepts multiple shapes (grid/squares/coord_map/placements), normalizes internally to 15x15.
 - Coordinates: service returns 0-based row/col for tiles.
 
+## Architettura (moduli)
+Struttura attuale dei moduli principali in `quackle_service/`:
+- `main.py` – bootstrap FastAPI: include router, CORS da env, lifespan che verifica/inizializza i lessici.
+- `config.py` – lettura env e costanti (es. `QUACKLE_LEXDIR`, `QUACKLE_LEXICON`, `CORS_ORIGINS`, `QUACKLE_TIMEOUT_MS`).
+- `runtime.py` – check e bootstrap dei file lessicali/strategy; util per readiness.
+- `normalization.py` – normalizzazione rack/board e conversioni (grid ⇆ coord_map, placements, squares).
+- `bridge_client.py` – invocazione del bridge native (subprocess), timeouts ed envelope errori.
+- `routes_best_move.py`, `routes_health.py`, `routes_debug.py` – router FastAPI separati per feature.
+- `adapters/quackle.py` – boundary di chiamata al motore; mantiene compatibilità coi test che monkeypatchano `main._call_bridge`.
+
+Nota: gli CORS origins sono risolti dinamicamente da `CORS_ORIGINS` e visibili anche in `GET /health/cors`.
+
 ## Configuration (env)
 - `CORS_ORIGINS` – comma-separated origins
 - `QUACKLE_LEXDIR` – where lexica (DAWG/GADDAG) live (default `/data/lexica`)
@@ -19,6 +31,9 @@ FastAPI microservice that bridges the Quackle engine.
 - `LEXICON_NAME` or `QUACKLE_LEXICON` – base name of lexicon (default `enable1.15`)
 - `DAWG_URL`, `GADDAG_URL` – optional URLs to download lexica at startup
 - `QUACKLE_SKIP_LEXICON_CHECK` – if `1|true`, skip strict lexicon presence check (useful in tests)
+- `QUACKLE_TIMEOUT_MS` – timeout chiamata al bridge (default 8000 ms)
+- `QUACKLE_BRIDGE_BIN` – path binario bridge nativo (override)
+- `DEBUG_ENABLE_LDD` – abilita endpoint `GET /debug/ldd` per ispezionare le dipendenze del binario
 
 These values sono compatibili con Railway; esempio dalla produzione:
 ```
@@ -45,6 +60,14 @@ GADDAG_URL=https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexic
   - Imposta `QUACKLE_SKIP_LEXICON_CHECK=1` per evitare il gate dei file.
   - Esegui `uvicorn quackle_service.main:app --reload`.
 - Con Docker/Compose: vedi `Dockerfile` e `docker-compose.yml` nella root del progetto.
+
+### Debug veloce
+- `GET /debug/config` e `GET /health/cors` per verificare configurazione e CORS.
+- `POST /debug/bridge-payload` per vedere il payload normalizzato che va al bridge.
+- `GET /debug/sample-moves` per un paio di casi base (richiede bridge disponibile).
+
+### Test
+- Test Python del servizio: `pytest -q service-quackle/tests`.
 
 ## Note d'integrazione
 - In endgame, rack con meno di 7 lettere sono accettate; rack vuota => risposta `pass` senza chiamare il bridge.
