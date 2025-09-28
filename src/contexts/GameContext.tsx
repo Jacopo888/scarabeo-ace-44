@@ -1,7 +1,17 @@
 import { createContext, useContext, ReactNode } from 'react'
 import { useGame } from '@/hooks/useGame'
 import { GameState, Player, Tile, PlacedTile } from '@/types/game'
-import type { GameMove } from '@/hooks/useGameAnalysis'
+// Minimal move history entry type; analysis feature is disabled, so keep a light shape
+type GameMoveLite = {
+  move_index: number
+  word: string | null
+  score_earned: number
+  rack_before: any[]
+  player_id: string
+  row?: number
+  col?: number
+  dir?: 'H' | 'V'
+}
 
 interface GameContextType {
   gameState: GameState
@@ -20,7 +30,7 @@ interface GameContextType {
   isSurrendered: boolean
   currentPlayer: Player
   isCurrentPlayerTurn: (playerId: string) => boolean
-  moveHistory: GameMove[]
+  moveHistory: GameMoveLite[]
   gameId: string
 }
 

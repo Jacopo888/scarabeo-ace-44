@@ -8,7 +8,16 @@ import { canEndGame } from '@/utils/gameRules'
 import { useToast } from '@/hooks/use-toast'
 import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
-import type { GameMove } from './useGameAnalysis'
+type GameMoveLite = {
+  move_index: number
+  word: string | null
+  score_earned: number
+  rack_before: any[]
+  player_id: string
+  row?: number
+  col?: number
+  dir?: 'H' | 'V'
+}
 import { Difficulty } from '@/components/DifficultyModal'
 import { toastOnce } from '@/lib/toastOnce'
 import { sanitizeQuackleTile } from '@/lib/game/tiles'
@@ -34,7 +43,7 @@ export const useGame = () => {
   const [pendingTiles, setPendingTiles] = useState<PlacedTile[]>([])
   const [isBotTurn, setIsBotTurn] = useState(false)
   const [isSurrendered, setIsSurrendered] = useState(false)
-  const [moveHistory, setMoveHistory] = useState<GameMove[]>([])
+  const [moveHistory, setMoveHistory] = useState<GameMoveLite[]>([])
   const gameIdRef = useRef<string>(crypto.randomUUID())
   const botMoveInFlightRef = useRef(false)
   
@@ -99,7 +108,7 @@ export const useGame = () => {
 
       // Record move for analysis
       if (res.moveInfo) {
-        setMoveHistory(prevMH => [...prevMH, { ...res.moveInfo!, move_index: prevMH.length + 1 } as any])
+  setMoveHistory(prevMH => [...prevMH, { ...(res.moveInfo as any), move_index: prevMH.length + 1 }])
       }
 
       return res.next!
@@ -171,7 +180,9 @@ export const useGame = () => {
     // Prevent double starts
     if (botMoveInFlightRef.current || isBotTurn) return
 
-    const current = gameState.players[gameState.currentPlayerIndex]
+    // Take a snapshot of the current state to avoid races with other updates
+    const snapshot = gameState
+    const current = snapshot.players[snapshot.currentPlayerIndex]
     if (!current?.isBot || gameState.gameStatus !== 'playing') return
 
     console.log('[useGame] Triggering bot move')
@@ -179,8 +190,8 @@ export const useGame = () => {
     setIsBotTurn(true)
 
     try {
-      const botRack = current.rack
-      const move = await quackleMakeMove(gameState, botRack, activeDifficulty)
+  const botRack = current.rack
+  const move = await quackleMakeMove(snapshot, botRack, activeDifficulty)
 
       console.log('[useGame] Bot move received:', move)
       console.log('[useGame] Move details - tiles:', move?.tiles?.length, 'move_type:', move?.move_type, 'engine_fallback:', move?.engine_fallback)
@@ -215,8 +226,9 @@ export const useGame = () => {
       }
 
       // Apply bot move to game state (delegated)
-      toast({ title: 'Quackle played!', description: `Quackle scored ${move.score} points with: ${move.words.join(', ')}` })
-      setGameState(prev => applyBotMove(prev, { sanitizedTiles, score: move.score, words: move.words }).next)
+  toast({ title: 'Quackle played!', description: `Quackle scored ${move.score} points with: ${move.words.join(', ')}` })
+  const applied = applyBotMove(snapshot, { sanitizedTiles, score: move.score, words: move.words })
+  setGameState(applied.next)
 
       // Record move for analysis (best-effort)
       try {
@@ -225,7 +237,7 @@ export const useGame = () => {
         const placedString = ordered.map(t => t.letter).join('')
         const row = Math.min(...sanitizedTiles.map(t => t.row))
         const col = Math.min(...sanitizedTiles.map(t => t.col))
-        const moveInfo: Omit<GameMove, 'move_index'> = {
+  const moveInfo: Omit<GameMoveLite, 'move_index'> = {
           word: placedString,
           score_earned: move.score,
           rack_before: current.rack,

@@ -27,6 +27,10 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
 
   const currentPlayer = prev.players[prev.currentPlayerIndex]
   const newRack: Tile[] = [...currentPlayer.rack]
+  // eslint-disable-next-line no-console
+  console.log('[applyBotMove] Rack before:', newRack.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
+  // eslint-disable-next-line no-console
+  console.log('[applyBotMove] Using tiles:', sanitizedTiles.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
   sanitizedTiles.forEach(usedTile => {
     const idx = newRack.findIndex(t => {
       if (usedTile.isBlank && t.isBlank) return true
@@ -34,6 +38,8 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
     })
     if (idx !== -1) newRack.splice(idx, 1)
   })
+  // eslint-disable-next-line no-console
+  console.log('[applyBotMove] Rack after removal:', newRack.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
 
   const tilesNeeded = 7 - newRack.length
   const { drawn, remaining } = tilesNeeded > 0 && prev.tileBag.length > 0
@@ -50,12 +56,21 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
   const newPassCounts = [...(prev.passCounts || Array(prev.players.length).fill(0))]
   newPassCounts[prev.currentPlayerIndex] = 0
 
-  const endGame = canEndGame(
+  // Finish only when the current player has emptied their rack and the bag is empty
+  const currentEmptiedAndBagEmpty = remaining.length === 0 && newPlayers[prev.currentPlayerIndex].rack.length === 0
+  const endGame = currentEmptiedAndBagEmpty || canEndGame(
     newPlayers.map(p => ({ rack: p.rack })),
     remaining
   )
 
-  if (endGame) {
+  if (currentEmptiedAndBagEmpty || endGame) {
+    // eslint-disable-next-line no-console
+    console.log('[applyBotMove] Finishing game:', {
+      remaining: remaining.length,
+      rackLen: newPlayers[prev.currentPlayerIndex].rack.length,
+      currentEmptiedAndBagEmpty,
+      endGame
+    })
     const finalPlayers: Player[] = computeFinalPlayers(newPlayers)
     return {
       finished: true,
@@ -71,6 +86,11 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
     }
   }
 
+  // eslint-disable-next-line no-console
+  console.log('[applyBotMove] Continuing game (advance turn):', {
+    remaining: remaining.length,
+    rackLen: newPlayers[prev.currentPlayerIndex].rack.length
+  })
   return {
     finished: false,
     next: {

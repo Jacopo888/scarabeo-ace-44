@@ -21,12 +21,10 @@ export function applyEndTurn(prev: GameState): GameState {
   const newPassCounts = [...(prev.passCounts || Array(prev.players.length).fill(0))]
   newPassCounts[prev.currentPlayerIndex] = 0
 
-  const endGame = canEndGame(
-    newPlayers.map(p => ({ rack: p.rack })),
-    remaining
-  )
+  // Finish only when the current player has emptied their rack and the bag is empty
+  const currentEmptiedAndBagEmpty = remaining.length === 0 && newPlayers[prev.currentPlayerIndex].rack.length === 0
 
-  if (endGame) {
+  if (currentEmptiedAndBagEmpty) {
     const finalPlayers: Player[] = computeFinalPlayers(newPlayers)
     return {
       ...prev,

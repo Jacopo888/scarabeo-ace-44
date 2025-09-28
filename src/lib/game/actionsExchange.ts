@@ -5,8 +5,8 @@ export function applyExchangeTiles(prev: GameState): GameState {
   const currentPlayer = prev.players[prev.currentPlayerIndex]
   const rackSize = currentPlayer.rack.length
 
-  // Not enough tiles in bag to exchange
-  if (prev.tileBag.length < rackSize) return prev
+  // Not enough tiles in bag to exchange (require at least 2 tiles available as per common rule)
+  if (prev.tileBag.length < Math.max(2, rackSize)) return prev
 
   const bagWithReturned = shuffleArray([...prev.tileBag, ...currentPlayer.rack])
   const { drawn, remaining } = drawTiles(bagWithReturned, rackSize)
