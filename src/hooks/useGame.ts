@@ -13,11 +13,15 @@ import { Difficulty } from '@/components/DifficultyModal'
 import { toastOnce } from '@/lib/toastOnce'
 import { sanitizeQuackleTile } from '@/lib/game/tiles'
 import { shuffleArray, drawTiles } from '@/lib/game/random'
-import { computeFinalPlayers } from '@/lib/game/endgame'
 import { applyBotMove } from '@/lib/game/botMove'
 import { initGameState } from '@/lib/game/init'
 import { applyPassTurn } from '@/lib/game/actions'
 import { applyConfirmMove } from '@/lib/game/actionsConfirm'
+import { applyCancelMove } from '@/lib/game/actionsCancel'
+import { applyExchangeTiles } from '@/lib/game/actionsExchange'
+import { applyEndTurn } from '@/lib/game/actionsEndTurn'
+import { applyPlaceTile } from '@/lib/game/actionsPlace'
+import { applyPickupTile } from '@/lib/game/actionsPickup'
 
   // helpers estratti in src/lib/game
 
@@ -55,66 +59,25 @@ export const useGame = () => {
   }))
 
   const placeTile = useCallback((row: number, col: number, tile: Tile) => {
-    const key = `${row},${col}`
-    
     setGameState(prev => {
-      if (prev.board.has(key)) return prev // Square already occupied
-      
-      // Remove tile from current player's rack
-      const currentPlayer = prev.players[prev.currentPlayerIndex]
-      const tileIndex = currentPlayer.rack.findIndex(t => {
-        if (tile.isBlank && t.isBlank) return true
-        return t.letter === tile.letter && t.points === tile.points && t.isBlank === tile.isBlank
-      })
-      
-      if (tileIndex === -1) return prev // Tile not found in rack
-      
-      const newRack = [...currentPlayer.rack]
-      newRack.splice(tileIndex, 1)
-      
-      const newPlayers = [...prev.players]
-      newPlayers[prev.currentPlayerIndex] = {
-        ...currentPlayer,
-        rack: newRack
+      const res = applyPlaceTile(prev, row, col, tile)
+      if (res.addedPending) {
+        setPendingTiles(current => [...current, res.addedPending!])
       }
-      
-      // Add to pending tiles instead of board
-      const newTile: PlacedTile = { ...tile, row, col }
-      setPendingTiles(current => [...current, newTile])
-      
-      return {
-        ...prev,
-        players: newPlayers
-      }
+      return res.next
     })
   }, [])
 
   const pickupTile = useCallback((row: number, col: number) => {
-    const key = `${row},${col}`
-    
-    // Check if tile is in pending tiles (can only pick up tiles from current turn)
-    const tileIndex = pendingTiles.findIndex(t => t.row === row && t.col === col)
-    if (tileIndex === -1) return // Tile not found in pending tiles
-    
-    const tile = pendingTiles[tileIndex]
-    const returnedTile = tile.isBlank ? { ...tile, letter: '' } : tile
-
+    const idx = pendingTiles.findIndex(t => t.row === row && t.col === col)
+    if (idx === -1) return
     setGameState(prev => {
-      const currentPlayer = prev.players[prev.currentPlayerIndex]
-      const newPlayers = [...prev.players]
-      newPlayers[prev.currentPlayerIndex] = {
-        ...currentPlayer,
-        rack: [...currentPlayer.rack, returnedTile]
+      const res = applyPickupTile(prev, row, col, pendingTiles)
+      if (res.didPickup) {
+        setPendingTiles(current => current.filter((_, i) => i !== idx))
       }
-      
-      return {
-        ...prev,
-        players: newPlayers
-      }
+      return res.next
     })
-    
-    // Remove from pending tiles
-    setPendingTiles(current => current.filter((_, i) => i !== tileIndex))
   }, [pendingTiles])
 
   const confirmMove = useCallback(() => {
@@ -145,23 +108,8 @@ export const useGame = () => {
 
   const cancelMove = useCallback(() => {
     if (pendingTiles.length === 0) return
-    
-    setGameState(prev => {
-      // Return tiles to current player's rack
-      const currentPlayer = prev.players[prev.currentPlayerIndex]
-      const newPlayers = [...prev.players]
-      newPlayers[prev.currentPlayerIndex] = {
-        ...currentPlayer,
-        rack: [...currentPlayer.rack, ...pendingTiles]
-      }
-      
-      setPendingTiles([])
-      
-      return {
-        ...prev,
-        players: newPlayers
-      }
-    })
+    setGameState(prev => applyCancelMove(prev, pendingTiles))
+    setPendingTiles([])
   }, [pendingTiles])
 
   const reshuffleTiles = useCallback(() => {
@@ -185,31 +133,7 @@ export const useGame = () => {
 
   const exchangeTiles = useCallback(() => {
     cancelMove()
-    setGameState(prev => {
-      const currentPlayer = prev.players[prev.currentPlayerIndex]
-      const rackSize = currentPlayer.rack.length
-
-      if (prev.tileBag.length < rackSize) return prev
-
-      const bagWithReturned = shuffleArray([...prev.tileBag, ...currentPlayer.rack])
-      const { drawn, remaining } = drawTiles(bagWithReturned, rackSize)
-
-      const newPlayers = [...prev.players]
-      newPlayers[prev.currentPlayerIndex] = {
-        ...currentPlayer,
-        rack: drawn
-      }
-
-      const newPassCounts = [...(prev.passCounts || Array(prev.players.length).fill(0))]
-      newPassCounts[prev.currentPlayerIndex] = 0
-      return {
-        ...prev,
-        players: newPlayers,
-        tileBag: remaining,
-        currentPlayerIndex: (prev.currentPlayerIndex + 1) % prev.players.length,
-        passCounts: newPassCounts
-      }
-    })
+    setGameState(prev => applyExchangeTiles(prev))
   }, [cancelMove])
 
 
@@ -225,47 +149,7 @@ export const useGame = () => {
   }, [cancelMove])
 
   const endTurn = useCallback(() => {
-    setGameState(prev => {
-      const currentPlayer = prev.players[prev.currentPlayerIndex]
-      const tilesNeeded = 7 - currentPlayer.rack.length
-      
-      const { drawn, remaining } =
-        tilesNeeded > 0 && prev.tileBag.length > 0
-          ? drawTiles(prev.tileBag, Math.min(tilesNeeded, prev.tileBag.length))
-          : { drawn: [], remaining: prev.tileBag }
-
-      const newPlayers = [...prev.players]
-      newPlayers[prev.currentPlayerIndex] = {
-        ...currentPlayer,
-        rack: [...currentPlayer.rack, ...drawn]
-      }
-
-      const newPassCounts = [...(prev.passCounts || Array(prev.players.length).fill(0))]
-      newPassCounts[prev.currentPlayerIndex] = 0
-      const endGame = canEndGame(
-        newPlayers.map(p => ({ rack: p.rack })),
-        remaining
-      )
-
-      if (endGame) {
-        const finalPlayers: Player[] = computeFinalPlayers(newPlayers)
-        return {
-          ...prev,
-          players: finalPlayers,
-          tileBag: remaining,
-          gameStatus: 'finished',
-          passCounts: newPassCounts
-        }
-      }
-
-      return {
-        ...prev,
-        players: newPlayers,
-        tileBag: remaining,
-        currentPlayerIndex: (prev.currentPlayerIndex + 1) % prev.players.length,
-        passCounts: newPassCounts
-      }
-    })
+    setGameState(prev => applyEndTurn(prev))
   }, [])
 
   const resetGame = useCallback(() => {
