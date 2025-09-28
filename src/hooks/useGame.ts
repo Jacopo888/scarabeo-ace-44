@@ -22,6 +22,8 @@ import { applyEndTurn } from '@/lib/game/actionsEndTurn'
 import { applyPlaceTile } from '@/lib/game/actionsPlace'
 import { applyPickupTile } from '@/lib/game/actionsPickup'
 import { buildHistoryEntry, contiguousSummary } from '@/lib/game/quackleUtils'
+import { titleForConfirmError } from '@/lib/game/toast'
+import { shouldPassBotMove } from '@/lib/game/botPass'
 import { summarizeMoveInfo } from '@/lib/game/moveUtils'
 
   // helpers estratti in src/lib/game
@@ -87,7 +89,7 @@ export const useGame = () => {
       const res = applyConfirmMove(prev, pendingTiles, deps)
       if (!res.ok) {
         const { error, errorCode } = res
-        const title = errorCode === 'empty' ? 'Error' : errorCode === 'invalid_move' ? 'Invalid move' : 'Invalid words'
+        const title = titleForConfirmError(errorCode)
         toast({ title, description: error || '', variant: 'destructive' })
         return prev
       }
@@ -199,7 +201,7 @@ export const useGame = () => {
       // Diagnostics for continuity and bounds
       if (sanitizedTiles.length > 0) contiguousSummary(sanitizedTiles)
 
-      if (sanitizedTiles.length === 0) {
+      if (shouldPassBotMove(move, sanitizedTiles)) {
         passTurn()
         return
       }

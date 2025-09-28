@@ -7,6 +7,7 @@ import { getSquareColor, getSquareText } from '@/components/board/utils'
 import type { Tile as StoreTile } from '@/store/game'
 import type { Tile as GameTile, PlacedTile } from '@/types/game'
 import { useGameStore } from '@/store/game'
+import { boardKey, canPlaceAt, coerceToStoreTile, getBoardTile, getPendingAt } from '@/lib/game/board'
 
 interface ScrabbleBoardProps {
   disabled?: boolean
@@ -75,11 +76,10 @@ export const ScrabbleBoard = ({
     if (disabled) return
     e.preventDefault()
     setDragOverSquare(null)
-    
-    const key = `${row},${col}`
-    const currentTile = boardMap ? boardMap.get(key) : board[row][col]
-    const pendingTile = pendingTiles.find(t => t.row === row && t.col === col)
-    
+    const key = boardKey(row, col)
+    const currentTile = getBoardTile(board as any, row, col)
+    const pendingTile = getPendingAt(pendingTiles, row, col)
+
     if (currentTile || pendingTile) {
       return
     }
@@ -103,9 +103,9 @@ export const ScrabbleBoard = ({
   const handleDragOver = (e: React.DragEvent, key: string) => {
     if (disabled) return
     const [r, c] = key.split(',').map(Number)
-    const currentTile = boardMap ? boardMap.get(key) : board[r][c]
-    const pendingTile = pendingTiles.find(t => t.row === r && t.col === c)
-    
+    const currentTile = getBoardTile(board as any, r, c)
+    const pendingTile = getPendingAt(pendingTiles, r, c)
+
     if (!currentTile && !pendingTile) {
       e.preventDefault()
       setDragOverSquare(key)
@@ -120,22 +120,16 @@ export const ScrabbleBoard = ({
     if (disabled) return
     if (!selectedTile) return
 
-    const key = `${row},${col}`
-    const currentTile = boardMap ? boardMap.get(key) : board[row][col]
-    const pendingTile = pendingTiles.find(t => t.row === row && t.col === col)
+    const key = boardKey(row, col)
+    const currentTile = getBoardTile(board as any, row, col)
+    const pendingTile = getPendingAt(pendingTiles, row, col)
 
     if (currentTile || pendingTile) {
       return
     }
 
     // Convert GameTile to StoreTile format if needed
-    const tileToPlace = 'id' in selectedTile 
-      ? selectedTile 
-      : {
-          id: `${selectedTile.letter}-${Date.now()}-${Math.random()}`,
-          letter: selectedTile.letter,
-          value: (selectedTile as any).points || (selectedTile as any).value || 1
-        }
+    const tileToPlace = coerceToStoreTile(selectedTile as StoreTile | GameTile)
 
     placeTileHandler(row, col, tileToPlace)
     onUseSelectedTile?.()
@@ -160,14 +154,14 @@ export const ScrabbleBoard = ({
   }
 
   const renderSquare = (row: number, col: number) => {
-    const key = `${row},${col}`
+    const key = boardKey(row, col)
     const specialType = SPECIAL_SQUARES[key as keyof typeof SPECIAL_SQUARES]
     
     // Get tile from board (Map or 2D array)
-    const currentTile = boardMap ? boardMap.get(key) : board[row][col]
+    const currentTile = getBoardTile(board as any, row, col)
     
     // Check if there's a pending tile at this position
-    const pendingTile = pendingTiles.find(t => t.row === row && t.col === col)
+    const pendingTile = getPendingAt(pendingTiles, row, col)
     const displayTile = pendingTile || currentTile
     
     const isDragOver = dragOverSquare === key

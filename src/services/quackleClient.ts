@@ -1,5 +1,6 @@
 import type { PlacedTile } from '@/types/game';
 import { QUACKLE_SERVICE_URL, quackleApi } from '@/config/quackle';
+import { fetchWithTimeout, classifyNetworkError } from './http'
 
 export interface QuackleMove {
   tiles: PlacedTile[];
@@ -10,25 +11,7 @@ export interface QuackleMove {
   error?: string;
 }
 
-async function fetchWithTimeout(url: string, opts: RequestInit = {}, ms = 10000): Promise<Response> {
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), ms);
-  try {
-    const res = await fetch(url, { ...opts, signal: ctl.signal, mode: 'cors' as RequestMode });
-    clearTimeout(t);
-    return res;
-  } catch (e: any) {
-    clearTimeout(t);
-    // Heuristica CORS: TypeError: Failed to fetch/NetworkError
-    const msg = String(e?.message || e);
-    const maybeCORS = /Failed to fetch|NetworkError|TypeError/i.test(msg);
-    // Log structured error for diagnostics
-    try { console.error({ tag: 'quackle_fetch_error', url, err: e }); } catch {}
-    throw new Error(maybeCORS
-      ? `[CORS/Network] ${msg} — Verifica CORS_ORIGINS su backend e dominio frontend.`
-      : msg);
-  }
-}
+// fetchWithTimeout now provided by ./http
 
 export async function quackleHealth(): Promise<{ ok: boolean; status: number; body: string; base: string; error?: string; }> {
   try {
@@ -47,15 +30,14 @@ export async function quackleHealth(): Promise<{ ok: boolean; status: number; bo
     console.error('[Quackle Debug] Error details:', error);
     
     // Detect specific error types
-    const isCORSError = /Failed to fetch|NetworkError|TypeError|CORS/i.test(errorMsg);
-    const isTimeoutError = /timeout|aborted/i.test(errorMsg);
+  const code = classifyNetworkError(errorMsg)
     
     return { 
       ok: false, 
       status: 0, 
       body: '', 
       base: QUACKLE_SERVICE_URL, 
-      error: isCORSError ? 'CORS_ERROR' : isTimeoutError ? 'TIMEOUT_ERROR' : 'UNKNOWN_ERROR'
+      error: code
     };
   }
 }

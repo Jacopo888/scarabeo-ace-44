@@ -17,6 +17,21 @@ def sanitize_none(obj):
         return [sanitize_none(v) for v in obj]
     return obj
 
+# Pure helper: map a cell value to the normalized grid character.
+# Rules preserved from inline comprehensions:
+# - None/''/'.' -> '.'
+# - '?' or '*' (string) -> '?'
+# - otherwise first uppercase char of the string
+def _cell_to_char(v: object) -> str:
+    if v is None:
+        return '.'
+    s = str(v)
+    if s == '' or s == '.':
+        return '.'
+    if s in ('?', '*'):
+        return '?'
+    return s.upper()[:1]
+
 def normalize_rack_flexible(raw: Any) -> str:
     try:
         return _rack_pure_normalize(raw)
@@ -142,24 +157,12 @@ def normalize_board_for_bridge(board_input: Any) -> Dict[str, Any]:
             grid = board_input.get("grid")
         elif is_coord_map(board_input):
             squares = squares_from_coord_map(board_input, rows, cols)
-            grid = [
-                ''.join(
-                    '.' if (v is None or v == '' or v == '.') else ('?' if v in ('?', '*') else str(v).upper()[:1])
-                    for v in row
-                )
-                for row in squares
-            ]
+            grid = [''.join(_cell_to_char(v) for v in row) for row in squares]
         elif isinstance(board_input.get("squares"), list):
             squares = board_input.get("squares")
             if not (isinstance(squares, list) and len(squares) == rows and all(isinstance(r, list) and len(r) == cols for r in squares)):
                 raise HTTPException(status_code=400, detail="malformed_board_squares_size")
-            grid = [
-                ''.join(
-                    '.' if (cell in (None, '.', '')) else ('?' if str(cell) in ('?', '*') else str(cell).upper()[:1])
-                    for cell in r
-                )
-                for r in squares
-            ]
+            grid = [''.join(_cell_to_char(cell) for cell in r) for r in squares]
         elif isinstance(board_input.get("placements"), list):
             squares = [[None for _ in range(cols)] for _ in range(rows)]
             for p in board_input.get("placements"):
@@ -173,10 +176,7 @@ def normalize_board_for_bridge(board_input: Any) -> Dict[str, Any]:
                 if not (0 <= x < cols and 0 <= y < rows):
                     raise HTTPException(status_code=400, detail="invalid_board_coordinate")
                 squares[y][x] = '?' if is_blank or letter in ('?', '*') else letter
-            grid = [
-                ''.join('.' if (v is None or v == '' or v == '.') else ('?' if v in ('?', '*') else str(v).upper()[:1]) for v in row)
-                for row in squares
-            ]
+            grid = [''.join(_cell_to_char(v) for v in row) for row in squares]
         else:
             raise HTTPException(status_code=400, detail="board.grid missing")
     else:

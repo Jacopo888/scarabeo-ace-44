@@ -37,6 +37,17 @@
 
 using json = nlohmann::json;
 
+// Small helper: print a standard error envelope for this wrapper
+static inline void print_error_json(const std::string &code, const char* reason = nullptr, const char* message = nullptr) {
+    json out;
+    out["moves"] = json::array();
+    out["error"] = code;
+    if (reason) out["reason"] = std::string(reason);
+    if (message) out["message"] = std::string(message);
+    std::cout << out.dump() << "\n";
+    std::cout.flush();
+}
+
 struct Config {
     std::string gaddag_path;
     std::string dawg_path;
@@ -579,28 +590,24 @@ int main(int argc, char** argv) {
 
         if (!in.contains("board") || !in["board"].is_object()) {
             std::fprintf(stderr, "[compute] invalid: missing board object\n");
-            json out = { {"moves", json::array()}, {"error", "invalid_board"} };
-            std::cout << out.dump() << "\n"; std::cout.flush();
+            print_error_json("invalid_board");
             continue;
         }
         if (!in.contains("rack") || !in["rack"].is_string()) {
             std::fprintf(stderr, "[compute] invalid: rack must be string\n");
-            json out = { {"moves", json::array()}, {"error", "invalid_rack"} };
-            std::cout << out.dump() << "\n"; std::cout.flush();
+            print_error_json("invalid_rack");
             continue;
         }
 
         const auto &board_in = in["board"];
         if (!board_in.contains("cells") || !board_in["cells"].is_array() || board_in["cells"].size() != 15) {
             std::fprintf(stderr, "[compute] invalid: board.cells must be array of 15 rows\n");
-            json out = { {"moves", json::array()}, {"error", "invalid_board"} };
-            std::cout << out.dump() << "\n"; std::cout.flush();
+            print_error_json("invalid_board");
             continue;
         }
         for (const auto &row : board_in["cells"]) {
             if (!row.is_array() || row.size() != 15) {
-                json out = { {"moves", json::array()}, {"error", "invalid_board"} };
-                std::cout << out.dump() << "\n"; std::cout.flush();
+                print_error_json("invalid_board");
                 continue;
             }
         }
@@ -621,8 +628,7 @@ int main(int argc, char** argv) {
             }
             if (C < 'A' || C > 'Z') { 
                 std::fprintf(stderr, "[compute] invalid rack char=%u\n", (unsigned)uc); 
-                json out = { {"moves", json::array()}, {"error", "invalid_rack_char"} };
-                std::cout << out.dump() << "\n"; std::cout.flush();
+                print_error_json("invalid_rack_char");
                 continue;
             }
             letters.push_back(C);
@@ -744,8 +750,7 @@ int main(int argc, char** argv) {
                 try {
                     validate_board_cell(r, c, cell);
                 } catch (const std::exception& e) {
-                    json out = { {"moves", json::array()}, {"error", "invalid_board"}, {"reason", e.what()} };
-                    std::cout << out.dump() << "\n"; std::cout.flush();
+                    print_error_json("invalid_board", e.what());
                     continue;
                 }
                 
