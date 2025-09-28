@@ -212,8 +212,9 @@ int main(int argc, char** argv){
     debugLog("=== INPUT VALIDATION ===");
     if (!(ruleset == "en")) {
       debugLog("ERROR: Unsupported ruleset: " + ruleset);
-  std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_ruleset"})" << std::endl;
-  return 64;
+      print_pass_error("invalid_ruleset");
+      std::cout << std::endl;
+      return 64;
     }
     
     // Validate board format
@@ -222,16 +223,18 @@ int main(int argc, char** argv){
     for (auto it = jboard.begin(); it != jboard.end(); ++it) {
       int r = 0, c = 0;
       if (!parse_coord_key(it.key(), r, c)) {
-  debugLog("ERROR: Invalid board coordinate format: " + std::string(it.key()));
-  std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"malformed_coordinate"})" << std::endl;
-  return 64;
+        debugLog("ERROR: Invalid board coordinate format: " + std::string(it.key()));
+        print_pass_error("malformed_coordinate");
+        std::cout << std::endl;
+        return 64;
       }
       // Convert from 1-based to 0-based
       --r; --c;
       if (r < 0 || r >= 15 || c < 0 || c >= 15) {
-  debugLog("ERROR: Board coordinate out of bounds: (" + std::to_string(r) + "," + std::to_string(c) + ")");
-  std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"invalid_board_coordinate","reason":"out_of_bounds"})" << std::endl;
-  return 64;
+        debugLog("ERROR: Board coordinate out of bounds: (" + std::to_string(r) + "," + std::to_string(c) + ")");
+        print_pass_error("invalid_board_coordinate", json{{"reason","out_of_bounds"}});
+        std::cout << std::endl;
+        return 64;
       }
       boardCells++;
       originalBoardSquares.insert({r, c});
@@ -643,7 +646,12 @@ int main(int argc, char** argv){
     debugLog("Placing existing board tiles...");
     for (auto it = jboard.begin(); it != jboard.end(); ++it) {
       int r = 0, c = 0;
-      parse_coord_key(it.key(), r, c);
+      if (!parse_coord_key(it.key(), r, c)) {
+        // This should not happen as we validated earlier, but guard anyway
+        print_pass_error("malformed_coordinate");
+        std::cout << std::endl;
+        return 64;
+      }
       // Convert from 1-based coordinates to Quackle's 0-based board
       --r; --c;
       std::string letter = it->value("letter", "?");
