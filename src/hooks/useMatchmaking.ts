@@ -3,22 +3,11 @@ import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { MatchmakingEntry, GameRecord } from '@/types/multiplayer'
 import { TILE_DISTRIBUTION, Tile } from '@/types/game'
+import { shuffleArray, drawTiles } from '@/lib/multiplayer/tiles'
+import { createInitialDeal } from '@/lib/matchmaking/init'
 import { useToast } from '@/hooks/use-toast'
 
-const shuffleArray = <T,>(array: T[]): T[] => {
-  const shuffled = [...array]
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
-  }
-  return shuffled
-}
-
-const drawTiles = (bag: Tile[], count: number): { drawn: Tile[]; remaining: Tile[] } => {
-  const drawn = bag.slice(0, count)
-  const remaining = bag.slice(count)
-  return { drawn, remaining }
-}
+// Using shared tile utils from multiplayer lib and a pure helper for initial deals
 
 export const useMatchmaking = () => {
   const [isInQueue, setIsInQueue] = useState(false)
@@ -201,14 +190,8 @@ export const useMatchmaking = () => {
   ) => {
     const initialBoard = {}
 
-    // Shuffle full tile distribution and draw starting racks
-    const shuffledBag = shuffleArray(TILE_DISTRIBUTION)
-    const player1Tiles = drawTiles(shuffledBag, 7)
-    const player2Tiles = drawTiles(player1Tiles.remaining, 7)
-
-    const initialTileBag = player2Tiles.remaining
-    const player1Rack = player1Tiles.drawn
-    const player2Rack = player2Tiles.drawn
+    // Initialize bag and starting racks using shared utilities
+    const { initialTileBag, player1Rack, player2Rack } = createInitialDeal(TILE_DISTRIBUTION, { shuffleArray, drawTiles })
 
     const { error } = await supabase
       .from('games')
