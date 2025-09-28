@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from .config import ENV_MODE, SKIP_LEXICON_CHECK
 from .runtime import ensure_lexicon_ready
 from .normalization import normalize_rack_flexible, normalize_board_for_bridge, grid_to_coordmap, reconstruct_tiles_from_raw_move
+from .errors import json_error, from_http_exc, status_from_engine_result
 from .adapters.quackle import best_move as _adapter_best_move
 
 router = APIRouter()
@@ -39,23 +40,12 @@ async def best_move(req: Request):
         result = _adapter_best_move(payload)
         if result.get("engine_fallback") or (isinstance(result, dict) and result.get("error")):
             err = (result.get("error") or "engine_error")
-            status = 500
-            if err in {"invalid_board_coordinate", "malformed_coordinate", "rack_empty", "invalid_rack_format", "malformed_board", "invalid_ruleset"}:
-                status = 400
-            rc_val = result.get("rc")
-            if isinstance(rc_val, int):
-                if rc_val == 64:
-                    status = 400
-                elif rc_val == 72:
-                    status = 502
-                elif rc_val == 70:
-                    status = 500
-            elif err.startswith("exec_failed") or err.startswith("bridge_failed_rc") or err == "strategy_missing":
-                status = 502
+            rc_val = result.get("rc") if isinstance(result, dict) else None
+            status = status_from_engine_result(err, rc_val if isinstance(rc_val, int) else None)
             if len(rack_norm) < 7:
                 return {"tiles": [], "score": 0, "words": [], "move_type": "pass", "engine_fallback": False}
             body_out = {k: v for k, v in result.items() if k in {"engine_fallback", "error", "stderr", "ldd", "rc"}}
-            return JSONResponse(body_out or {"engine_fallback": True, "error": err}, status_code=status)
+            return json_error(err, status_code=status, engine=True, extra=body_out or None)
 
         tiles_out = result.get("tiles", [])
         raw_move = result.get("raw_move") if isinstance(result, dict) else None
@@ -80,14 +70,14 @@ async def best_move(req: Request):
             "engine_fallback": False
         }
     except HTTPException as e:
-        return JSONResponse({"engine_fallback": True, "error": e.detail}, status_code=e.status_code)
+        return from_http_exc(e, engine=True)
     except Exception as e:
         try:
             raw = await req.body()
             raw_head = raw[:400].decode("utf-8", errors="replace")
         except Exception:
             raw_head = ""
-        return JSONResponse({"engine_fallback": True, "error": str(e), "raw_head": raw_head}, status_code=500)
+        return json_error(str(e), status_code=500, engine=True, extra={"raw_head": raw_head})
 
 @router.post("/bag/summary")
 async def bag_summary(req: Request):
@@ -189,6 +179,6 @@ async def bag_summary(req: Request):
             "bag_pool": bag_pool,
         }
     except HTTPException as e:
-        return JSONResponse({"error": e.detail}, status_code=e.status_code)
+        return from_http_exc(e, engine=False)
     except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return json_error(str(e), status_code=500, engine=False)

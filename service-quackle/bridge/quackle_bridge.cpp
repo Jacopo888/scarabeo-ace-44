@@ -258,8 +258,8 @@ int main(int argc, char** argv){
           continue;
         }
         char ch = static_cast<char>(std::toupper(static_cast<unsigned char>(rawCh)));
-        bool isBlank = (ch == '?' || ch == '*');
-        if (!isBlank && !std::isalpha(static_cast<unsigned char>(ch))) {
+        bool isBlank = is_blank_marker(ch);
+        if (!isBlank && !is_upper_letter(ch)) {
           return emitRackError();
         }
         rackLen++;
@@ -285,8 +285,8 @@ int main(int argc, char** argv){
           c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
         }
         char ch = letterUpper.empty() ? '\0' : letterUpper[0];
-        bool isBlank = tile.value("isBlank", false) || letterUpper == "BLANK" || ch == '?' || ch == '*';
-        if (!isBlank && !std::isalpha(static_cast<unsigned char>(ch))) {
+        bool isBlank = tile.value("isBlank", false) || letterUpper == "BLANK" || is_blank_marker(ch);
+        if (!isBlank && !is_upper_letter(ch)) {
           return emitRackError();
         }
         if (isBlank) {
