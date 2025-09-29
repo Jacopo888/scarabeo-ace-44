@@ -17,8 +17,12 @@
   - Path: repo root
   - Command: git tag -a pre-refactor-wave1 -m "snapshot before wave 1" && git push --tags
   - Acceptance: `git show pre-refactor-wave1` shows message & metadata
+  - Status: Deferred — la wave è già stata applicata. Opzioni:
+    - Retro-tag sul commit pre-wave, se necessario per audit.
+    - In alternativa, creare un tag corrente per milestone, ad es. `post-refactor-wave4`.
 - [ ] T000b Ensure CI is green (lint/unit/integration/e2e)
   - Path: CI pipeline
+  - Note: localmente 119/119 test PASS; verificare pipeline CI.
 
 ## Wave 0 — Safety Nets & Mapping
 - [x] T001 Create coords golden fixture file
@@ -82,12 +86,13 @@
   - Path: `service-quackle/quackle_service/lib/{encoding.py,rack.py,timeouts.py}`; tests in `service-quackle/tests/`
 
 ## Wave 4 — Frontend Simplification (Vite/React/TS)
-- [ ] T024 [P] Split long files (>400 LOC) and move utils to `src/lib/`
+- [x] T024 [P] Split long files (>400 LOC) and move utils to `src/lib/`
   - Path: `src/**/*.{ts,tsx}`
   - Progress: estrazioni completate senza cambiare il comportamento:
     - DnD: estratto in `src/hooks/useBoardDnD.ts` + presentational `src/components/BoardSquare.tsx`; board aggiornata a usare il nuovo hook; test RTL aggiunti.
     - Helpers di gioco: `src/lib/game/turns.ts` e `src/lib/game/rack.ts` con unit test; `src/hooks/useGame.ts` aggiornato a usarli.
-  - TODO: esaminare altri file >400 LOC (se presenti) e valutare ulteriori micro-estrazioni in `src/lib/`.
+    - Move validation/word scan: micro-split di `src/utils/moveValidation.ts` e `src/utils/newWordFinder.ts` in helper piccoli con test dedicati.
+  - Esito scansione file lunghi: nessun file di logica >400 LOC rimasto; unico >400 è `src/integrations/supabase/types/base.ts` (tipi), basso valore di split. T024 considerato chiuso.
 - [x] T025 Unify HTTP client with timeouts + optional idempotency key
   - Path: `src/services/httpClient.ts`
 - [x] T026 UI smokes with React Testing Library
@@ -138,3 +143,8 @@ Run: T012 → T013 → T014 → T015 → T016 → T017
 - [ ] Parallel tasks truly independent
 - [ ] Each task specifies exact file path
 - [ ] No task modifies same file as another [P] task
+
+---
+
+Notes
+- Engine/Wrapper: esclusi dal refactor in questa wave per evitare rischi su ABI/performance/build e drift con terze parti vendorizzate. La stabilità è assicurata dai test al boundary (FastAPI adapter, DTO, health/latency) e dagli helper puri testati.
