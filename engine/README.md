@@ -37,6 +37,11 @@ This script will:
 5. Validate response times
 6. Report success/failure with detailed diagnostics
 
+Metrics and latency (optional):
+- Set QUACKLE_OTEL_METRICS=1 to enable OpenTelemetry Histogram best_move_latency_ms if the opentelemetry SDK is installed in the environment. Without the SDK/exporter, the service still runs normally.
+- The service also maintains a small in-memory ring buffer of recent /best-move latencies and exposes a snapshot at GET /debug/latency returning { count, p50, p95, p99, min, max }.
+- You can control the buffer size via QUACKLE_METRICS_BUFFER (default 512 samples).
+
 ### Manual Build & Run
 ```bash
 # Build with full Quackle integration
