@@ -91,17 +91,17 @@
   - Path: `src/__tests__/ui.smoke.test.tsx`
 
 ## Wave 5 — rating-api tidy (Express)
-- [ ] T027 Split router, error middleware, config
+- [x] T027 Split router, error middleware, config
   - Path: `rating-api/src/{router.ts,error.ts,config.ts}`
-- [ ] T028 `/ping` test via Supertest and trim deps
+- [x] T028 `/ping` test via Supertest and trim deps
   - Path: `rating-api/src/__tests__/ping.test.ts`
 
 ## Wave 6 — Dependency Diet & Hygiene
-- [ ] T029 [P] FE deps trim (move tooling to devDependencies)
+- [x] T029 [P] FE deps trim (move tooling to devDependencies)
   - Path: `package.json`, `frontend deps`
-- [ ] T030 [P] Service deps trim (prefer stdlib/helpers)
+- [x] T030 [P] Service deps trim (prefer stdlib/helpers)
   - Path: `service-quackle/requirements.txt`
-- [ ] T031 Consolidate sample data; keep two golden sims
+- [x] T031 Consolidate sample data; keep two golden sims
   - Path: `fixtures/simulation/` (+ archive excluded from CI)
 
 ## Wave 7 — Observability & SLO smoke (non-functional)

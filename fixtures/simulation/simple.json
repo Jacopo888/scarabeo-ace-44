@@ -1,0 +1,8 @@
+{
+  "op": "compute",
+  "board": { "tiles": [], "cells": [[".", "."], [".", "."]] },
+  "rack": "AEIRSTZ",
+  "ruleset": "en",
+  "lexicon": "enable1",
+  "difficulty": "hard"
+}
