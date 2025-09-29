@@ -30,7 +30,8 @@ export const PlayButtons = () => {
       navigate('/auth')
       return
     }
-    navigate('/game')
+    // Go to dashboard with matchmaking instead of starting a local game
+    navigate('/dashboard')
   }
   
   return (

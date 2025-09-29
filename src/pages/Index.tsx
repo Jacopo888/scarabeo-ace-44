@@ -20,9 +20,9 @@ const Index = () => {
     <div className="container mx-auto p-6 max-w-4xl">
         <div className="text-center space-y-6">
           <div>
-            <h1 className="text-4xl font-bold mb-4">Welcome to Scrabble Online</h1>
+            <h1 className="text-4xl font-bold mb-4">Welcome to TilesWord</h1>
             <p className="text-lg text-muted-foreground">
-              The best place to play Scrabble online
+              The best place to play word tiles online
             </p>
           </div>
           

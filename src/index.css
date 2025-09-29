@@ -41,7 +41,7 @@ All colors MUST be HSL.
 
     --radius: 0.25rem;
 
-    /* Scrabble-specific colors for yellowish paper theme */
+  /* Game-specific colors for yellowish paper theme */
     --board-background: 45 25% 94%; /* Yellowish paper */
     --board-border: 0 0% 15%; /* Dark borders */
     --tile-background: 43 30% 96%; /* Slightly warmer tiles */

@@ -7,7 +7,7 @@ export interface GameHeaderProps {
   title?: string
 }
 
-export const GameHeader: React.FC<GameHeaderProps> = ({ title = 'Scrabble Game' }) => {
+export const GameHeader: React.FC<GameHeaderProps> = ({ title = 'TilesWord Game' }) => {
   return (
     <div className="mb-4 flex items-center gap-4">
       <Link to="/">

@@ -87,7 +87,7 @@ const Dictionary: React.FC = () => {
               
               {isValidWord(searchTerm) && (
                 <div className="text-sm text-muted-foreground">
-                  ✓ This word is accepted in Scrabble gameplay
+                  ✓ This word is accepted in standard word-tile gameplay
                 </div>
               )}
             </div>
@@ -120,7 +120,7 @@ const Dictionary: React.FC = () => {
             <p className="text-sm text-muted-foreground">
               The Enhanced North American Benchmark LExicon (ENABLE) is a comprehensive word list 
               containing over 173,000 words. It includes all words from 2 to 15 letters that are 
-              considered valid for word games like Scrabble.
+              considered valid for word‑tile games.
             </p>
           </div>
         </CardContent>

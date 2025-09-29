@@ -24,7 +24,7 @@ export function initGameState(mode: GameModeParam, difficulty: Difficulty | null
       },
       {
         id: 'player2',
-        name: gameMode === 'quackle' ? `Quackle (${difficulty || 'easy'})` : 'Player 2',
+        name: gameMode === 'quackle' ? 'Quackle' : 'Player 2',
         score: 0,
         rack: p2.drawn,
         isBot: gameMode === 'quackle'

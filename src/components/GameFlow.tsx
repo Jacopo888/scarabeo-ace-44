@@ -41,7 +41,7 @@ export const GameFlow = () => {
   }, [])
 
   const calculateTimeBonus = (timeLeft: number) => {
-    // In real Scrabble, there's often a time bonus for quick moves
+  // In classic word-tile games, there's often a time bonus for quick moves
     if (timeLeft > 120) return 5 // 5 bonus points for moves under 2 minutes
     if (timeLeft > 60) return 3   // 3 bonus points for moves under 1 minute
     return 0
