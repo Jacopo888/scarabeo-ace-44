@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Difficulty } from '@/components/DifficultyModal'
 import { GameState, Tile, PlacedTile } from '@/types/game'
+import { zeroToOneString } from '@/lib/coords'
 import { quackleBestMove, QuackleMove } from '@/services/quackleClient'
 
 // Build a Quackle board mapping using 1-based indices and stabilized tiles only
@@ -13,9 +14,14 @@ export function buildQuackleBoard(gameState: GameState): Record<string, { letter
     if (!Number.isFinite(tile.row) || !Number.isFinite(tile.col)) return
     if (!Number.isInteger(tile.row) || !Number.isInteger(tile.col)) return
     // Convert to 1-based and enforce bounds [1,15]
-    const r1 = tile.row + 1
-    const c1 = tile.col + 1
-    if (r1 < 1 || r1 > 15 || c1 < 1 || c1 > 15) return
+    // Guard bounds with centralized helper
+    let key: string | null = null
+    try {
+      key = zeroToOneString([tile.row, tile.col])
+    } catch {
+      key = null
+    }
+    if (!key) return
 
     const isBlank = !!tile.isBlank
     const raw = (tile.letter ?? '').toString().trim().toUpperCase()
@@ -23,9 +29,6 @@ export function buildQuackleBoard(gameState: GameState): Record<string, { letter
     if (isBlank && (!raw || raw === '?' || raw === '.')) return
     if (!raw || raw === '.') return
 
-    const key = `${r1},${c1}`
-    // Optional defensive pattern check for 1..15 keys
-    if (!/^(?:[1-9]|1[0-5]),(?:[1-9]|1[0-5])$/.test(key)) return
     out[key] = { letter: raw, isBlank }
   })
   return out
@@ -83,7 +86,7 @@ export const useQuackle = () => {
 
       // Structured debug log
       const bkeys = Object.keys(board)
-      console.log({
+      if (import.meta.env.DEV) console.log({
         tag: 'quackle_payload',
         boardCellCount: bkeys.length,
         sampleKeys: bkeys.slice(0, 3),
@@ -97,7 +100,7 @@ export const useQuackle = () => {
         new Promise(resolve => setTimeout(resolve, thinkingTime))
       ])
       
-      console.log('[useQuackle] Raw move from Quackle service:', move)
+  if (import.meta.env.DEV) console.log('[useQuackle] Raw move from Quackle service:', move)
       return move
     } finally {
       setIsThinking(false)

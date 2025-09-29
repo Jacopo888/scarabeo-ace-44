@@ -1,28 +1,9 @@
-import { useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { quackleHealth } from '@/services/quackleClient'
 import { AlertTriangle, CheckCircle, Loader2 } from 'lucide-react'
+import { useQuackleHealth } from '@/hooks/useQuackleHealth'
 
 export const QuackleServiceStatus = () => {
-  const [status, setStatus] = useState<'checking' | 'healthy' | 'unhealthy'>('checking')
-
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        const healthResult = await quackleHealth()
-        console.log('[QuackleServiceStatus] Health result:', healthResult);
-        setStatus(healthResult.ok ? 'healthy' : 'unhealthy')
-      } catch (error) {
-        console.error('[QuackleServiceStatus] Error:', error);
-        setStatus('unhealthy')
-      }
-    }
-
-    checkStatus()
-    const interval = setInterval(checkStatus, 30000) // Check every 30 seconds
-    
-    return () => clearInterval(interval)
-  }, [])
+  const status = useQuackleHealth(30000)
 
   if (status === 'checking') {
     return (

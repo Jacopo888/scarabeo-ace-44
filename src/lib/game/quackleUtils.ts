@@ -8,10 +8,10 @@ export function contiguousSummary(tiles: PlacedTile[]) {
   const ordered = [...tiles].sort((a,b)=> isHorizontal ? a.col - b.col : a.row - b.row)
   const contiguous = ordered.every((t,i,arr) => i===0 || (isHorizontal ? t.col === arr[i-1].col + 1 : t.row === arr[i-1].row + 1))
   // eslint-disable-next-line no-console
-  console.log('[useGame] sanitize summary:', { count: tiles.length, minRow: Math.min(...rows), maxRow: Math.max(...rows), minCol: Math.min(...cols), maxCol: Math.max(...cols), isH: isHorizontal, contiguous })
+  if (import.meta.env.DEV) console.log('[useGame] sanitize summary:', { count: tiles.length, minRow: Math.min(...rows), maxRow: Math.max(...rows), minCol: Math.min(...cols), maxCol: Math.max(...cols), isH: isHorizontal, contiguous })
   if (!contiguous) {
     // eslint-disable-next-line no-console
-    console.warn('[useGame] Non-contiguous bot tiles after sanitize; check indexing or anchor handling.', ordered)
+  if (import.meta.env.DEV) console.warn('[useGame] Non-contiguous bot tiles after sanitize; check indexing or anchor handling.', ordered)
   }
   return { isHorizontal, contiguous, ordered }
 }
