@@ -1,0 +1,18 @@
+# Keep build artifacts and legacy folders out of version control
+
+# Large lexica binaries must live in /data/lexica at runtime (mounted or downloaded)
+lexica/
+*.dawg
+*.gaddag
+
+# Stray/accidental binaries
+quackle_bridge
+
+# Deprecated/legacy duplicated app and ops scripts (not used)
+app/
+ops/
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo

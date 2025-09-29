@@ -14,4 +14,11 @@ dist/
 !entrypoint.sh
 !bridge/**
 !quackle_service/**
-!app/**
+
+# Exclude legacy/unused and large artifacts from build context
+app/
+ops/
+lexica/
+*.dawg
+*.gaddag
+quackle_bridge

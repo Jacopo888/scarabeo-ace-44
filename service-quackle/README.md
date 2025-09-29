@@ -22,6 +22,10 @@ Struttura attuale dei moduli principali in `quackle_service/`:
 - `routes_best_move.py`, `routes_health.py`, `routes_debug.py` – router FastAPI separati per feature.
 - `adapters/quackle.py` – boundary di chiamata al motore; mantiene compatibilità coi test che monkeypatchano `main._call_bridge`.
 
+Repo hygiene:
+- Il core supportato è solo `quackle_service/*` (Python) e `bridge/*` (C++). Le cartelle legacy `app/` e `ops/` non sono utilizzate e sono ignorate da git.
+- Non versionare i lessici: i file `.dawg/.gaddag` devono risiedere in `/data/lexica` a runtime. Vedi `.gitignore` in questa cartella.
+
 Nota: gli CORS origins sono risolti dinamicamente da `CORS_ORIGINS` e visibili anche in `GET /health/cors`.
 
 ## Configuration (env)
