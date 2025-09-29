@@ -128,12 +128,6 @@ def ensure_strategy_files() -> Dict[str, Any]:
     if env_src:
         candidates.append(Path(env_src).resolve())
     candidates.append(Path("/usr/share/quackle/data/strategy").resolve())
-    try:
-        repo_root = Path(__file__).resolve().parents[2]  # .../service-quackle
-        repo_root = repo_root.parent  # repo root
-        candidates.append((repo_root / "engine/third_party/quackle/data/strategy").resolve())
-    except Exception:
-        pass
     src_base = next((c for c in candidates if c.exists()), candidates[0])
     dest_base = Path(APPDATA) / "strategy"
     required: Dict[str, List[str]] = {

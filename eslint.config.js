@@ -11,9 +11,7 @@ export default tseslint.config(
       "build",
       "coverage",
       "node_modules",
-      // Non-FE engine and native wrapper build outputs
-      "engine",
-      "engine/**/*",
+  // Non-FE native wrapper build outputs (engine/ removed)
       "**/quackle_wrapper/build/**",
       // Quarantine (temporary): known offenders to fix later
       "src/pages/Game.tsx",

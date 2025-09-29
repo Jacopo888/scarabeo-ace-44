@@ -4,7 +4,7 @@
 - `src/` React + TypeScript app (Vite). Tests live next to code as `*.test.ts(x)`.
 - `rating-api/` Express + Drizzle (TypeScript). Tests in `src/__tests__/`.
 - `service-quackle/` FastAPI microservice that bridges Quackle. Python tests in `tests/`.
-- `engine/` Quackle wrapper/build assets (C++/FastAPI, Docker-based).
+// engine/ was a legacy build pipeline for Quackle (wrapper + Docker). It has been removed in favor of `service-quackle/`.
 - `public/`, `dist/` static and build output; `docs/` documentation; `scripts/` utilities; `data/` mounted volume for lexica.
 
 ## Build, Test, and Development Commands
