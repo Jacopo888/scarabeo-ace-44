@@ -84,7 +84,10 @@
 ## Wave 4 — Frontend Simplification (Vite/React/TS)
 - [ ] T024 [P] Split long files (>400 LOC) and move utils to `src/lib/`
   - Path: `src/**/*.{ts,tsx}`
-  - Progress: helpers estratti da `src/hooks/useGame.ts` in `src/lib/game/{tiles.ts,random.ts,endgame.ts,botMove.ts}`; hook aggiornato e test verdi.
+  - Progress: estrazioni completate senza cambiare il comportamento:
+    - DnD: estratto in `src/hooks/useBoardDnD.ts` + presentational `src/components/BoardSquare.tsx`; board aggiornata a usare il nuovo hook; test RTL aggiunti.
+    - Helpers di gioco: `src/lib/game/turns.ts` e `src/lib/game/rack.ts` con unit test; `src/hooks/useGame.ts` aggiornato a usarli.
+  - TODO: esaminare altri file >400 LOC (se presenti) e valutare ulteriori micro-estrazioni in `src/lib/`.
 - [x] T025 Unify HTTP client with timeouts + optional idempotency key
   - Path: `src/services/httpClient.ts`
 - [x] T026 UI smokes with React Testing Library
@@ -105,10 +108,12 @@
   - Path: `fixtures/simulation/` (+ archive excluded from CI)
 
 ## Wave 7 — Observability & SLO smoke (non-functional)
-- [ ] T032 Add/verify OTel histograms for /best-move
-  - Path: `service-quackle/` (metrics integration)
-- [ ] T033 CI step extracting p95/p99
-  - Path: CI config
+- [x] T032 Add/verify OTel histograms for /best-move
+  - Path: `service-quackle/quackle_service/{metrics.py,routes_best_move.py}`
+  - Note: Integrazione OTel opzionale (lazy via importlib) + buffer ring locale; registrazione latenza in ms con attributi outcome/rack_len; nuovo endpoint `GET /debug/latency` per percentili locali.
+- [x] T033 CI step extracting p95/p99
+  - Path: `.github/workflows/quackle-service-tests.yml`, script `service-quackle/scripts/latency_probe.py`
+  - Note: job CI esegue pytest, poi 30 richieste in-process a `/best-move` e stampa `{count,p50,p95,p99,min,max}`; verificato che `delta>0`.
 
 ## Parallel Execution Examples
 ```
