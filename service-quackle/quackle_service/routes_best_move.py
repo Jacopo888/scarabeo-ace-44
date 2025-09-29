@@ -9,12 +9,15 @@ from .runtime import ensure_lexicon_ready
 from .normalization import normalize_rack_flexible, normalize_board_for_bridge, grid_to_coordmap, reconstruct_tiles_from_raw_move
 from .errors import json_error, from_http_exc, status_from_engine_result
 from .adapters.quackle import best_move as _adapter_best_move
+from .metrics import record_best_move_latency_ms, local_latency_snapshot
 
 router = APIRouter()
 
 @router.post("/best-move")
 async def best_move(req: Request):
     try:
+        import time as _t
+        _start = _t.perf_counter()
         raw = await req.body()
         body = json.loads(raw.decode("utf-8"))
         if "rack" not in body:
@@ -24,7 +27,11 @@ async def best_move(req: Request):
         board_out = normalize_board_for_bridge(body.get("board"))
 
         if len(rack_norm) == 0:
-            return {"tiles": [], "score": 0, "words": [], "move_type": "pass", "engine_fallback": False}
+            out = {"tiles": [], "score": 0, "words": [], "move_type": "pass", "engine_fallback": False}
+            # Record as a fast-return (no engine call)
+            took_ms = (_t.perf_counter() - _start) * 1000.0
+            record_best_move_latency_ms(took_ms, {"path": "/best-move", "outcome": "pass_empty_rack", "rack_len": 0})
+            return out
 
         if ENV_MODE == 'prod' and not SKIP_LEXICON_CHECK:
             ok, dawg, gaddag = ensure_lexicon_ready()
@@ -43,8 +50,13 @@ async def best_move(req: Request):
             rc_val = result.get("rc") if isinstance(result, dict) else None
             status = status_from_engine_result(err, rc_val if isinstance(rc_val, int) else None)
             if len(rack_norm) < 7:
-                return {"tiles": [], "score": 0, "words": [], "move_type": "pass", "engine_fallback": False}
+                out = {"tiles": [], "score": 0, "words": [], "move_type": "pass", "engine_fallback": False}
+                took_ms = (_t.perf_counter() - _start) * 1000.0
+                record_best_move_latency_ms(took_ms, {"path": "/best-move", "outcome": "pass_short_rack", "rack_len": len(rack_norm), "err": err, "rc": rc_val})
+                return out
             body_out = {k: v for k, v in result.items() if k in {"engine_fallback", "error", "stderr", "ldd", "rc"}}
+            took_ms = (_t.perf_counter() - _start) * 1000.0
+            record_best_move_latency_ms(took_ms, {"path": "/best-move", "outcome": "engine_error", "rack_len": len(rack_norm), "err": err, "rc": rc_val})
             return json_error(err, status_code=status, engine=True, extra=body_out or None)
 
         tiles_out = result.get("tiles", [])
@@ -62,13 +74,16 @@ async def best_move(req: Request):
                 return t
         tiles_out = [_ensure_ints(t) for t in tiles_out]
 
-        return {
+        out = {
             "tiles": tiles_out,
             "score": result.get("score", 0),
             "words": result.get("words", []),
             "move_type": result.get("move_type", "play" if result.get("tiles") else "pass"),
             "engine_fallback": False
         }
+        took_ms = (_t.perf_counter() - _start) * 1000.0
+        record_best_move_latency_ms(took_ms, {"path": "/best-move", "outcome": out.get("move_type", "play"), "rack_len": len(rack_norm)})
+        return out
     except HTTPException as e:
         return from_http_exc(e, engine=True)
     except Exception as e:
@@ -77,7 +92,21 @@ async def best_move(req: Request):
             raw_head = raw[:400].decode("utf-8", errors="replace")
         except Exception:
             raw_head = ""
+        try:
+            import time as _t
+            took_ms = (_t.perf_counter() - _start) * 1000.0  # type: ignore[name-defined]
+            record_best_move_latency_ms(took_ms, {"path": "/best-move", "outcome": "exception"})
+        except Exception:
+            pass
         return json_error(str(e), status_code=500, engine=True, extra={"raw_head": raw_head})
+
+@router.get("/debug/latency")
+def debug_latency_snapshot():
+    """Return local latency percentiles for /best-move.
+
+    Useful in CI or local debugging when OTel backend is not configured.
+    """
+    return JSONResponse(local_latency_snapshot())
 
 @router.post("/bag/summary")
 async def bag_summary(req: Request):
