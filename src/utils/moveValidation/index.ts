@@ -1,0 +1,5 @@
+export { areNewTilesContiguous } from './contiguity'
+export { areTilesInSingleLine } from './alignment'
+export { areNewTilesAdjacentToBoard } from './adjacency'
+export { areGapsFilledByExistingTiles } from './gaps'
+export { coversCenter } from './center'

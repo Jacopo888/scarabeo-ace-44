@@ -1,4 +1,12 @@
 import { PlacedTile } from '@/types/game'
+// Import dagli helper (barrel) per evitare l'auto-import ciclico di questo file
+import {
+  areNewTilesContiguous,
+  areTilesInSingleLine,
+  areNewTilesAdjacentToBoard,
+  areGapsFilledByExistingTiles,
+  coversCenter
+} from './moveValidation/index'
 
 export interface MoveValidation {
   isValid: boolean
@@ -9,6 +17,12 @@ export const validateMoveLogic = (
   board: Map<string, PlacedTile>,
   newTiles: PlacedTile[]
 ): MoveValidation => {
+  // Contract (riassunto):
+  // - Input: board = mappa ("row,col" -> PlacedTile) con le tessere già piazzate; newTiles = tessere del turno corrente
+  // - Assunzioni: coordinate 0..14, nessuna mutazione degli input; isBlank può essere true ma letter deve essere valorizzata
+  // - Esito: errors[] con motivi di invalidità; isValid=true se e solo se nessun errore
+  // - Regole: caselle libere, posizionamento in linea unica, contiguità o gap coperti da board, copertura centro alla prima mossa,
+  //           adiacenza al board se non è la prima mossa
   const errors: string[] = []
   
   if (newTiles.length === 0) {
@@ -60,112 +74,4 @@ export const validateMoveLogic = (
   }
 }
 
-const areNewTilesContiguous = (newTiles: PlacedTile[]): boolean => {
-  if (newTiles.length <= 1) return true
-  
-  // Sort tiles by position
-  const sortedTiles = [...newTiles].sort((a, b) => {
-    if (a.row !== b.row) return a.row - b.row
-    return a.col - b.col
-  })
-  
-  // Check if tiles form a contiguous line
-  const isHorizontal = sortedTiles.every(tile => tile.row === sortedTiles[0].row)
-  const isVertical = sortedTiles.every(tile => tile.col === sortedTiles[0].col)
-  
-  if (isHorizontal) {
-    // Check horizontal contiguity
-    for (let i = 1; i < sortedTiles.length; i++) {
-      if (sortedTiles[i].col - sortedTiles[i-1].col > 1) {
-        return false
-      }
-    }
-    return true
-  } else if (isVertical) {
-    // Check vertical contiguity
-    for (let i = 1; i < sortedTiles.length; i++) {
-      if (sortedTiles[i].row - sortedTiles[i-1].row > 1) {
-        return false
-      }
-    }
-    return true
-  }
-  
-  return false
-}
-
-const areTilesInSingleLine = (tiles: PlacedTile[]): boolean => {
-  if (tiles.length <= 1) return true
-  
-  // Check if all tiles are in the same row
-  const sameRow = tiles.every(tile => tile.row === tiles[0].row)
-  
-  // Check if all tiles are in the same column
-  const sameCol = tiles.every(tile => tile.col === tiles[0].col)
-  
-  return sameRow || sameCol
-}
-
-const areNewTilesAdjacentToBoard = (
-  board: Map<string, PlacedTile>,
-  newTiles: PlacedTile[]
-): boolean => {
-  return newTiles.some(tile => {
-    const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]]
-    
-    return directions.some(([dRow, dCol]) => {
-      const adjacentKey = `${tile.row + dRow},${tile.col + dCol}`
-      return board.has(adjacentKey)
-    })
-  })
-}
-
-const areGapsFilledByExistingTiles = (
-  board: Map<string, PlacedTile>,
-  newTiles: PlacedTile[]
-): boolean => {
-  if (newTiles.length <= 1) return true
-  
-  const sortedTiles = [...newTiles].sort((a, b) => {
-    if (a.row !== b.row) return a.row - b.row
-    return a.col - b.col
-  })
-  
-  const isHorizontal = sortedTiles.every(tile => tile.row === sortedTiles[0].row)
-  
-  if (isHorizontal) {
-    // Check horizontal gaps
-    for (let i = 1; i < sortedTiles.length; i++) {
-      const prevCol = sortedTiles[i-1].col
-      const currentCol = sortedTiles[i].col
-      
-      // Check if all positions between are filled by existing tiles
-      for (let col = prevCol + 1; col < currentCol; col++) {
-        const key = `${sortedTiles[0].row},${col}`
-        if (!board.has(key)) {
-          return false
-        }
-      }
-    }
-  } else {
-    // Check vertical gaps
-    for (let i = 1; i < sortedTiles.length; i++) {
-      const prevRow = sortedTiles[i-1].row
-      const currentRow = sortedTiles[i].row
-      
-      // Check if all positions between are filled by existing tiles
-      for (let row = prevRow + 1; row < currentRow; row++) {
-        const key = `${row},${sortedTiles[0].col}`
-        if (!board.has(key)) {
-          return false
-        }
-      }
-    }
-  }
-  
-  return true
-}
-
-const coversCenter = (tiles: PlacedTile[]): boolean => {
-  return tiles.some(tile => tile.row === 7 && tile.col === 7)
-}
+// helpers moved to ./moveValidation/*
