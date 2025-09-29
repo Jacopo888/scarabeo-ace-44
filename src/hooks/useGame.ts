@@ -11,7 +11,9 @@ import type { GameMoveLite } from '@/types/localGame'
 import { Difficulty } from '@/components/DifficultyModal'
 import { toastOnce } from '@/lib/toastOnce'
 import { sanitizeQuackleTile } from '@/lib/game/tiles'
-import { shuffleArray } from '@/lib/game/random'
+// random shuffle handled by rack helpers
+import { isCurrentPlayerTurn as isCurrentTurn } from '@/lib/game/turns'
+import { getCurrentRack, reshuffleRack, withCurrentRack } from '@/lib/game/rack'
 import { applyBotMove } from '@/lib/game/botMove'
 import { initGameState } from '@/lib/game/init'
 import { applyPassTurn } from '@/lib/game/actions'
@@ -117,19 +119,9 @@ export const useGame = () => {
   const reshuffleTiles = useCallback(() => {
     cancelMove()
     setGameState(prev => {
-      const currentPlayer = prev.players[prev.currentPlayerIndex]
-      const shuffledRack = shuffleArray([...currentPlayer.rack])
-      
-      const newPlayers = [...prev.players]
-      newPlayers[prev.currentPlayerIndex] = {
-        ...currentPlayer,
-        rack: shuffledRack
-      }
-      
-      return {
-        ...prev,
-        players: newPlayers
-      }
+      const rack = getCurrentRack(prev)
+      const shuffledRack = reshuffleRack(rack)
+      return { ...prev, players: withCurrentRack(prev, shuffledRack) }
     })
   }, [cancelMove])
 
@@ -300,7 +292,7 @@ export const useGame = () => {
     isBotTurn,
     isSurrendered,
     currentPlayer: gameState.players[gameState.currentPlayerIndex] || { id: '', name: '', score: 0, rack: [], isBot: false },
-    isCurrentPlayerTurn: (playerId: string) => gameState.players[gameState.currentPlayerIndex]?.id === playerId,
+  isCurrentPlayerTurn: (playerId: string) => isCurrentTurn(gameState, playerId),
     moveHistory,
     gameId: gameIdRef.current
   }
