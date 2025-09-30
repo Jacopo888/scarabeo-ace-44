@@ -2,6 +2,7 @@
 # Implementation Plan: Scarabeo-Ace-44 — Behavior-Preserving Complete Refactor (main-only)
 
 **Branch**: `[001-title-scarabeo-ace]` | **Date**: 2025-09-27 | **Spec**: `/specs/001-title-scarabeo-ace/spec.md`
+**Completion**: Macro change completed on 2025-09-30 (all waves delivered; behavior preserved)
 **Input**: Feature specification from `/specs/001-title-scarabeo-ace/spec.md`
 
 ## Execution Flow (/plan command scope)
@@ -199,16 +200,16 @@ directories captured above]
 **Phase Status**:
 - [x] Phase 0: Research complete (/plan command)
 - [x] Phase 1: Design complete (/plan command)
-- [ ] Phase 2: Task planning complete (/plan command - describe approach only)
-- [ ] Phase 3: Tasks generated (/tasks command)
-- [ ] Phase 4: Implementation complete
-- [ ] Phase 5: Validation passed
+- [x] Phase 2: Task planning complete (/plan command - describe approach only)
+- [x] Phase 3: Tasks generated (/tasks command)
+- [x] Phase 4: Implementation complete
+- [x] Phase 5: Validation passed
 
 **Gate Status**:
 - [x] Initial Constitution Check: PASS
 - [x] Post-Design Constitution Check: PASS
 - [x] All NEEDS CLARIFICATION resolved
-- [ ] Complexity deviations documented
+- [x] Complexity deviations documented (none)
 
 ---
 *Based on Constitution v2.1.1 - See `/memory/constitution.md`*

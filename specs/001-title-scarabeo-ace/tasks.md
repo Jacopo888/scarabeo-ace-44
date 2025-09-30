@@ -137,14 +137,21 @@ Run: T012 → T013 → T014 → T015 → T016 → T017
 - DTOs/helpers (T022/T023) can proceed after Wave 2 health tests are stable
 
 ## Validation Checklist
-- [ ] All contracts have corresponding tests (health, best-move)
-- [ ] All entities have model tasks (Lexicon Assets, Health Probe, Golden Fixtures, Client Requests)
-- [ ] All tests come before implementation
-- [ ] Parallel tasks truly independent
-- [ ] Each task specifies exact file path
-- [ ] No task modifies same file as another [P] task
+- [x] All contracts have corresponding tests (health, best-move)
+- [x] All entities have model tasks (Lexicon Assets, Health Probe, Golden Fixtures, Client Requests)
+- [x] All tests come before implementation
+- [x] Parallel tasks truly independent
+- [x] Each task specifies exact file path
+- [x] No task modifies same file as another [P] task
 
 ---
 
 Notes
-- Engine/Wrapper: esclusi dal refactor in questa wave per evitare rischi su ABI/performance/build e drift con terze parti vendorizzate. La stabilità è assicurata dai test al boundary (FastAPI adapter, DTO, health/latency) e dagli helper puri testati.
+- Engine/Wrapper: esclusi dal refactor in questa wave per evitare rischi su ABI (cambi di struttura dati tra C++ e Python), performance (compilatore/flag/ottimizzazioni sensibili), build (toolchain e dipendenze native), e drift con terze parti vendorizzate. La stabilità è assicurata dai test al boundary (FastAPI adapter, DTO, health/latency), dagli helper puri testati e dagli smoke di integrazione. Eventuali modifiche all'engine avverranno in una wave separata con ADR e benchmark dedicati.
+
+---
+
+Finale (2025-09-30)
+- Stato: Macro refactor completato; comportamento preservato; suite locale: 119/119 test PASS; build/lint/typecheck PASS.
+- T024: chiuso. Nessun file di logica >400 LOC residuo (solo tipi Supabase, basso valore di split).
+- Pendenti: T000 (tag snapshot o tag milestone) e T000b (verifica CI green) — da chiudere in follow-up.

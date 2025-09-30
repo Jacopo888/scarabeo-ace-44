@@ -3,7 +3,7 @@
 
 **Workflow**: Main-only (no feature branches). Use **annotated tags** as pre-wave snapshots and **revert-based rollback** for any regression.  
 **Created**: 2025-09-27  
-**Status**: Draft  
+**Status**: Completed (2025-09-30)  
 **Input** (summary): "Refactor and debloat the repository to make it simpler, smaller, and easier to maintain while strictly preserving external behavior (APIs, payloads, UX, Quackle I/O). Remove large/derived assets from VCS (lexica, strategy artifacts, logs), reduce dependency surface, and keep flows linear and readable. Maintain invariants: endpoints, JSON schemas, error codes/messages, timeouts, board/rack formats and Quackle request/response semantics, deterministic/idempotent Quackle integration, and performance SLOs. Scope spans Frontend UI/model/client, service-quackle validation/bridge/health/bootstrap, rating-api module boundaries/tests, and repo housekeeping. Deliver in **small waves of atomic commits to main**, guarded by golden fixtures and a CI size report; optional history rewrite after completion."
 
 ## Execution Flow (main)
