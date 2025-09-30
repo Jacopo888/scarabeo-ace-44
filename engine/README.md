@@ -160,7 +160,7 @@ docker build -t scarabeo-engine:fresh -f engine/Dockerfile engine
 - **Lexicon status**: Check `/health/lexicon` to see which format is active
 - **Concurrency**: Single wrapper process, FastAPI handles multiple requests
 
-## Deploy Railway
+## Storico (Deploy Railway)
 
 - Configure repo with `engine/` and enable Dockerfile deployment
 - **No volumes required**: Lexicon baked into image  
