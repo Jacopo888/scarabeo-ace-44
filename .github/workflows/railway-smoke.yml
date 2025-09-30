@@ -1,4 +1,4 @@
-name: railway-smoke
+name: deprecated-railway-smoke
 
 on:
   workflow_dispatch:

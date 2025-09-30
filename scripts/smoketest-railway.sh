@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# This script is a tiny sanity check for the Railway production setup.
-# It doesn't alter state and only calls health endpoints plus one benign best-move.
+# DEPRECATED: Railway production setup smoketest. Kept for historical reference.
+# Do not use for Tilesword frontend; backend currently runs on Heroku.
 
 BASE_URL="${BASE_URL:-https://service-quackle-production.up.railway.app}"
 

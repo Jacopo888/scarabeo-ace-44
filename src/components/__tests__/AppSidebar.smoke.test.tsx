@@ -16,8 +16,8 @@ describe('AppSidebar (smoke)', () => {
       </MemoryRouter>
     )
 
-  // Brand: either 'T' or 'TilesWord' depending on state
-  expect(screen.getByText(/T|TilesWord/)).toBeTruthy()
+  // Brand: either 'T' or 'Tilesword' depending on state
+  expect(screen.getByText(/T|Tilesword/)).toBeTruthy()
     // Nav items
     expect(screen.getByText('Home')).toBeTruthy()
     expect(screen.getByText('Dashboard')).toBeTruthy()

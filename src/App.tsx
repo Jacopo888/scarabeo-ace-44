@@ -79,7 +79,7 @@ const AppContent = () => {
         <div className="flex-1 flex flex-col">
           <header className="h-14 border-b border-border flex items-center px-4">
             <SidebarTrigger />
-            <h2 className="ml-4 text-lg font-semibold">TilesWord</h2>
+            <h2 className="ml-4 text-lg font-semibold">Tilesword</h2>
             <div className="ml-auto flex items-center gap-2">
               {!user && (
                 <Link to="/auth" className="text-sm underline">

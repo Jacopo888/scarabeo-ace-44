@@ -45,7 +45,7 @@ export default function Auth() {
     } else {
       toast({
         title: "Signed in",
-        description: "Welcome to TilesWord!"
+        description: "Welcome to Tilesword!"
       })
       navigate('/')
     }
@@ -92,7 +92,7 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold">TilesWord</h1>
+          <h1 className="text-3xl font-bold">Tilesword</h1>
           <p className="text-muted-foreground mt-2">Sign in to play with your friends</p>
         </div>
 
