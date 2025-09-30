@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { Difficulty } from '@/components/DifficultyModal'
 import { GameState, Tile, PlacedTile } from '@/types/game'
-import { zeroToOneString } from '@/lib/coords'
+import { toServiceCoord } from '@/lib/coords'
 import { quackleBestMove, QuackleMove } from '@/services/quackleClient'
 
 // Build a Quackle board mapping using 1-based indices and stabilized tiles only
@@ -15,13 +15,7 @@ export function buildQuackleBoard(gameState: GameState): Record<string, { letter
     if (!Number.isInteger(tile.row) || !Number.isInteger(tile.col)) return
     // Convert to 1-based and enforce bounds [1,15]
     // Guard bounds with centralized helper
-    let key: string | null = null
-    try {
-      key = zeroToOneString([tile.row, tile.col])
-    } catch {
-      key = null
-    }
-    if (!key) return
+    const key = toServiceCoord(tile.row, tile.col)
 
     const isBlank = !!tile.isBlank
     const raw = (tile.letter ?? '').toString().trim().toUpperCase()

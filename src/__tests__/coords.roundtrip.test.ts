@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import payload from '../../fixtures/coords/test_payload.json'
-import { algebraicToZeroCoord, zeroToAlgebraic, zeroToOneString, oneStringToZero } from '../lib/coords'
+import { toServiceCoord, fromServiceCoord } from '../lib/coords'
 
 describe('coords round-trip', () => {
-  it('algebraic <-> zero-based and one-string <-> zero-based', () => {
+  it('0-based <-> service coord_map_1based', () => {
     expect(payload.boardSize).toBe(15)
     for (const c of payload.cases as Array<{ alg: string; one: string; zero: [number, number] }>) {
-      const z = algebraicToZeroCoord(c.alg)
-      expect(z).toEqual(c.zero)
-      expect(zeroToAlgebraic(z)).toBe(c.alg)
-      expect(oneStringToZero(c.one)).toEqual(c.zero)
-      expect(zeroToOneString(z)).toBe(c.one)
+      const [r, c0] = c.zero
+      const key = toServiceCoord(r, c0)
+      expect(key).toBe(c.one)
+      const back = fromServiceCoord(key)
+      expect([back.row, back.col]).toEqual(c.zero)
     }
   })
 })
