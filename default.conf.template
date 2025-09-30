@@ -1,8 +1,16 @@
 server {
   listen ${PORT};
   server_name _;
+
+  absolute_redirect off;
+  port_in_redirect off;
+
   root /usr/share/nginx/html;
   index index.html;
-  location / { try_files $uri $uri/ /index.html; }
+
+  location / {
+    try_files $uri /index.html;
+  }
+
   add_header Cache-Control "public, max-age=31536000, immutable" always;
 }

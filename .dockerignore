@@ -1,6 +1,5 @@
 # Node & build
 node_modules
-dist
 .npm
 # VCS
 .git
