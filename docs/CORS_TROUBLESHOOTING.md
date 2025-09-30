@@ -22,7 +22,7 @@ Il progetto è già configurato con un proxy Vite che risolve automaticamente i 
 npm run dev
 ```
 
-Il proxy inoltra le richieste da `http://localhost:5173/quackle/*` a `https://service-quackle-production.up.railway.app/*`, evitando completamente i problemi CORS.
+Il proxy inoltra le richieste da `http://localhost:5173/quackle/*` a `https://service-quackle-6773ae98281f.herokuapp.com/*`, evitando completamente i problemi CORS.
 
 #### Soluzione 2: Variabile d'ambiente
 Puoi sovrascrivere l'URL del servizio Quackle:
@@ -36,9 +36,9 @@ VITE_QUACKLE_SERVICE_URL=http://localhost:5000 npm run dev
 #### Aggiornare CORS_ORIGINS
 Se stai deployando su un nuovo dominio, aggiorna la variabile `CORS_ORIGINS` in:
 
-1. **Railway**: Aggiungi il nuovo dominio alla variabile `CORS_ORIGINS`
+1. Configura `CORS_ORIGINS` includendo i domini FE in produzione (Heroku backend)
 2. **Dockerfile**: Modifica `ENV CORS_ORIGINS` in `service-quackle/Dockerfile`
-3. **railway.toml**: Aggiorna la variabile in `railway.toml`
+3. (Storico Railway) Se usi ancora Railway, aggiorna le variabili nell'ambiente specifico
 
 Formato:
 ```
@@ -49,8 +49,8 @@ CORS_ORIGINS = "https://tuodominio.com,https://preview--tuodominio.com,http://lo
 Dopo aver aggiornato la configurazione CORS:
 
 ```bash
-# Deploy su Railway
-railway up
+# Produzione su Heroku (nota)
+La nostra istanza pubblica attuale usa Heroku: `https://service-quackle-6773ae98281f.herokuapp.com`.
 
 # Oppure rebuild del container
 docker build -t service-quackle service-quackle/
@@ -74,10 +74,10 @@ Il servizio espone endpoint per verificare la configurazione:
 ### Test Manuale
 ```bash
 # Test con curl
-curl -H "Origin: https://tuodominio.com" https://service-quackle-production.up.railway.app/health
+curl -H "Origin: https://tuodominio.com" https://service-quackle-6773ae98281f.herokuapp.com/health
 
 # Verifica header CORS nella risposta
-curl -v -H "Origin: https://tuodominio.com" https://service-quackle-production.up.railway.app/health
+curl -v -H "Origin: https://tuodominio.com" https://service-quackle-6773ae98281f.herokuapp.com/health
 ```
 
 ## Domini Attualmente Configurati
@@ -92,18 +92,18 @@ curl -v -H "Origin: https://tuodominio.com" https://service-quackle-production.u
 ### 1. Verifica Network
 ```bash
 # Test connettività
-curl -I https://service-quackle-production.up.railway.app/health
+curl -I https://service-quackle-6773ae98281f.herokuapp.com/health
 
 # Test DNS
-nslookup service-quackle-production.up.railway.app
+nslookup service-quackle-6773ae98281f.herokuapp.com
 ```
 
 ### 2. Log del Servizio
 Controlla i log del servizio Quackle per errori specifici:
 
 ```bash
-# Se hai accesso ai log Railway
-railway logs service-quackle
+# Se hai accesso ai log della tua piattaforma
+echo "Consulta i log della tua piattaforma (Heroku, Render, ecc.)."
 ```
 
 ### 3. Browser DevTools
@@ -120,7 +120,7 @@ curl -X OPTIONS \
   -H "Origin: https://tuodominio.com" \
   -H "Access-Control-Request-Method: POST" \
   -H "Access-Control-Request-Headers: Content-Type" \
-  https://service-quackle-production.up.railway.app/best-move
+  https://service-quackle-6773ae98281f.herokuapp.com/best-move
 ```
 
 ## Configurazione CORS Completa

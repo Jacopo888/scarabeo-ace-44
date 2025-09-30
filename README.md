@@ -80,7 +80,7 @@ cp .env.example .env
 Il microservizio `service-quackle` usa Quackle reale con GADDAG completo. Non ci sono fallback a dizionari ridotti o "pass" silenziosi. Se il lessico non è pronto si risponde con errore esplicito (HTTP 500/502).
 
 ### Porte e URL
-- La porta è configurabile via `PORT` (default 8080). L'app espone gli endpoint su `http://<host>:8080` in locale o su Railway.
+- La porta è configurabile via `PORT` (default 8080). L'app espone gli endpoint su `http://<host>:8080` in locale o su Heroku (produzione).
 - Frontend (Vite) usa `VITE_QUACKLE_SERVICE_URL` come base per le chiamate; impostalo al tuo URL pubblico o locale, ad es. `http://localhost:8080`.
 
 ### Variabili ambiente (servizio Quackle)
@@ -134,11 +134,11 @@ curl -s -X POST http://localhost:8080/best-move \
 
 ### Configurazione FE (Vite)
 - `.env.development`: `VITE_QUACKLE_SERVICE_URL=http://localhost:8080`
-- `.env.production`: `VITE_QUACKLE_SERVICE_URL=https://service-quackle-production.up.railway.app`
+- `.env.production`: `VITE_QUACKLE_SERVICE_URL=https://service-quackle-6773ae98281f.herokuapp.com`
 
 Test rapidi lato FE:
 - `QUACKLE_BASE=http://localhost:8080 npm run quackle:health`
-- `QUACKLE_BASE=https://<railway-app>.up.railway.app npm run quackle:test`
+- `QUACKLE_BASE=https://service-quackle-6773ae98281f.herokuapp.com npm run quackle:test`
 
 ## How can I deploy this project?
 
@@ -179,7 +179,8 @@ PORT=4000
 ```
 
 **Production deployment:** Set `VITE_RATING_API_URL` to your production API URL. If not set, the frontend will use local fallback puzzle generation.
-## Railway – Setup Volume
+## Storico (Railway)
+Questa sezione riguardava il deploy su Railway ed è mantenuta a scopo storico. L'istanza di produzione attuale gira su Heroku: `https://service-quackle-6773ae98281f.herokuapp.com`.
 
 ## Quackle-Service: Strategia e Test integrazione
 
@@ -331,7 +332,7 @@ JSON
 - Verifica `GET /health`: deve mostrare `engine_ready:true` e dimensioni > 0 per GADDAG/DAWG.
 
 Comandi utili:
-- Logs: `railway logs -d | egrep 'startup|Lexicon|GADDAG|DAWG|engine_fallback'`
+- Logs: consulta i log della piattaforma di deploy (Heroku o altra) e filtra per `startup|Lexicon|GADDAG|DAWG|engine_fallback`
 - Diagnostica: `GET /debug/lexicon`, `GET /debug/quackle`, `GET /health/cors`
 
 

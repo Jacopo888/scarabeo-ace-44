@@ -1,15 +1,11 @@
 const ENV = (import.meta.env.VITE_QUACKLE_SERVICE_URL || "").trim();
-const host = typeof window !== "undefined" ? window.location.hostname : "";
-const isLocal = /^localhost$|^127\.0\.0\.1$/.test(host);
 const isDev = import.meta.env.DEV;
 
 export const QUACKLE_SERVICE_URL = (() => {
   if (ENV) return ENV;
-  if (isLocal && isDev) {
-    // Use proxy in development to avoid CORS issues
-    return "/quackle";
-  }
-  return "https://service-quackle-production.up.railway.app";
+  if (!isDev) throw new Error("VITE_QUACKLE_SERVICE_URL is required in production");
+  // Development: use Vite proxy to avoid CORS issues
+  return "/quackle";
 })();
 
 // Log once for diagnostics

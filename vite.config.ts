@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => ({
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/quackle': {
-        target: 'https://service-quackle-production.up.railway.app',
+        target: 'https://service-quackle-6773ae98281f.herokuapp.com',
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/quackle/, ''),
