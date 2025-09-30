@@ -69,3 +69,6 @@ logs/
 **/*.log
 *.out
 *.err
+
+# never commit local venvs
+service-quackle/.venv2/
