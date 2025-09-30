@@ -72,3 +72,8 @@ logs/
 
 # never commit local venvs
 service-quackle/.venv2/
+
+service-quackle/venv/
+service-quackle/.venv*/
+**/.venv*/
+**/venv/
