@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle, Loader2 } from 'lucide-react'
 import { useQuackleHealth } from '@/hooks/useQuackleHealth'
 
 export const QuackleServiceStatus = () => {
-  const status = useQuackleHealth(30000)
+  const { status } = useQuackleHealth(30000)
 
   if (status === 'checking') {
     return (

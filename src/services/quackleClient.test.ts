@@ -7,9 +7,8 @@ describe('quackleClient error propagation and logging', () => {
     vi.resetModules()
   })
 
-  it('propagates CORS/Network errors and logs { url, err }', async () => {
+  it('propagates CORS/Network errors (logs are gated by debug flag)', async () => {
     const fetchMock = vi.fn().mockImplementation(() => { throw new TypeError('Failed to fetch') })
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     // @ts-ignore
     global.fetch = fetchMock
 
@@ -20,11 +19,8 @@ describe('quackleClient error propagation and logging', () => {
     } catch (e) { thrown = e }
 
     expect(thrown).toBeTruthy()
-    const calls = errorSpy.mock.calls
-    const hasStructuredLog = calls.some(c => c[0] && typeof c[0] === 'object' && c[0].tag === 'quackle_fetch_error' && typeof c[0].url === 'string')
-    expect(hasStructuredLog).toBe(true)
-
-    errorSpy.mockRestore()
+    expect(thrown.message).toContain('CORS/Network')
+    // Note: structured logs are now gated by VITE_DEBUG_QUACKLE, so we don't assert on console.error calls
   })
 })
 
