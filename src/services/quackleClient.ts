@@ -1,5 +1,6 @@
 import type { PlacedTile } from '@/types/game';
 import { QUACKLE_SERVICE_URL, quackleApi } from '@/config/quackle';
+import { qlog, qerror } from '@/config/debug'
 import { fetchWithTimeout, classifyNetworkError, type NetworkErrorCode } from './http'
 
 export interface QuackleHealthResult {
@@ -23,19 +24,19 @@ export interface QuackleMove {
 
 export async function quackleHealth(): Promise<QuackleHealthResult> {
   try {
-    console.log('[Quackle Debug] Attempting health check to:', quackleApi('/health'));
-    console.log('[Quackle Debug] API_BASE:', QUACKLE_SERVICE_URL);
+    qlog('[Quackle Debug] Attempting health check to:', quackleApi('/health'));
+    qlog('[Quackle Debug] API_BASE:', QUACKLE_SERVICE_URL);
     
     const r = await fetchWithTimeout(quackleApi('/health'), { method: 'GET' }, 5000);
     const body = await r.text().catch(() => '');
     
-    console.log('[Quackle Debug] Health response:', { ok: r.ok, status: r.status, body: body.slice(0, 100) });
+    qlog('[Quackle Debug] Health response:', { ok: r.ok, status: r.status, body: body.slice(0, 100) });
     
     return { ok: r.ok, status: r.status, body, base: QUACKLE_SERVICE_URL };
   } catch (error: any) {
     const errorMsg = String(error?.message || error);
-    console.error('[Quackle Debug] Health check failed:', errorMsg);
-    console.error('[Quackle Debug] Error details:', error);
+    qerror('[Quackle Debug] Health check failed:', errorMsg);
+    qerror('[Quackle Debug] Error details:', error);
     
     // Detect specific error types
     const code = classifyNetworkError(errorMsg)

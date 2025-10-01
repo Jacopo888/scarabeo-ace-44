@@ -8,9 +8,9 @@ export const QUACKLE_SERVICE_URL = (() => {
   return "/quackle";
 })();
 
-// Log once for diagnostics
-// eslint-disable-next-line no-console
-console.info("[Quackle] base URL =", QUACKLE_SERVICE_URL);
+import { qlog } from './debug'
+// Log once for diagnostics (gated by VITE_DEBUG_QUACKLE)
+qlog("[Quackle] base URL =", QUACKLE_SERVICE_URL);
 
 export function quackleApi(path: string) {
   const base = QUACKLE_SERVICE_URL.replace(/\/+$/, "");
