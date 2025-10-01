@@ -25,8 +25,7 @@ vi.mock('react-router-dom', () => ({
 }))
 
 // Dynamic quackle mock: difficulty enabled and a move that consumes the whole rack
-// Note: coordinates are now returned in service format (1-based with coord_map_1based schema)
-// sanitizeQuackleTile will convert them back to 0-based for internal use
+// Note: service always returns 0-based coordinates regardless of input schema
 vi.mock('@/contexts/QuackleContext', () => {
   return {
     useQuackleContext: () => ({
@@ -34,11 +33,10 @@ vi.mock('@/contexts/QuackleContext', () => {
       setDifficulty: vi.fn(),
       isThinking: false,
       makeMove: vi.fn(async (_gameState: any, rack: any[]) => {
-        // Place entire rack horizontally starting from row 8, col 1 (1-based service coords)
-        // This will be converted to row 7, col 0 (0-based) by sanitizeQuackleTile
+        // Place entire rack horizontally starting from row 7, col 0 (0-based, as service returns)
         const tiles = rack.map((t, idx) => ({ 
-          row: 8, 
-          col: idx + 1, 
+          row: 7, 
+          col: idx, 
           letter: (t.letter || 'A').toString().toUpperCase(), 
           points: t.points || 1, 
           isBlank: !!t.isBlank 
