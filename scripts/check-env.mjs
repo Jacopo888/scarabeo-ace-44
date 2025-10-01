@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-function hydrateEnvFromFile(filename: string, key: string) {
+function hydrateEnvFromFile(filename, key) {
   const filePath = resolve(process.cwd(), filename);
   if (!existsSync(filePath)) return;
   const lines = readFileSync(filePath, 'utf8').split(/\r?\n/);
