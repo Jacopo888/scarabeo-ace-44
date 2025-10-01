@@ -1,7 +1,6 @@
 server {
   listen ${PORT};
   server_name _;
-
   absolute_redirect off;
   port_in_redirect off;
 
@@ -9,8 +8,10 @@ server {
   index index.html;
 
   location / {
-    try_files $uri /index.html;
+    try_files $uri $uri/ /index.html;
   }
 
+  # Evita caching dell'HTML, mantiene cache forte per asset fingerprintati
+  location = /index.html { add_header Cache-Control "no-store"; }
   add_header Cache-Control "public, max-age=31536000, immutable" always;
 }

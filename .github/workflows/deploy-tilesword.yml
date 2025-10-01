@@ -1,0 +1,55 @@
+name: Deploy Tilesword to Heroku
+on:
+  push:
+    branches:
+      - main
+
+env:
+  HEROKU_APP: tilesword
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cache npm per stabilità/velocità
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+
+      # Guardrail: il bundle DEVE contenere lo schema 1-based altrimenti fallisci
+      - name: Verify bundle has coord_map_1based
+        run: |
+          JS=$(ls dist/assets/index-*.js | head -n1)
+          grep -q 'coord_map_1based' "$JS"
+
+      # Build immagine Nginx statica che copia /dist
+      - run: docker build -t registry.heroku.com/${{ env.HEROKU_APP }}/web -f Dockerfile-frontend-static .
+
+      # Login al registry & push
+      - name: Login to Heroku Container Registry
+        run: >-
+          docker run --rm -e HEROKU_API_KEY=${{ secrets.HEROKU_API_KEY }} heroku/heroku:22-build bash -lc
+          "heroku container:login"
+      - run: docker push registry.heroku.com/${{ env.HEROKU_APP }}/web
+
+      # Release
+      - name: Release container on Heroku
+        run: >-
+          docker run --rm
+          -e HEROKU_API_KEY=${{ secrets.HEROKU_API_KEY }}
+          -e HEROKU_APP=${{ env.HEROKU_APP }}
+          heroku/heroku:22-build bash -lc
+          "heroku container:login && heroku container:release web -a $HEROKU_APP"
+
+      # Smoke test
+      - name: Smoke FE
+        run: |
+          curl -sSfI https://tilesword-0d2009186065.herokuapp.com/ | grep -q "200 OK"
+      - name: Smoke BE
+        run: |
+          curl -sSf https://service-quackle-6773ae98281f.herokuapp.com/health | jq -e '.status=="ok" and .board_schema=="coord_map_1based"'

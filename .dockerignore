@@ -1,15 +1,11 @@
-# Node & build
 node_modules
 .npm
-# VCS
 .git
 .gitignore
-# Editor/OS
 .vscode
 .DS_Store
-# Altro: escludi il backend e cartelle pesanti
 service-quackle/
 engine/
 bridge/
 **/.venv*/
-**/__pycache__/
+**/venv/

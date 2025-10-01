@@ -1,7 +1,6 @@
 FROM nginx:alpine
-# envsubst è in gettext
+# envsubst is provided by gettext
 RUN apk add --no-cache gettext
 COPY default.conf.template /etc/nginx/conf.d/default.conf.template
 COPY dist /usr/share/nginx/html
-# IMPORTANTISSIMO: sostituisci SOLO ${PORT}, NON $uri
-CMD sh -c "envsubst '\${PORT}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+CMD ["sh","-c","envsubst '\${PORT}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]

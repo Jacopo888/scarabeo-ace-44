@@ -56,6 +56,7 @@ export function formatRackStringForQuackle(rack: Tile[]): string {
 }
 
 export const useQuackle = () => {
+  const BOARD_SCHEMA = (import.meta.env.VITE_BOARD_SCHEMA ?? 'coord_map_1based').toString()
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
   const [isThinking, setIsThinking] = useState(false)
 
@@ -76,7 +77,7 @@ export const useQuackle = () => {
       // Prefer simple string rack to minimize payload ambiguity
       const rack = formatRackStringForQuackle(playerRack)
 
-      const payload = { board, rack, difficulty }
+  const payload = { board, rack, difficulty, board_schema: BOARD_SCHEMA }
 
       // Structured debug log
       const bkeys = Object.keys(board)
@@ -86,7 +87,8 @@ export const useQuackle = () => {
         sampleKeys: bkeys.slice(0, 3),
         rack,
         rackLen: playerRack.length,
-        difficulty
+        difficulty,
+        board_schema: BOARD_SCHEMA
       })
 
       const [move] = await Promise.all([
