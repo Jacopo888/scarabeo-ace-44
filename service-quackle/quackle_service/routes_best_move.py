@@ -75,6 +75,19 @@ async def best_move(req: Request):
                 return t
         tiles_out = [_ensure_ints(t) for t in tiles_out]
 
+        # Safety: some Quackle builds may emit 1-based rows.
+        # Only adjust if current tiles are OUT of 0..14 bounds and subtracting 1 fixes them.
+        if tiles_out and all(isinstance(t.get("row"), int) and isinstance(t.get("col"), int) for t in tiles_out):
+            def _in_bounds(ts):
+                try:
+                    return all(0 <= int(t.get("row")) < 15 and 0 <= int(t.get("col")) < 15 for t in ts)
+                except Exception:
+                    return False
+            if not _in_bounds(tiles_out):
+                candidate = [{**t, "row": int(t.get("row")) - 1} for t in tiles_out]
+                if _in_bounds(candidate):
+                    tiles_out = candidate
+
         out = {
             "tiles": tiles_out,
             "score": result.get("score", 0),

@@ -97,8 +97,10 @@ inline void serialize_place_move(
       tileJson["letter"] = letterText;
       tileJson["isBlank"] = tileBlank;
       tileJson["points"] = tileBlank ? 0 : alphabetParams->score(baseLetter);
-      tileJson["row"] = rr;
-      tileJson["col"] = cc;
+  // Emit 0-based coordinates for rows and columns.
+  // Quackle's startrow is observed to be 1-based in this build, so subtract 1 for rows.
+  tileJson["row"] = rr - 1;
+  tileJson["col"] = cc;
       outTiles.push_back(tileJson);
       primaryWord += letterText;
     }
