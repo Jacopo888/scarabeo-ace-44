@@ -38,8 +38,9 @@ async def best_move(req: Request):
             if not ok:
                 raise HTTPException(status_code=500, detail="lexicon_not_ready")
 
-        board_map = grid_to_coordmap(board_out.get("grid"))
-        payload: Dict[str, Any] = {"board": (board_map if board_map else {}), "rack": rack_norm}
+    board_map = grid_to_coordmap(board_out.get("grid"))
+    board_is_empty = (not bool(board_map))
+    payload: Dict[str, Any] = {"board": (board_map if board_map else {}), "rack": rack_norm}
         diff_raw = (body.get("difficulty") if isinstance(body, dict) else None) or None
         if isinstance(diff_raw, str) and diff_raw.strip().lower() in {"easy", "medium", "hard"}:
             payload["difficulty"] = diff_raw.strip().lower()
@@ -77,7 +78,7 @@ async def best_move(req: Request):
 
         # Safety: some Quackle builds may emit 1-based rows.
         # Only adjust if current tiles are OUT of 0..14 bounds and subtracting 1 fixes them.
-        if tiles_out and all(isinstance(t.get("row"), int) and isinstance(t.get("col"), int) for t in tiles_out):
+    if tiles_out and all(isinstance(t.get("row"), int) and isinstance(t.get("col"), int) for t in tiles_out):
             def _in_bounds(ts):
                 try:
                     return all(0 <= int(t.get("row")) < 15 and 0 <= int(t.get("col")) < 15 for t in ts)
@@ -87,6 +88,45 @@ async def best_move(req: Request):
                 candidate = [{**t, "row": int(t.get("row")) - 1} for t in tiles_out]
                 if _in_bounds(candidate):
                     tiles_out = candidate
+            else:
+                # Opening heuristic: some runs return the opening word at row=5 (one above center 6) with cols around 6..8.
+                rows = [int(t.get("row")) for t in tiles_out]
+                cols = [int(t.get("col")) for t in tiles_out]
+                if len(set(rows)) == 1 and rows[0] == 5 and any(6 <= c <= 8 for c in cols):
+                    tiles_out = [{**t, "row": t["row"] + 1} for t in tiles_out]
+
+        # Opening centering: if the input board is empty, ensure the move covers the center (7,7) in 0-based.
+        # We only apply a minimal shift if it keeps all tiles within bounds and aligns one tile with the center along the move axis.
+        if board_is_empty and tiles_out and result.get("move_type") == "play":
+            try:
+                rows = [int(t.get("row")) for t in tiles_out]
+                cols = [int(t.get("col")) for t in tiles_out]
+                unique_rows = len(set(rows))
+                unique_cols = len(set(cols))
+                CENTER = 7
+                def in_bounds(rs, cs):
+                    return all(0 <= r < 15 for r in rs) and all(0 <= c < 15 for c in cs)
+                # Determine orientation
+                if unique_rows == 1 and unique_cols >= 2:
+                    r0 = rows[0]
+                    # If any tile has center column, force row to CENTER
+                    if any(c == CENTER for c in cols):
+                        dr = CENTER - r0
+                        new_rows = [r + dr for r in rows]
+                        if in_bounds(new_rows, cols):
+                            for i in range(len(tiles_out)):
+                                tiles_out[i]["row"] = new_rows[i]
+                    # else leave as-is (even-length words without exact center)
+                elif unique_cols == 1 and unique_rows >= 2:
+                    c0 = cols[0]
+                    if any(r == CENTER for r in rows):
+                        dc = CENTER - c0
+                        new_cols = [c + dc for c in cols]
+                        if in_bounds(rows, new_cols):
+                            for i in range(len(tiles_out)):
+                                tiles_out[i]["col"] = new_cols[i]
+            except Exception:
+                pass
 
         out = {
             "tiles": tiles_out,
