@@ -13,8 +13,8 @@ export const sanitizeQuackleTile = (tile: PlacedTile): PlacedTile | null => {
   const upperLetter = rawLetter.toUpperCase()
   const isBlank = tile.isBlank || upperLetter === '?'
   
-  // Service always returns 0-based coordinates [0,14] regardless of input format
-  // (VITE_BOARD_SCHEMA affects only what we SEND, not what we RECEIVE)
+  // Despite README claiming 0-based, service actually returns 1-based coordinates [1,15]
+  // We need to convert to internal 0-based [0,14]
   const rowRaw = (tile as any).row
   const colRaw = (tile as any).col
   const rowNum = Number(rowRaw)
@@ -22,10 +22,11 @@ export const sanitizeQuackleTile = (tile: PlacedTile): PlacedTile | null => {
   if (!Number.isFinite(rowNum) || !Number.isFinite(colNum)) return null
   if (!Number.isInteger(rowNum) || !Number.isInteger(colNum)) return null
   
-  const row = rowNum
-  const col = colNum
+  // Convert from 1-based to 0-based
+  const row = rowNum - 1
+  const col = colNum - 1
   
-  // Validate bounds (service returns 0-based)
+  // Validate bounds after conversion
   if (row < 0 || row > 14 || col < 0 || col > 14) return null
 
   return {
