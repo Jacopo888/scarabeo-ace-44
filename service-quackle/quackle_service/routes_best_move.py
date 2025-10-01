@@ -59,9 +59,10 @@ async def best_move(req: Request):
             record_best_move_latency_ms(took_ms, {"path": "/best-move", "outcome": "engine_error", "rack_len": len(rack_norm), "err": err, "rc": rc_val})
             return json_error(err, status_code=status, engine=True, extra=body_out or None)
 
+        # Prefer tiles provided directly by the bridge. Only reconstruct from raw_move if tiles are missing.
         tiles_out = result.get("tiles", [])
         raw_move = result.get("raw_move") if isinstance(result, dict) else None
-        if isinstance(raw_move, dict):
+        if (not tiles_out) and isinstance(raw_move, dict):
             rebuilt = reconstruct_tiles_from_raw_move(raw_move, result.get("words"))
             if rebuilt:
                 tiles_out = rebuilt
