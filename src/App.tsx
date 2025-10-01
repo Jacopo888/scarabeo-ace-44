@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -23,7 +23,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { NotificationSystem } from "./components/NotificationSystem";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { quackleHealth } from "@/services/quackleClient";
+import { useQuackleHealth } from "./hooks/useQuackleHealth";
 
 const queryClient = new QueryClient();
 
@@ -58,20 +58,30 @@ const AppRoutes = () => {
 
 const AppContent = () => {
   const { user } = useAuth();
-  const [quackleError, setQuackleError] = useState<string | null>(null);
+  const health = useQuackleHealth(20000);
+  const lastToastStatus = useRef<'healthy' | 'unhealthy' | null>(null);
+
+  const quackleError = useMemo(() => {
+    if (health.status !== 'unhealthy' || !health.result) return null;
+
+    let msg = "Quackle AI non raggiungibile";
+    if (health.result.error === 'CORS_ERROR') msg += " – controlla CORS_ORIGINS e l’URL del servizio";
+    else if (health.result.error === 'TIMEOUT_ERROR') msg += " – timeout: verifica che il servizio sia up";
+    else if (health.result.status) msg += ` – HTTP ${health.result.status}`;
+    return msg;
+  }, [health.status, health.result]);
 
   useEffect(() => {
-    quackleHealth().then((h) => {
-      if (!h.ok) {
-        let msg = "Quackle AI non raggiungibile";
-        if (h.error === 'CORS_ERROR') msg += " – controlla CORS_ORIGINS e l’URL del servizio";
-        else if (h.error === 'TIMEOUT_ERROR') msg += " – timeout: verifica che il servizio sia up";
-        else if (h.status) msg += ` – HTTP ${h.status}`;
-        setQuackleError(msg);
-        toast.error(msg);
+    if (health.status === 'unhealthy' && quackleError) {
+      if (lastToastStatus.current !== 'unhealthy') {
+        toast.error(quackleError);
+        lastToastStatus.current = 'unhealthy';
       }
-    });
-  }, []);
+    }
+    if (health.status === 'healthy') {
+      lastToastStatus.current = 'healthy';
+    }
+  }, [health.status, quackleError]);
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">

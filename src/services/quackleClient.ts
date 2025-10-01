@@ -1,6 +1,14 @@
 import type { PlacedTile } from '@/types/game';
 import { QUACKLE_SERVICE_URL, quackleApi } from '@/config/quackle';
-import { fetchWithTimeout, classifyNetworkError } from './http'
+import { fetchWithTimeout, classifyNetworkError, type NetworkErrorCode } from './http'
+
+export interface QuackleHealthResult {
+  ok: boolean
+  status: number
+  body: string
+  base: string
+  error?: NetworkErrorCode
+}
 
 export interface QuackleMove {
   tiles: PlacedTile[];
@@ -13,7 +21,7 @@ export interface QuackleMove {
 
 // fetchWithTimeout now provided by ./http
 
-export async function quackleHealth(): Promise<{ ok: boolean; status: number; body: string; base: string; error?: string; }> {
+export async function quackleHealth(): Promise<QuackleHealthResult> {
   try {
     console.log('[Quackle Debug] Attempting health check to:', quackleApi('/health'));
     console.log('[Quackle Debug] API_BASE:', QUACKLE_SERVICE_URL);
@@ -30,7 +38,7 @@ export async function quackleHealth(): Promise<{ ok: boolean; status: number; bo
     console.error('[Quackle Debug] Error details:', error);
     
     // Detect specific error types
-  const code = classifyNetworkError(errorMsg)
+    const code = classifyNetworkError(errorMsg)
     
     return { 
       ok: false, 
