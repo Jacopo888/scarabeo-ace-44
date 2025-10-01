@@ -2,4 +2,4 @@ build:
   docker:
     web: Dockerfile-frontend
 run:
-  web: sh -c 'envsubst < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g "daemon off;"'
+  web: sh -c 'envsubst "$PORT" < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g "daemon off;"'
