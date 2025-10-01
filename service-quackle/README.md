@@ -12,9 +12,8 @@ FastAPI microservice that bridges the Quackle engine.
 - Board normalization: accepts multiple shapes (grid/squares/coord_map/placements), normalizes internally to 15x15.
 - Coordinates:
   - Input: accepts multiple shapes; preferred payload for coordinates is a 1‑based coord map with keys "r,c" → `{ letter, isBlank }`.
-  - Output: tile coordinates currently require a +1 adjustment to align with a 0‑based visual grid (center star at row=7, col=7). In practice, add 1 to both `row` and `col` from the response before rendering.
-    - Example: response `row: 6, col: 3` → render at `row: 7, col: 4`.
-  - Note: this reflects the current production behavior and will be normalized in a future revision. Always validate with a quick smoke by placing across the center star.
+  - Output: tile coordinates are 0‑based (`row`, `col` in [0,14]). The frontend also uses a 0‑based visual grid, so no offset is required.
+    - Center star is at row=7, col=7 (0‑based).
 
 ## Architettura (moduli)
 Struttura attuale dei moduli principali in `quackle_service/`:

@@ -25,7 +25,7 @@ vi.mock('react-router-dom', () => ({
 }))
 
 // Dynamic quackle mock: difficulty enabled and a move that consumes the whole rack
-// Note: service returns coordinates that need +1 to match visual grid (row 6 -> displays at row 7)
+// Service returns 0-based coordinates; UI uses 0-based as well (no +1 offset)
 vi.mock('@/contexts/QuackleContext', () => {
   return {
     useQuackleContext: () => ({
@@ -33,10 +33,10 @@ vi.mock('@/contexts/QuackleContext', () => {
       setDifficulty: vi.fn(),
       isThinking: false,
       makeMove: vi.fn(async (_gameState: any, rack: any[]) => {
-        // Service returns row 6, col -1 which becomes row 7, col 0 after +1 adjustment
-        const tiles = rack.map((t, idx) => ({ 
-          row: 6, 
-          col: idx - 1, 
+        // Return a horizontal placement across row 6 starting at col 0 (0-based)
+        const tiles = rack.map((t, idx) => ({
+          row: 6,
+          col: idx,
           letter: (t.letter || 'A').toString().toUpperCase(), 
           points: t.points || 1, 
           isBlank: !!t.isBlank 

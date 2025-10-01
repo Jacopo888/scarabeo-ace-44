@@ -20,7 +20,7 @@ Ultimo aggiornamento: 2025-09-29
 - Env principali: `QUACKLE_LEXDIR=/data/lexica`, `QUACKLE_APPDATA_DIR=/data/appdata`, `QUACKLE_LEXICON=enable1.15` (+ opzionali `GADDAG_URL`, `DAWG_URL`).
 - Frontend: configurare `VITE_QUACKLE_SERVICE_URL` (es. `http://localhost:8080`).
 - `/best-move` accetta board in più forme; preferita: mappa 1‑based "r,c" → `{letter,isBlank}`.
-- Coordinate in uscita: le `row/col` dei tiles richiedono un aggiustamento di +1 per allinearsi alla griglia visuale 0‑based del frontend (stella al centro riga=7,col=7). Esempio: risposta `row:6,col:3` → render `row:7,col:4`.
+- Coordinate in uscita: le `row/col` dei tiles sono 0‑based e coincidono con la griglia visuale del frontend (stella al centro riga=7,col=7). Nessun aggiustamento necessario lato client.
 
 ## Pattern e convenzioni del repo
 - TypeScript: indentazione 2 spazi. Componenti React in PascalCase (es. `BoardTile.tsx`); util/hook in camelCase (es. `useGame.ts`).
