@@ -12,6 +12,7 @@
 #include <utility>
 #include <system_error>
 #include <cstdio>
+#include <cstdlib>
 
 namespace fs = std::filesystem;
 
@@ -30,6 +31,16 @@ inline bool env_flag_on(const char* name) {
   std::string s(v);
   for (auto &c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
   return (s == "1" || s == "true" || s == "yes" || s == "on");
+}
+
+inline int env_int(const char* name, int defVal) {
+  const char* v = std::getenv(name);
+  if (!v || !*v) return defVal;
+  try {
+    return std::stoi(std::string(v));
+  } catch (...) {
+    return defVal;
+  }
 }
 
 // --- Debug logging ---

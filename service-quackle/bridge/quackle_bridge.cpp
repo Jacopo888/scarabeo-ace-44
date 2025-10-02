@@ -35,6 +35,8 @@ namespace fs = std::filesystem;
 #include "bag.h"
 #include "gameparameters.h"
 #include "strategyparameters.h"
+// Forward declaration for compatibility with some Quackle headers that expect ComputerDispatch
+namespace Quackle { class ComputerDispatch; }
 #include "endgame.h"
 #include "sim.h"
 
@@ -633,8 +635,7 @@ int main(int argc, char** argv){
     Quackle::Bag bag;
     try {
       if (jbagPool.is_array() && !jbagPool.empty()) {
-        Quackle::LetterString ls;
-        ls.reserve(jbagPool.size());
+  Quackle::LetterString ls;
         for (const auto &e : jbagPool) {
           if (!e.is_string()) continue;
           std::string s = e.get<std::string>();
