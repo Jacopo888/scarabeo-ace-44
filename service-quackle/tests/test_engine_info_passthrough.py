@@ -18,7 +18,7 @@ def test_engine_info_passthrough(monkeypatch):
             "words": [],
             "move_type": "play",
             "engine_fallback": False,
-            "engine_info": {"hl_strict": True, "path": "hl", "kibitz_len": 50},
+            "engine_info": {"hl_strict": True, "path": "hl", "kibitz_len": 20, "search_width": 20, "used_endgame_solver": False, "used_simulator": False, "strategy_set": "default_english"},
         }
 
     monkeypatch.setattr(rb, "_adapter_best_move", fake_call_bridge)
@@ -34,4 +34,4 @@ def test_engine_info_passthrough(monkeypatch):
     assert data.get("engine_fallback") is False
     # engine_info must be present and contain expected keys
     assert isinstance(data.get("engine_info"), dict)
-    assert set(data["engine_info"].keys()) == {"hl_strict", "path", "kibitz_len"}
+    assert set(data["engine_info"].keys()) == {"hl_strict", "path", "kibitz_len", "search_width", "used_endgame_solver", "used_simulator", "strategy_set"}

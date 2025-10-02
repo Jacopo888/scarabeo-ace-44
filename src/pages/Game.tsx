@@ -21,6 +21,7 @@ import { ScorePanel } from "@/components/game/ScorePanel"
 import { ActionBar } from "@/components/game/ActionBar"
 import { GameHeader } from "@/components/game/GameHeader"
 import { GameResults } from "@/components/game/GameResults"
+import EngineStatusBadge from "@/components/EngineStatusBadge"
 
 const GameContent = () => {
   const {
@@ -172,15 +173,18 @@ const GameContent = () => {
                 onExchange={exchangeTiles}
                 onReshuffle={reshuffleTiles}
                 />
-                {lastEngineInfo && (
-                  <div className="ml-3 text-xs px-2 py-1 rounded border bg-muted/40 whitespace-nowrap" title="Engine path and settings">
-                    Engine: <b>{lastEngineInfo.path === 'hl' ? 'HL' : 'GEN'}</b>
-                    <span className="mx-1">•</span>
-                    strict: {lastEngineInfo.hl_strict ? 'on' : 'off'}
-                    <span className="mx-1">•</span>
-                    k: {lastEngineInfo.kibitz_len}
-                  </div>
-                )}
+                <div className="flex items-center gap-2 ml-3">
+                  {lastEngineInfo && (
+                    <div className="text-xs px-2 py-1 rounded border bg-muted/40 whitespace-nowrap" title="Engine path and settings">
+                      Engine: <b>{lastEngineInfo.path === 'hl' ? 'HL' : lastEngineInfo.path === 'endgame' ? 'END' : 'GEN'}</b>
+                      <span className="mx-1">•</span>
+                      strict: {lastEngineInfo.hl_strict ? 'on' : 'off'}
+                      <span className="mx-1">•</span>
+                      k: {lastEngineInfo.kibitz_len}
+                    </div>
+                  )}
+                  <EngineStatusBadge />
+                </div>
               </div>
               {gameState.gameStatus === 'playing' && (
                 <Button

@@ -19,8 +19,13 @@ export interface QuackleMove {
   engine_fallback?: boolean;
   engine_info?: {
     hl_strict: boolean;
-    path: 'hl' | 'gen';
+    path: 'hl' | 'gen' | 'endgame';
     kibitz_len: number;
+    search_width?: number;
+    used_endgame_solver?: boolean;
+    used_simulator?: boolean;
+    strategy_set?: string;
+    status?: 'simulating' | 'endgame' | 'static';
   };
   error?: string;
 }

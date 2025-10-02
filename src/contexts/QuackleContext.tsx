@@ -9,6 +9,8 @@ interface QuackleContextType {
   setDifficulty: (difficulty: Difficulty | null) => void
   makeMove: (gameState: GameState, playerRack: Tile[], difficulty: Difficulty | null) => Promise<QuackleMove | null>
   isThinking: boolean
+  // Latest engine telemetry from the last completed move (if any)
+  lastEngineInfo: QuackleMove['engine_info'] | null
 }
 
 const QuackleContext = createContext<QuackleContextType | undefined>(undefined)

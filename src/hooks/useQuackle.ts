@@ -59,7 +59,7 @@ export const useQuackle = () => {
   const BOARD_SCHEMA = (import.meta.env.VITE_BOARD_SCHEMA ?? 'coord_map_1based').toString()
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
   const [isThinking, setIsThinking] = useState(false)
-  const [lastEngineInfo, setLastEngineInfo] = useState<{ hl_strict: boolean; path: 'hl' | 'gen'; kibitz_len: number } | null>(null)
+  const [lastEngineInfo, setLastEngineInfo] = useState<{ hl_strict: boolean; path: 'hl' | 'gen' | 'endgame'; kibitz_len: number; status?: 'simulating' | 'endgame' | 'static'; used_simulator?: boolean } | null>(null)
 
   const makeMove = useCallback(async (
     gameState: GameState,
@@ -78,7 +78,17 @@ export const useQuackle = () => {
       // Prefer simple string rack to minimize payload ambiguity
       const rack = formatRackStringForQuackle(playerRack)
 
-  const payload = { board, rack, difficulty, board_schema: BOARD_SCHEMA }
+      // Provide remaining bag to the engine (pool of single-letter strings, '?' for blanks)
+      const bagPool: string[] = Array.isArray(gameState.tileBag)
+        ? gameState.tileBag.map(t => {
+            const isBlank = !!t.isBlank || (t.letter === '?' || t.letter === '*')
+            if (isBlank) return '?'
+            const L = (t.letter || '').toString().trim().toUpperCase()
+            return L ? L[0] : ''
+          }).filter(Boolean)
+        : []
+
+      const payload = { board, rack, difficulty, board_schema: BOARD_SCHEMA, bag_count: bagPool.length, bag_pool: bagPool }
 
       // Structured debug log
       const bkeys = Object.keys(board)
@@ -98,8 +108,8 @@ export const useQuackle = () => {
       ])
       if (move && typeof move === 'object' && move.engine_info && typeof move.engine_info === 'object') {
         const ei = move.engine_info as any
-        if (ei && (ei.path === 'hl' || ei.path === 'gen')) {
-          setLastEngineInfo({ hl_strict: !!ei.hl_strict, path: ei.path, kibitz_len: Number(ei.kibitz_len) || 0 })
+        if (ei && (ei.path === 'hl' || ei.path === 'gen' || ei.path === 'endgame')) {
+          setLastEngineInfo({ hl_strict: !!ei.hl_strict, path: ei.path, kibitz_len: Number(ei.kibitz_len) || 0, status: ei.status, used_simulator: !!ei.used_simulator })
         }
       }
       

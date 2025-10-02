@@ -35,6 +35,8 @@ namespace fs = std::filesystem;
 #include "bag.h"
 #include "gameparameters.h"
 #include "strategyparameters.h"
+#include "endgame.h"
+#include "sim.h"
 
 // arg/flag helpers now provided by bridge_utils.hpp
 // Crash phase marker and SIGSEGV handler for diagnostics
@@ -44,7 +46,7 @@ static void segv_handler(int) {
   std::_Exit(70);
 }
 // Kibitz length (number of top moves to generate and evaluate). Not simulations.
-static int kibitzLenFor(const std::string& d){ if(d=="easy")return 15; if(d=="hard")return 100; return 50; }
+static int kibitzLenFor(const std::string& d){ if(d=="easy")return 5; if(d=="hard")return 150; return 20; }
 
 // debugLog/cursorDebugLog now provided by bridge_utils.hpp
 
@@ -200,7 +202,9 @@ int main(int argc, char** argv){
     g_phase = "validate_input";
     const json jboard = req.value("board", json::object());
     std::set<std::pair<int,int>> originalBoardSquares;
-    const json jrack  = req.value("rack",  json::array());
+  const json jrack  = req.value("rack",  json::array());
+  const int bagCountHint = req.value("bag_count", -1);
+  const json jbagPool = req.value("bag_pool", json::array());
     const std::string ruleset = req.value("ruleset", std::string("en"));
   const std::string diff = req.value("difficulty", std::string("medium"));
   const int kibitzLen = kibitzLenFor(diff);
@@ -625,9 +629,33 @@ int main(int argc, char** argv){
     board.prepareEmptyBoard();
     debugLog("Board prepared");
     
-    // Set up bag (use default bag)
+    // Set up bag from bag_pool if provided, else default bag
     Quackle::Bag bag;
-    pos.setBag(bag);
+    try {
+      if (jbagPool.is_array() && !jbagPool.empty()) {
+        Quackle::LetterString ls;
+        ls.reserve(jbagPool.size());
+        for (const auto &e : jbagPool) {
+          if (!e.is_string()) continue;
+          std::string s = e.get<std::string>();
+          if (s.empty()) continue;
+          char ch = (char)std::toupper((unsigned char)s[0]);
+          // '?' represents a blank tile in our API; encode accordingly
+          if (ch == '?') {
+            ls.push_back(QUACKLE_BLANK_MARK);
+          } else if (alphabetParams) {
+            Quackle::LetterString enc = alphabetParams->encode(std::string(1, ch));
+            if (!enc.empty()) ls.push_back(enc[0]);
+          }
+        }
+        Quackle::Bag custom(ls);
+        pos.setBag(custom);
+      } else {
+        pos.setBag(bag);
+      }
+    } catch (...) {
+      pos.setBag(bag);
+    }
     debugLog("Bag set");
     
     // Set current player and rack (force recalculation of internals)
@@ -733,28 +761,38 @@ int main(int argc, char** argv){
 
   Quackle::Move best;
   bool foundValidMove = false;
-  // Strict HL is enabled via env or by difficulty medium/hard by default
-  const bool strictHL = env_flag_on("QUACKLE_STRICT_HL") || (diff == "medium" || diff == "hard");
+  // Strict HL: sempre vero nelle tre modalità richieste (accetta Pass/Exchange così come sono)
+  const bool strictHL = true;
   bool hlSucceeded = false;
-  std::string enginePath = "hl"; // track which path produced the final move
+  std::string enginePath = "hl"; // hl | endgame
+  bool usedEndgameSolver = false;
+  bool usedSimulator = false;
 
-    // High-Level path
+  // High-Level path (nessun fallback al Generator)
     try {
       fprintf(stderr, "[DEBUG] Using HIGH-LEVEL API: GamePosition::kibitz + staticBestMove\n");
       pos.kibitz(kibitzLen);
       debugLog(std::string("High-level kibitz done. Moves found: ") + std::to_string(pos.moves().size()));
-      // Prefer a placement from the HL move list
-      best = Quackle::Move::createPassMove();
+      // Selezione mossa in base alla difficoltà
       const Quackle::MoveList &hlMoves = pos.moves();
-      for (const auto &m : hlMoves) {
-        if (m.action == Quackle::Move::Place) { best = m; break; }
+      auto pick_by_index = [&](int idx)->Quackle::Move{
+        if (!hlMoves.empty()) {
+          if (idx >= 0 && idx < (int)hlMoves.size()) return hlMoves[idx];
+          return hlMoves[0];
+        }
+        return pos.staticBestMove();
+      };
+      if (diff == "medium") {
+        // Terza migliore se esiste, altrimenti seconda, altrimenti prima
+        if ((int)hlMoves.size() >= 3) best = hlMoves[2];
+        else if ((int)hlMoves.size() >= 2) best = hlMoves[1];
+        else best = pick_by_index(0);
+      } else {
+        // easy/hard: migliore
+        best = pick_by_index(0);
       }
-      if (best.action != Quackle::Move::Place) {
-        // Fallback to staticBestMove if no explicit Place was found
-        best = pos.staticBestMove();
-      }
-      // Consider a Place move valid even if tiles() is empty; we'll reconstruct tiles from wordTiles().
-      foundValidMove = (best.action == Quackle::Move::Place);
+      // Consideriamo valido qualsiasi azione proposta dall'HL (Place/Exchange/Pass)
+      foundValidMove = true;
       hlSucceeded = true;
       fprintf(stderr, "[DEBUG] HL result: action=%d score=%d\n", (int)best.action, best.score);
     } catch (const std::exception &e) {
@@ -767,46 +805,68 @@ int main(int argc, char** argv){
       foundValidMove = false;
     }
 
-    // If strict HL is enabled and HL succeeded, accept HL decision even if Exchange/Pass
-    if (strictHL && hlSucceeded) {
-      // Accept whatever HL deemed best (Place/Exchange/Pass)
-      foundValidMove = true;
+    // Simulatore: in hard su non-endgame e, di default, in endgame "ampio" (bag < 15) su tutte le difficoltà
+    try {
+      int bagSize = (bagCountHint >= 0) ? bagCountHint : (int)pos.bag().size();
+      int endgameThreshold = env_int("QUACKLE_ENDGAME_THRESHOLD", 7);
+      int simEndgameThreshold = env_int("QUACKLE_SIM_ENDGAME_THRESHOLD", 15);
+      const bool hardNonEndgame = (diff == "hard" && bagSize > endgameThreshold);
+      const bool genericEndgameSim = (bagSize < simEndgameThreshold);
+      if (hardNonEndgame || genericEndgameSim) {
+        int simTop   = env_int("QUACKLE_SIM_TOP", 5);
+        int simDepth = env_int("QUACKLE_SIM_DEPTH", 2);
+        int simIters = env_int("QUACKLE_SIM_ITERS", 40);
+        int simThreads = env_int("QUACKLE_SIM_THREADS", 2);
+        if (simTop > 0 && simDepth >= 0 && simIters > 0) {
+          Quackle::Simulator sim;
+          if (simThreads >= 0) sim.setThreadCount((size_t)simThreads);
+          sim.setPosition(pos);
+          // Includi le top-N mosse dalla lista HL
+          Quackle::MoveList topMoves;
+          int n = (int)pos.moves().size();
+          int m = std::min(simTop, n);
+          for (int i = 0; i < m; ++i) topMoves.push_back(pos.moves()[i]);
+          if (m > 0) {
+            sim.setIncludedMoves(topMoves);
+            sim.setIgnoreOppos(false);
+            sim.simulate(simDepth, simIters);
+            if (sim.hasSimulationResults()) {
+              Quackle::MoveList sm = sim.moves(/*prune=*/true, /*byWin=*/false);
+              if (!sm.empty()) {
+                best = sm.front();
+                usedSimulator = true;
+                foundValidMove = true;
+                enginePath = "hl"; // resta HL, ma con selezione via sim
+              }
+            }
+          }
+        }
+      }
+    } catch (const std::exception &e) {
+      debugLog(std::string("Simulator exception: ") + e.what());
+    } catch (...) {
+      debugLog("Simulator unknown exception");
     }
 
-    // Fallback to Generator if we still don't have a valid move to serialize
-    if (!foundValidMove) {
-      try {
-        fprintf(stderr, "[DEBUG] Fallback: Using GENERATOR API via setPosition()\n");
-        Quackle::Generator gen;
-        gen.setPosition(pos);
-        gen.allCrosses();
-        // Prefer generating actual placement moves for service responses.
-        // If strictHL is disabled, disallow exchanges to favor visible plays.
-        // If strictHL is enabled, allow exchanges also in generator path.
-        const int kibitzFlags = strictHL ? 0 : Quackle::Generator::CannotExchange;
-        gen.kibitz(kibitzLen, kibitzFlags);
-        debugLog(std::string("Generator kibitz done. Moves found: ") + std::to_string(gen.kibitzList().size()));
-        const Quackle::MoveList &moves = gen.kibitzList();
-        fprintf(stderr, "[DEBUG] GEN kibitz moves count=%d\n", (int)moves.size());
-        if (!moves.empty()) {
-          best = moves.front();
-          foundValidMove = (best.action != Quackle::Move::Pass);
-        } else {
-          debugLog("GEN kibitz returned no moves");
-          best = Quackle::Move::createPassMove();
-        }
-        enginePath = "gen";
-      } catch (const std::exception &e) {
-        debugLog(std::string("Exception during generator kibitz: ") + e.what());
-        best = Quackle::Move::createPassMove();
-        foundValidMove = false;
-        enginePath = "gen";
-      } catch (...) {
-        debugLog("Unknown exception during generator kibitz");
-        best = Quackle::Move::createPassMove();
-        foundValidMove = false;
-        enginePath = "gen";
+    // Modalità HARD: se in endgame (bag <= soglia), usa Endgame solver
+    try {
+      int bagSize = (bagCountHint >= 0) ? bagCountHint : (int)pos.bag().size();
+      int endgameThreshold = env_int("QUACKLE_ENDGAME_THRESHOLD", 7);
+      if (diff == "hard" && bagSize <= endgameThreshold) {
+        Quackle::Endgame eg;
+        eg.setPosition(pos);
+        Quackle::Move egm = eg.solve(/*nestedness=*/0);
+        best = egm;
+        usedEndgameSolver = true;
+        enginePath = "endgame";
+        foundValidMove = true;
+        fprintf(stderr, "[DEBUG] ENDGAME solver used: action=%d score=%d\n", (int)best.action, best.score);
       }
+    } catch (const std::exception &e) {
+      debugLog(std::string("Endgame solver exception: ") + e.what());
+      // nessun fallback diverso: restiamo con il risultato HL già calcolato
+    } catch (...) {
+      debugLog("Endgame solver unknown exception");
     }
 
     // Ensure the move has a proper point score before serializing.
@@ -836,7 +896,7 @@ int main(int argc, char** argv){
             response["words"] = json::array();
             response["move_type"] = "pass";
             response["engine_fallback"] = false;
-            response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}};
+            response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedSimulator ? "simulating" : (usedEndgameSolver ? "endgame" : "static")}};
             std::cout << response.dump() << std::endl;
         } else if (best.action == Quackle::Move::Exchange) {
           debugLog("Processing exchange move...");
@@ -847,7 +907,7 @@ int main(int argc, char** argv){
           response["words"] = json::array();
           response["move_type"] = "exchange";
           response["engine_fallback"] = false;
-          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}};
+          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedSimulator ? "simulating" : (usedEndgameSolver ? "endgame" : "static")}};
           std::cout << response.dump() << std::endl;
         } else if (best.action == Quackle::Move::Place && !best.tiles().empty()) {
           debugLog("Processing place move...");
@@ -859,18 +919,18 @@ int main(int argc, char** argv){
           response["words"] = words;
           response["move_type"] = "play";
           response["engine_fallback"] = false;
-          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}};
+          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedSimulator ? "simulating" : (usedEndgameSolver ? "endgame" : "static")}};
           
           std::cout << response.dump() << std::endl;
         } else {
-          debugLog("Move is not a place move and not a pass - returning pass");
+          debugLog("Move is neither place with tiles nor recognized special; returning as pass-equivalent");
           json response;
           response["tiles"] = json::array();
           response["score"] = 0;
           response["words"] = json::array();
           response["move_type"] = "pass";
-          response["engine_fallback"] = true;
-          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}};
+          response["engine_fallback"] = false;
+          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedSimulator ? "simulating" : (usedEndgameSolver ? "endgame" : "static")}};
           std::cout << response.dump() << std::endl;
         }
         

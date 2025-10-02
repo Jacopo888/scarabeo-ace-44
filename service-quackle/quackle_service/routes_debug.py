@@ -121,6 +121,61 @@ def debug_bridge_payload(req: Dict[str, Any]):
     bridge_payload = sanitize_none({"rack": rack_str, "ruleset": "en", "board": coord_map})
     return {"bridge_payload": bridge_payload}
 
+@router.post("/debug/bag-payload")
+def debug_bag_payload(req: Dict[str, Any]):
+    """
+    Helper to compute a bag_pool array given a board grid and two racks.
+    Input body supports:
+      - board: grid schema (rows, cols, grid[]) or coord_map
+      - my_rack: string or array form
+      - opp_rack: string or array form
+      - distribution: optional override for letter counts (single-char keys, '?' for blanks)
+    Output:
+      { bag_pool: string[], bag_count: number }
+    """
+    board_out = normalize_board_for_bridge(req.get("board"))
+    from .normalization import normalize_rack_flexible
+    my_rack = normalize_rack_flexible(req.get("my_rack"))
+    opp_rack = normalize_rack_flexible(req.get("opp_rack"))
+    from .routes_best_move import grid_to_coordmap as _g2c
+    coord_map = _g2c(board_out.get("grid"))
+    # Build base distribution (English)
+    base = {
+        'A': 9, 'B': 2, 'C': 2, 'D': 4, 'E': 12, 'F': 2, 'G': 3, 'H': 2, 'I': 9,
+        'J': 1, 'K': 1, 'L': 4, 'M': 2, 'N': 6, 'O': 8, 'P': 2, 'Q': 1, 'R': 6,
+        'S': 4, 'T': 6, 'U': 4, 'V': 2, 'W': 2, 'X': 1, 'Y': 2, 'Z': 1, '?': 2
+    }
+    dist = dict(base)
+    ovr = req.get("distribution") if isinstance(req, dict) else None
+    if isinstance(ovr, dict):
+        for k, v in ovr.items():
+            if isinstance(k, str) and len(k) == 1:
+                K = k.upper()
+                if K in base:
+                    try:
+                        dist[K] = max(0, int(v))
+                    except Exception:
+                        pass
+    import re as _re
+    remain = dict(dist)
+    # subtract board letters
+    for _, cell in (coord_map or {}).items():
+        letter = str(cell.get('letter') or '').upper()[:1]
+        if letter == '.':
+            continue
+        K = '?' if letter in {'*', '?'} else letter
+        if _re.fullmatch(r"[A-Z\?]", K):
+            remain[K] = max(0, int(remain.get(K, 0)) - 1)
+    # subtract racks
+    for ch in (my_rack or '') + (opp_rack or ''):
+        K = '?' if ch in {'*', '?'} else ch
+        if _re.fullmatch(r"[A-Z\?]", K):
+            remain[K] = max(0, int(remain.get(K, 0)) - 1)
+    bag_pool = []
+    for k, n in remain.items():
+        bag_pool.extend([k] * int(n))
+    return {"bag_pool": bag_pool, "bag_count": len(bag_pool)}
+
 @router.get("/debug/quackle")
 def debug_quackle():
     appdata = APPDATA
@@ -163,7 +218,7 @@ def debug_engine_config(request: Request):
     try:
         # difficulty mapping used by the bridge
         def kibitz_len_for(d: str) -> int:
-            return 15 if d == 'easy' else (100 if d == 'hard' else 50)
+            return 5 if d == 'easy' else (150 if d == 'hard' else 20)
 
         difficulty = (request.query_params.get('difficulty') or 'medium').strip().lower()
         if difficulty not in { 'easy', 'medium', 'hard' }:
