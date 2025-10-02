@@ -169,9 +169,9 @@ def test_G_crossword_letters_from_raw_move(monkeypatch):
     assert r.status_code == 200, r.text
     tiles = r.json().get("tiles", [])
     assert [t.get("letter") for t in tiles] == ["J", "Y"]
-    # Service must normalize to 0-based coordinates
+    # After fix: Service preserves raw_move positions as-is (assuming they're already 0-based from Quackle)
     coords = [[t.get("row"), t.get("col")] for t in tiles]
-    assert coords == [[6, 6], [8, 6]]
+    assert coords == [[7, 7], [9, 7]]
 
 
 def test_H_blank_tiles_preserve_letter(monkeypatch):

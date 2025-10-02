@@ -38,9 +38,9 @@ async def best_move(req: Request):
             if not ok:
                 raise HTTPException(status_code=500, detail="lexicon_not_ready")
 
-    board_map = grid_to_coordmap(board_out.get("grid"))
-    board_is_empty = (not bool(board_map))
-    payload: Dict[str, Any] = {"board": (board_map if board_map else {}), "rack": rack_norm}
+        board_map = grid_to_coordmap(board_out.get("grid"))
+        board_is_empty = (not bool(board_map))
+        payload: Dict[str, Any] = {"board": (board_map if board_map else {}), "rack": rack_norm}
         diff_raw = (body.get("difficulty") if isinstance(body, dict) else None) or None
         if isinstance(diff_raw, str) and diff_raw.strip().lower() in {"easy", "medium", "hard"}:
             payload["difficulty"] = diff_raw.strip().lower()
@@ -76,24 +76,20 @@ async def best_move(req: Request):
                 return t
         tiles_out = [_ensure_ints(t) for t in tiles_out]
 
-        # Safety: some Quackle builds may emit 1-based rows.
-        # Only adjust if current tiles are OUT of 0..14 bounds and subtracting 1 fixes them.
-    if tiles_out and all(isinstance(t.get("row"), int) and isinstance(t.get("col"), int) for t in tiles_out):
+        # Convert row/col to integers and validate bounds (0-based coordinates)
+        if tiles_out and all(isinstance(t.get("row"), int) and isinstance(t.get("col"), int) for t in tiles_out):
             def _in_bounds(ts):
                 try:
                     return all(0 <= int(t.get("row")) < 15 and 0 <= int(t.get("col")) < 15 for t in ts)
                 except Exception:
                     return False
+            
+            # Validate that tiles are within bounds - if not, this indicates a deeper issue
             if not _in_bounds(tiles_out):
-                candidate = [{**t, "row": int(t.get("row")) - 1} for t in tiles_out]
-                if _in_bounds(candidate):
-                    tiles_out = candidate
-            else:
-                # Opening heuristic: some runs return the opening word at row=5 (one above center 6) with cols around 6..8.
-                rows = [int(t.get("row")) for t in tiles_out]
-                cols = [int(t.get("col")) for t in tiles_out]
-                if len(set(rows)) == 1 and rows[0] == 5 and any(6 <= c <= 8 for c in cols):
-                    tiles_out = [{**t, "row": t["row"] + 1} for t in tiles_out]
+                # Log the error but don't apply arbitrary transformations
+                import logging
+                logging.warning(f"Tiles out of bounds detected: {tiles_out}")
+                # Keep tiles as-is rather than applying potentially incorrect transformations
 
         # Opening centering: if the input board is empty, ensure the move covers the center (7,7) in 0-based.
         # We only apply a minimal shift if it keeps all tiles within bounds and aligns one tile with the center along the move axis.

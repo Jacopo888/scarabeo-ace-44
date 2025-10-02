@@ -130,8 +130,8 @@ def reconstruct_tiles_from_raw_move(raw_move: Dict[str, Any], words: Optional[An
             continue
         letter_up = letter_char.upper()
         tiles.append({
-            "row": target[0] - 1,
-            "col": target[1] - 1,
+            "row": target[0],
+            "col": target[1],
             "letter": letter_up,
             "points": 0 if is_blank else _letter_points_en(letter_up),
             "isBlank": is_blank
