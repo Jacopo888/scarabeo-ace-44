@@ -63,10 +63,13 @@ inline void serialize_place_move(
 ) {
   outTiles = json::array();
   outWords = json::array();
-  // Extract tiles (may be empty in some HL paths)
+  // Extract tiles (may be empty in some HL paths). Prefer usedTiles() which includes
+  // play-thru markers so we can step correctly along the board and skip already-on-board squares.
+  Quackle::LetterString used = best.usedTiles();
   Quackle::LetterString tilesStr = best.tiles();
+  Quackle::LetterString seq = used.length() ? used : tilesStr;
   std::string primaryWord;
-  primaryWord.reserve(tilesStr.length());
+  primaryWord.reserve(seq.length());
   int startRow = best.startrow;
   int startCol = best.startcol;
   bool isHorizontal = best.horizontal;
@@ -74,16 +77,34 @@ inline void serialize_place_move(
   int rr = startRow;
   int cc = startCol;
   auto adv = [&](int &r, int &c) { if (isHorizontal) ++c; else ++r; };
-  Quackle::LetterString seq = tilesStr;
+  bool fallbackWordOnly = false;
   if (seq.length() == 0) {
     seq = best.wordTiles();
+    fallbackWordOnly = true;
+  }
+  // Guard: if coordinates appear to overflow 0-based bounds with the current
+  // start indices, attempt a 1-based→0-based correction by subtracting 1 only
+  // when it fixes the overflow. This avoids double-adjusting valid 0-based coords.
+  const int L = static_cast<int>(seq.length());
+  if (L > 0 && fallbackWordOnly) {
+    // Only when we had to fall back to wordTiles() (HL path with no used/tiles info),
+    // make sure the span fits the board by shifting backward if necessary.
+    if (isHorizontal) {
+      const int overBy = (cc + L - 1) - 14;
+      if (overBy > 0) { cc = std::max(0, cc - overBy); }
+    } else {
+      const int overBy = (rr + L - 1) - 14;
+      if (overBy > 0) { rr = std::max(0, rr - overBy); }
+    }
   }
   for (size_t i = 0; i < seq.length(); ++i) {
     Quackle::Letter tileValue = seq[i];
+    // Detect played-thru markers using Quackle API, with a secondary check on '.'
+    bool playedThru = Quackle::Move::isAlreadyOnBoard(tileValue);
     std::string uv = alphabetParams->userVisible(tileValue);
     bool isDotPlaceholder = (!uv.empty() && uv[0] == '.');
     bool occupied = originalBoardSquares.count({rr, cc}) > 0;
-    if (!(isDotPlaceholder || occupied)) {
+    if (!((playedThru || isDotPlaceholder) || occupied)) {
       bool tileBlank = alphabetParams->isBlankLetter(tileValue) || tileValue == QUACKLE_BLANK_MARK;
       Quackle::Letter baseLetter = tileValue;
       if (alphabetParams->isBlankLetter(tileValue)) {
