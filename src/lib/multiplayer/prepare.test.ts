@@ -9,7 +9,7 @@ describe('prepareSubmitOutcome', () => {
     const deps = {
       validateMoveLogic: () => ({ isValid: false, errors: ['not contiguous'] }),
       findNewWordsFormed: () => [],
-      calculateNewMoveScore: () => 0,
+      calculateScore: () => 0,
       isValidWord: () => true,
     }
     const res = prepareSubmitOutcome(board, [], deps)
@@ -27,7 +27,7 @@ describe('prepareSubmitOutcome', () => {
     const deps = {
       validateMoveLogic: () => ({ isValid: true, errors: [] }),
       findNewWordsFormed: () => [{ word: 'AT' }],
-      calculateNewMoveScore: () => 5,
+      calculateScore: () => 5,
       isValidWord: () => true,
     }
     const res = prepareSubmitOutcome(board, pending, deps)

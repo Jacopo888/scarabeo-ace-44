@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { recalculateQuackleScore } from './quackleScoreRecalc'
+import { calculateScore } from './scoring'
 import type { PlacedTile } from '@/types/game'
 
-describe('recalculateQuackleScore', () => {
+describe('calculateScore (quackle scenarios)', () => {
   it('calculates score for JIN at center (7,7) with DW multiplier', () => {
     const tiles: PlacedTile[] = [
       { row: 7, col: 7, letter: 'J', points: 8, isBlank: false },
@@ -12,7 +12,7 @@ describe('recalculateQuackleScore', () => {
     const board = new Map<string, PlacedTile>()
     
     // J(8) + I(1) + N(1) = 10, × 2 (DW at center) = 20
-    const score = recalculateQuackleScore(tiles, board)
+  const score = calculateScore({ tiles, existingBoard: board, context: 'quackle' })
     expect(score).toBe(20)
   })
 
@@ -26,7 +26,7 @@ describe('recalculateQuackleScore', () => {
     const board = new Map<string, PlacedTile>()
     
     // D(2) + J(8) + I(1) + N(1) = 12, × 2 (DW at center) = 24
-    const score = recalculateQuackleScore(tiles, board)
+  const score = calculateScore({ tiles, existingBoard: board, context: 'quackle' })
     expect(score).toBe(24)
   })
 
@@ -39,7 +39,7 @@ describe('recalculateQuackleScore', () => {
     const board = new Map<string, PlacedTile>()
     
     // C(3) + A(1) + T(1) = 5, × 3 (TW at 0,0) = 15
-    const score = recalculateQuackleScore(tiles, board)
+  const score = calculateScore({ tiles, existingBoard: board, context: 'quackle' })
     expect(score).toBe(15)
   })
 
@@ -52,7 +52,7 @@ describe('recalculateQuackleScore', () => {
     const board = new Map<string, PlacedTile>()
     
     // Z(10×2) + O(1) + O(1) = 22
-    const score = recalculateQuackleScore(tiles, board)
+  const score = calculateScore({ tiles, existingBoard: board, context: 'quackle' })
     expect(score).toBe(22)
   })
 
@@ -64,7 +64,7 @@ describe('recalculateQuackleScore', () => {
     const board = new Map<string, PlacedTile>()
     
     // Q(10×3) + I(1) = 31
-    const score = recalculateQuackleScore(tiles, board)
+  const score = calculateScore({ tiles, existingBoard: board, context: 'quackle' })
     expect(score).toBe(31)
   })
 
@@ -82,7 +82,7 @@ describe('recalculateQuackleScore', () => {
     // But since the new tiles don't trigger DW (J is already there), score = 10
     // Actually: full word is JIN (8+1+1=10), but center DW was already used
     // New tiles don't sit on special squares, so: 10 (no mult)
-    const score = recalculateQuackleScore(tiles, board)
+  const score = calculateScore({ tiles, existingBoard: board, context: 'quackle' })
     expect(score).toBe(10)
   })
 
@@ -129,7 +129,7 @@ describe('recalculateQuackleScore', () => {
     // So 7,13 is NOT a special square! Only 7,7 is DW.
     // Recalc: (10 + 1 + 1 + 3 + 10 + 1 + 2) * 2 + 50 = 28*2+50 = 56+50 = 106
     // So the function is correct! The test expected value is wrong.
-    const score = recalculateQuackleScore(tiles, board)
+  const score = calculateScore({ tiles, existingBoard: board, context: 'quackle' })
     expect(score).toBe(106)  // Fixed: 28 base * 2 (DW at 7,7) + 50 (bingo) = 106
   })
 
@@ -137,7 +137,7 @@ describe('recalculateQuackleScore', () => {
     const tiles: PlacedTile[] = []
     const board = new Map<string, PlacedTile>()
     
-    const score = recalculateQuackleScore(tiles, board)
+  const score = calculateScore({ tiles, existingBoard: board, context: 'quackle' })
     expect(score).toBe(0)
   })
 
@@ -149,7 +149,7 @@ describe('recalculateQuackleScore', () => {
     const board = new Map<string, PlacedTile>()
     
     // A(0) + T(1) = 1, × 2 (DW at center) = 2
-    const score = recalculateQuackleScore(tiles, board)
+  const score = calculateScore({ tiles, existingBoard: board, context: 'quackle' })
     expect(score).toBe(2)
   })
 })

@@ -25,6 +25,7 @@ Ultimo aggiornamento: 2025-09-29
 ## Pattern e convenzioni del repo
 - TypeScript: indentazione 2 spazi. Componenti React in PascalCase (es. `BoardTile.tsx`); util/hook in camelCase (es. `useGame.ts`).
 - Test vicino ai file (FE) e in `service-quackle/tests` (Python). Aggiungi test per nuova logica e mantieni il verde.
+- Scoring Scrabble: usa sempre `calculateScore()` da `src/utils/scoring.ts`. I moltiplicatori e le caselle speciali provengono solo da `src/config/boardConstants.ts` (niente duplicazioni). Evita qualsiasi calcolo alternativo.
 - Commit: stile convenzionale (`feat|fix|chore|docs(scope): msg`). Aggiorna `.env.example` se aggiungi variabili.
 - Sicurezza: non committare segreti. Env richieste: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `VITE_QUACKLE_SERVICE_URL`; per rating‑api `DATABASE_URL`, `REDIS_URL`.
 
@@ -39,6 +40,7 @@ Ultimo aggiornamento: 2025-09-29
 - Verifica health Quackle: `GET /health` deve mostrare `engine_ready:true` e dimensioni GADDAG/DAWG > 0.
 - Chiamata base `/best-move` con board vuota (legacy grid 15x15 di punti) e rack `AEIRSTZ` → deve produrre una mossa non `pass`.
 - Debug strategia: `GET /debug/strategy` e `GET /debug/strategy-probe` (se esposti) per verificare file in `/data/appdata/strategy`.
+- Punteggio mosse: per qualsiasi validazione in FE o ricalcolo mosse Quackle, utilizzare `calculateScore({ tiles, existingBoard })`.
 
 ## Dove guardare per esempi
 - Integrazione servizio: `service-quackle/README.md` (payload, normalizzazione, errori, env).

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { GameState, Player, Tile, PlacedTile } from '@/types/game'
 import { validateMoveLogic } from '@/utils/moveValidation'
 import { findNewWordsFormed } from '@/utils/newWordFinder'
-import { calculateNewMoveScore } from '@/utils/newScoring'
+import { calculateScore } from '@/utils/scoring'
 import { useToast } from '@/hooks/use-toast'
 import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
@@ -28,7 +28,7 @@ import { titleForConfirmError } from '@/lib/game/toast'
 import { shouldPassBotMove } from '@/lib/game/botPass'
 import { summarizeMoveInfo } from '@/lib/game/moveUtils'
 import { logPlayerMove, logPlayerAction } from '@/utils/debugLogger'
-import { recalculateQuackleScore } from '@/utils/quackleScoreRecalc'
+// score unificato
 
   // helpers estratti in src/lib/game
 
@@ -88,7 +88,7 @@ export const useGame = () => {
   }, [pendingTiles])
 
   const confirmMove = useCallback(() => {
-    const deps = { validateMoveLogic, findNewWordsFormed, calculateNewMoveScore, isValidWord }
+  const deps = { validateMoveLogic, findNewWordsFormed, calculateScore, isValidWord }
     setGameState(prev => {
       const res = applyConfirmMove(prev, pendingTiles, deps)
       if (!res.ok) {
@@ -236,10 +236,8 @@ export const useGame = () => {
         return
       }
 
-      // CRITICAL FIX: Recalculate score using our board multipliers
-      // Quackle bridge may return incorrect scores
-      const recalculatedScore = recalculateQuackleScore(sanitizedTiles, snapshot.board)
-      const finalScore = recalculatedScore
+  // Recalculate score using our board multipliers (bridge may be off)
+  const finalScore = calculateScore({ tiles: sanitizedTiles, existingBoard: snapshot.board, context: 'quackle' })
       
       if (import.meta.env.DEV) {
         console.log('[useGame] 🔧 SCORE FIX - Bridge score:', move.score, '→ Recalculated:', finalScore)

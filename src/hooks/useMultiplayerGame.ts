@@ -6,7 +6,7 @@ import { GameState, Tile, PlacedTile } from '@/types/game'
 import { useToast } from '@/hooks/use-toast'
 import { validateMoveLogic } from '@/utils/moveValidation'
 import { findNewWordsFormed } from '@/utils/newWordFinder'
-import { calculateNewMoveScore } from '@/utils/newScoring'
+import { calculateScore } from '@/utils/scoring'
 import { shuffleArray, drawTiles } from '@/lib/multiplayer/tiles'
 import { shouldEndGameAfterMove, applyEndgamePenalties } from '@/lib/multiplayer/endgame'
 import { useDictionary } from '@/contexts/DictionaryContext'
@@ -120,9 +120,10 @@ export const useMultiplayerGame = (gameId: string) => {
 
       // Prepare board and compute validated move via pure helpers
       const boardMap = new Map<string, PlacedTile>(Object.entries(game.board_state || {}) as [string, PlacedTile][])
-      const prepared = prepareSubmitOutcome(boardMap, pendingTiles, { validateMoveLogic, findNewWordsFormed, calculateNewMoveScore, isValidWord })
+  const prepared = prepareSubmitOutcome(boardMap, pendingTiles, { validateMoveLogic, findNewWordsFormed, calculateScore, isValidWord })
       if (!prepared.ok) {
-        toast({ title: 'Invalid move', description: prepared.errors.join(', '), variant: 'destructive' })
+        const errs = (prepared as { ok: false; errors: string[] }).errors || []
+        toast({ title: 'Invalid move', description: errs.join(', '), variant: 'destructive' })
         setLoading(false)
         return
       }

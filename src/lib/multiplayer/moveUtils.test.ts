@@ -17,7 +17,7 @@ describe('multiplayer/moveUtils', () => {
     const deps: MoveDeps = {
       validateMoveLogic: () => ({ isValid: false, errors: ['not_contiguous'] }),
       findNewWordsFormed: () => [{ word: 'A' }],
-      calculateNewMoveScore: () => 10,
+      calculateScore: () => 10,
       isValidWord: () => true
     }
 
@@ -34,7 +34,7 @@ describe('multiplayer/moveUtils', () => {
     const deps: MoveDeps = {
       validateMoveLogic: () => ({ isValid: true, errors: [] }),
       findNewWordsFormed: () => [{ word: 'BAD' }, { word: 'OK' }],
-      calculateNewMoveScore: () => 20,
+      calculateScore: () => 20,
       isValidWord: w => w !== 'BAD'
     }
 
@@ -51,7 +51,7 @@ describe('multiplayer/moveUtils', () => {
     const deps: MoveDeps = {
       validateMoveLogic: () => ({ isValid: true, errors: [] }),
       findNewWordsFormed: () => [{ word: 'CAT' }],
-      calculateNewMoveScore: () => 42,
+      calculateScore: () => 42,
       isValidWord: () => true
     }
 

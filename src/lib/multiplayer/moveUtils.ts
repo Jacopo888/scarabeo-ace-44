@@ -3,7 +3,7 @@ import type { PlacedTile } from '@/types/game'
 export type MoveDeps = {
   validateMoveLogic: (board: Map<string, PlacedTile>, pending: PlacedTile[]) => { isValid: boolean; errors: string[] }
   findNewWordsFormed: (board: Map<string, PlacedTile>, pending: PlacedTile[]) => { word: string }[]
-  calculateNewMoveScore: (words: { word: string }[], pending: PlacedTile[]) => number
+  calculateScore: (opts: { tiles: PlacedTile[]; existingBoard: Map<string, PlacedTile>; context?: 'player' | 'quackle' }) => number
   isValidWord: (w: string) => boolean
 }
 
@@ -20,7 +20,7 @@ export function computeValidatedMove(
   pendingTiles: PlacedTile[],
   deps: MoveDeps
 ): MoveOutcome {
-  const { validateMoveLogic, findNewWordsFormed, calculateNewMoveScore, isValidWord } = deps
+  const { validateMoveLogic, findNewWordsFormed, calculateScore, isValidWord } = deps
 
   const validation = validateMoveLogic(boardMap, pendingTiles)
   if (!validation.isValid) {
@@ -33,7 +33,7 @@ export function computeValidatedMove(
     return { ok: false, errors: invalid.map(w => w.word), newWords: [], score: 0 }
   }
 
-  const score = calculateNewMoveScore(newWords, pendingTiles)
+  const score = calculateScore({ tiles: pendingTiles, existingBoard: boardMap, context: 'player' })
   return { ok: true, newWords, score }
 }
 

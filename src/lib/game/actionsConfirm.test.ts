@@ -18,7 +18,7 @@ const makeState = (over: Partial<GameState> = {}): GameState => ({
 const deps: ConfirmDeps = {
   validateMoveLogic: () => ({ isValid: true, errors: [] }),
   findNewWordsFormed: () => [{ word: 'HI' }],
-  calculateNewMoveScore: () => 5,
+  calculateScore: () => 5,
   isValidWord: () => true,
 }
 

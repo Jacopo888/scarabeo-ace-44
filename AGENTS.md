@@ -36,3 +36,8 @@
 ## Agent-Specific Instructions
 - Prefer minimal, targeted patches; keep existing structure and naming. Do not rename files without need. Add tests for new logic and keep all tests passing.
 
+### Scoring (Scrabble) - Linee guida
+- Usare SEMPRE `calculateScore()` da `src/utils/scoring.ts` per il calcolo del punteggio (player e Quackle).
+- Non reintrodurre copie di `SPECIAL_SQUARES`: unica fonte `src/config/boardConstants.ts` (l'UI re-esporta in `src/components/board/constants.ts`).
+- Se servono regole o esempi, vedere `docs/SCORING_RULES.md` e `docs/SCORE_ANALYSIS.md`.
+

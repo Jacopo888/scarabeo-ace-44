@@ -6,7 +6,8 @@ import { computeFinalPlayers } from './endgame'
 export interface ConfirmDeps {
   validateMoveLogic: (board: Map<string, PlacedTile>, pending: PlacedTile[]) => { isValid: boolean; errors: string[] }
   findNewWordsFormed: (board: Map<string, PlacedTile>, pending: PlacedTile[]) => Array<{ word: string }>
-  calculateNewMoveScore: (newWords: Array<{ word: string }>, pending: PlacedTile[]) => number
+  // Unified API: calculate full score from tiles and board (required)
+  calculateScore: (opts: { tiles: PlacedTile[]; existingBoard: Map<string, PlacedTile>; context?: 'player' | 'quackle' }) => number
   isValidWord: (w: string) => boolean
 }
 
@@ -47,7 +48,8 @@ export function applyConfirmMove(prev: GameState, pendingTiles: PlacedTile[], de
     return { ok: false, errorCode: 'invalid_words', error: `Invalid words: ${invalidWords.map(w => w.word).join(', ')}` }
   }
 
-  const score = deps.calculateNewMoveScore(newWords, pendingTiles)
+  // Calculate using the unified scorer
+  const score = deps.calculateScore({ tiles: pendingTiles, existingBoard: prev.board, context: 'player' })
 
   // Add tiles to board
   const newBoard = new Map(prev.board)
