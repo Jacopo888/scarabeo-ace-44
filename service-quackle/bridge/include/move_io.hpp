@@ -63,11 +63,14 @@ inline void serialize_place_move(
 ) {
   outTiles = json::array();
   outWords = json::array();
-  // Extract tiles (may be empty in some HL paths). Prefer usedTiles() which includes
-  // play-thru markers so we can step correctly along the board and skip already-on-board squares.
-  Quackle::LetterString used = best.usedTiles();
+  // Extract tiles (may be empty in some HL paths).
+  // We PREFER tiles() because:
+  //  - it encoda i passaggi su lettere già sulla board con '.' (così basta "saltare")
+  //  - conserva le lettere assegnate ai blank tramite il casing (es. 'g' = blank 'G')
+  // usedTiles() sostituisce i blank con QUACKLE_BLANK_MARK e quindi fa perdere la lettera assegnata.
   Quackle::LetterString tilesStr = best.tiles();
-  Quackle::LetterString seq = used.length() ? used : tilesStr;
+  Quackle::LetterString used = best.usedTiles();
+  Quackle::LetterString seq = tilesStr.length() ? tilesStr : used;
   std::string primaryWord;
   primaryWord.reserve(seq.length());
   int startRow = best.startrow;
@@ -86,17 +89,18 @@ inline void serialize_place_move(
   // All normalization/validation happens in the service layer (Python).
   for (size_t i = 0; i < seq.length(); ++i) {
     Quackle::Letter tileValue = seq[i];
-    // Detect played-thru markers using Quackle API, with a secondary check on '.'
-    bool playedThru = Quackle::Move::isAlreadyOnBoard(tileValue);
+    // '.' nei tiles() indica lettera già sulla board → non emettere
     std::string uv = alphabetParams->userVisible(tileValue);
     bool isDotPlaceholder = (!uv.empty() && uv[0] == '.');
+    bool playedThru = Quackle::Move::isAlreadyOnBoard(tileValue);
     bool occupied = originalBoardSquares.count({rr, cc}) > 0;
-    if (!((playedThru || isDotPlaceholder) || occupied)) {
+    if (!(isDotPlaceholder || playedThru || occupied)) {
       bool tileBlank = alphabetParams->isBlankLetter(tileValue) || tileValue == QUACKLE_BLANK_MARK;
       Quackle::Letter baseLetter = tileValue;
       if (alphabetParams->isBlankLetter(tileValue)) {
         baseLetter = alphabetParams->clearBlankness(tileValue);
       }
+      // Per i blank, userVisible del baseLetter restituisce la lettera assegnata (maiuscola)
       std::string letterText = alphabetParams->userVisible(tileBlank ? baseLetter : tileValue);
       if (letterText.empty() || (letterText.size() == 1 && letterText[0] == '.')) {
         letterText = tileBlank ? "?" : "";
