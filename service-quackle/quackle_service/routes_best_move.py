@@ -67,62 +67,66 @@ async def best_move(req: Request):
             rebuilt = reconstruct_tiles_from_raw_move(raw_move, result.get("words"))
             if rebuilt:
                 tiles_out = rebuilt
-        def _ensure_ints(t: dict) -> dict:
-            try:
-                r = int(t.get("row"))
-                c = int(t.get("col"))
-                return {**t, "row": r, "col": c}
-            except Exception:
-                return t
-        tiles_out = [_ensure_ints(t) for t in tiles_out]
 
-        # Convert row/col to integers and validate bounds (0-based coordinates)
-        if tiles_out and all(isinstance(t.get("row"), int) and isinstance(t.get("col"), int) for t in tiles_out):
-            def _in_bounds(ts):
+        # Centralized normalization of tile coordinates (0-based, 15x15)
+        def _normalize_tiles_0based(tiles: list[dict], empty_board: bool) -> list[dict]:
+            if not isinstance(tiles, list):
+                return []
+            # 1) force ints and drop malformed
+            norm: list[dict] = []
+            for t in tiles:
                 try:
-                    return all(0 <= int(t.get("row")) < 15 and 0 <= int(t.get("col")) < 15 for t in ts)
+                    r = int(t.get("row"))
+                    c = int(t.get("col"))
                 except Exception:
-                    return False
-            
-            # Validate that tiles are within bounds - if not, this indicates a deeper issue
-            if not _in_bounds(tiles_out):
-                # Log the error but don't apply arbitrary transformations
-                import logging
-                logging.warning(f"Tiles out of bounds detected: {tiles_out}")
-                # Keep tiles as-is rather than applying potentially incorrect transformations
-
-        # Opening centering: if the input board is empty, ensure the move covers the center (7,7) in 0-based.
-        # We only apply a minimal shift if it keeps all tiles within bounds and aligns one tile with the center along the move axis.
-        if board_is_empty and tiles_out and result.get("move_type") == "play":
-            try:
-                rows = [int(t.get("row")) for t in tiles_out]
-                cols = [int(t.get("col")) for t in tiles_out]
-                unique_rows = len(set(rows))
-                unique_cols = len(set(cols))
+                    continue
+                norm.append({**t, "row": r, "col": c})
+            if not norm:
+                return []
+            # 2) If span sfora, shifta indietro per rientrare (no wrap)
+            rows = [t["row"] for t in norm]
+            cols = [t["col"] for t in norm]
+            minr, maxr = min(rows), max(rows)
+            minc, maxc = min(cols), max(cols)
+            dr = 0
+            dc = 0
+            if maxr > 14: dr = max(0, maxr - 14)
+            if maxc > 14: dc = max(0, maxc - 14)
+            if minr < 0: dr = min(dr, minr)  # minr is negative → shift up by -minr later
+            if minc < 0: dc = min(dc, minc)
+            # Applica shift correttivo
+            tmp = []
+            for t in norm:
+                rr = t["row"] - (dr if dr > 0 else 0)
+                cc = t["col"] - (dc if dc > 0 else 0)
+                tmp.append({**t, "row": rr, "col": cc})
+            norm = tmp
+            # 3) Clamp finale e drop out-of-bounds
+            norm = [t for t in norm if 0 <= t["row"] < 15 and 0 <= t["col"] < 15]
+            if not norm:
+                return []
+            # 4) Optional: micro-centering della prima mossa (se copre il centro lungo l'asse)
+            if empty_board:
+                rows = [t["row"] for t in norm]
+                cols = [t["col"] for t in norm]
                 CENTER = 7
-                def in_bounds(rs, cs):
-                    return all(0 <= r < 15 for r in rs) and all(0 <= c < 15 for c in cs)
-                # Determine orientation
-                if unique_rows == 1 and unique_cols >= 2:
+                if len(set(rows)) == 1 and any(c == CENTER for c in cols):
                     r0 = rows[0]
-                    # If any tile has center column, force row to CENTER
-                    if any(c == CENTER for c in cols):
-                        dr = CENTER - r0
-                        new_rows = [r + dr for r in rows]
-                        if in_bounds(new_rows, cols):
-                            for i in range(len(tiles_out)):
-                                tiles_out[i]["row"] = new_rows[i]
-                    # else leave as-is (even-length words without exact center)
-                elif unique_cols == 1 and unique_rows >= 2:
+                    shift = CENTER - r0
+                    if shift:
+                        cand = [{**t, "row": t["row"] + shift} for t in norm]
+                        if all(0 <= tt["row"] < 15 for tt in cand):
+                            norm = cand
+                elif len(set(cols)) == 1 and any(r == CENTER for r in rows):
                     c0 = cols[0]
-                    if any(r == CENTER for r in rows):
-                        dc = CENTER - c0
-                        new_cols = [c + dc for c in cols]
-                        if in_bounds(rows, new_cols):
-                            for i in range(len(tiles_out)):
-                                tiles_out[i]["col"] = new_cols[i]
-            except Exception:
-                pass
+                    shift = CENTER - c0
+                    if shift:
+                        cand = [{**t, "col": t["col"] + shift} for t in norm]
+                        if all(0 <= tt["col"] < 15 for tt in cand):
+                            norm = cand
+            return norm
+
+        tiles_out = _normalize_tiles_0based(tiles_out, board_is_empty and result.get("move_type") == "play")
 
         out = {
             "tiles": tiles_out,

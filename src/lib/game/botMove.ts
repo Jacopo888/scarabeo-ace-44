@@ -16,6 +16,11 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
   const newBoard = new Map(prev.board)
   sanitizedTiles.forEach(tile => {
     const key = `${tile.row},${tile.col}`
+    if (newBoard.has(key)) {
+      // Do not overwrite an existing board square; this indicates a duplicate/overlap from engine
+      if (import.meta.env.DEV) console.warn('[applyBotMove] Skip overwrite at', key, 'existing:', newBoard.get(key), 'incoming:', tile)
+      return
+    }
     newBoard.set(key, {
       letter: tile.letter,
       points: tile.points,

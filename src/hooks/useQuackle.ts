@@ -14,9 +14,8 @@ export function buildQuackleBoard(gameState: GameState): Record<string, { letter
     // Only process finite integer coordinates
     if (!Number.isFinite(tile.row) || !Number.isFinite(tile.col)) return
     if (!Number.isInteger(tile.row) || !Number.isInteger(tile.col)) return
-    // Convert to 1-based and enforce bounds [1,15]
-    // Guard bounds with centralized helper
-    const key = toServiceCoord(tile.row, tile.col)
+  // Convert to 1-based and build key (server performs authoritative bounds validation)
+  const key = toServiceCoord(tile.row, tile.col)
 
     const isBlank = !!tile.isBlank
     const raw = (tile.letter ?? '').toString().trim().toUpperCase()

@@ -82,21 +82,8 @@ inline void serialize_place_move(
     seq = best.wordTiles();
     fallbackWordOnly = true;
   }
-  // Guard: if coordinates appear to overflow 0-based bounds with the current
-  // start indices, attempt a 1-based→0-based correction by subtracting 1 only
-  // when it fixes the overflow. This avoids double-adjusting valid 0-based coords.
-  const int L = static_cast<int>(seq.length());
-  if (L > 0 && fallbackWordOnly) {
-    // Only when we had to fall back to wordTiles() (HL path with no used/tiles info),
-    // make sure the span fits the board by shifting backward if necessary.
-    if (isHorizontal) {
-      const int overBy = (cc + L - 1) - 14;
-      if (overBy > 0) { cc = std::max(0, cc - overBy); }
-    } else {
-      const int overBy = (rr + L - 1) - 14;
-      if (overBy > 0) { rr = std::max(0, rr - overBy); }
-    }
-  }
+  // No bounds adjustment here: emit raw 0-based coordinates from engine.
+  // All normalization/validation happens in the service layer (Python).
   for (size_t i = 0; i < seq.length(); ++i) {
     Quackle::Letter tileValue = seq[i];
     // Detect played-thru markers using Quackle API, with a secondary check on '.'
