@@ -64,6 +64,18 @@ export async function quackleBestMove(payload: any): Promise<QuackleMove> {
     throw new Error(`best-move failed: ${r.status} ${txt.slice(0,180)}`);
   }
   const data = await r.json();
+  
+  // DEEP DEBUG: Log raw response from bridge
+  if (import.meta.env.DEV && data?.tiles?.length > 0) {
+    console.log('[quackleClient] 🔍 RAW BRIDGE RESPONSE:', {
+      score: data.score,
+      move_type: data.move_type,
+      words: data.words,
+      tiles_count: data.tiles?.length,
+      first_tile: data.tiles?.[0]
+    })
+  }
+  
   if (data && (data.engine_fallback === true) && data.error) {
     // Do not mask engine/bridge errors as a pass
     const errMsg = `[bridge] ${data.error}`;

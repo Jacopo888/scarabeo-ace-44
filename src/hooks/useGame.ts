@@ -28,6 +28,7 @@ import { titleForConfirmError } from '@/lib/game/toast'
 import { shouldPassBotMove } from '@/lib/game/botPass'
 import { summarizeMoveInfo } from '@/lib/game/moveUtils'
 import { logPlayerMove, logPlayerAction } from '@/utils/debugLogger'
+import { recalculateQuackleScore } from '@/utils/quackleScoreRecalc'
 
   // helpers estratti in src/lib/game
 
@@ -210,6 +211,13 @@ export const useGame = () => {
 
       console.log('[useGame] Bot move received:', move)
       console.log('[useGame] Move details - tiles:', move?.tiles?.length, 'move_type:', move?.move_type, 'engine_fallback:', move?.engine_fallback)
+      
+      // DEEP DEBUG: Log complete move details for score investigation
+      if (import.meta.env.DEV && move?.tiles) {
+        console.log('[useGame] 🔍 DEEP DEBUG - Raw score from Quackle:', move.score)
+        console.log('[useGame] 🔍 DEEP DEBUG - Tiles with coordinates:', JSON.stringify(move.tiles, null, 2))
+        console.log('[useGame] 🔍 DEEP DEBUG - Words:', move.words)
+      }
 
       if (!move || move.move_type === 'pass' || !move.tiles || move.tiles.length === 0) {
         passTurn()
@@ -228,14 +236,26 @@ export const useGame = () => {
         return
       }
 
+      // CRITICAL FIX: Recalculate score using our board multipliers
+      // Quackle bridge may return incorrect scores
+      const recalculatedScore = recalculateQuackleScore(sanitizedTiles, snapshot.board)
+      const finalScore = recalculatedScore
+      
+      if (import.meta.env.DEV) {
+        console.log('[useGame] 🔧 SCORE FIX - Bridge score:', move.score, '→ Recalculated:', finalScore)
+        if (move.score !== finalScore) {
+          console.warn('[useGame] ⚠️ Score mismatch detected! Using recalculated value.')
+        }
+      }
+
     // Apply bot move to game state (delegated)
-    toast({ title: 'Quackle played!', description: `Quackle scored ${move.score} points with: ${move.words.join(', ')}` })
-    const applied = applyBotMove(snapshot, { sanitizedTiles, score: move.score, words: move.words })
+    toast({ title: 'Quackle played!', description: `Quackle scored ${finalScore} points with: ${move.words.join(', ')}` })
+    const applied = applyBotMove(snapshot, { sanitizedTiles, score: finalScore, words: move.words })
   setGameState(applied.next)
 
       // Record move (best-effort)
       try {
-        const moveInfo = buildHistoryEntry(current, sanitizedTiles, move.score)
+        const moveInfo = buildHistoryEntry(current, sanitizedTiles, finalScore)
         setMoveHistory(prev => [...prev, { ...moveInfo, move_index: prev.length + 1 }])
       } catch {}
     } catch (error) {
