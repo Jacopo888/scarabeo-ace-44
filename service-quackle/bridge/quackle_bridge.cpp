@@ -806,14 +806,17 @@ int main(int argc, char** argv){
       foundValidMove = false;
     }
 
-    // Simulatore: in hard su non-endgame e, di default, in endgame "ampio" (bag < 15) su tutte le difficoltà
+    // Simulatore:
+    // - easy/medium: DISATTIVATO
+    // - hard: ATTIVO solo in pre-endgame (bag < 10) e NON in vero endgame (dove usiamo il solver)
     try {
       int bagSize = (bagCountHint >= 0) ? bagCountHint : (int)pos.bag().size();
       int endgameThreshold = env_int("QUACKLE_ENDGAME_THRESHOLD", 7);
-      int simEndgameThreshold = env_int("QUACKLE_SIM_ENDGAME_THRESHOLD", 15);
-      const bool hardNonEndgame = (diff == "hard" && bagSize > endgameThreshold);
-      const bool genericEndgameSim = (bagSize < simEndgameThreshold);
-      if (hardNonEndgame || genericEndgameSim) {
+      // Enable simulator only for hard when 0 < bag < 10 and above endgameThreshold
+      int hardSimThreshold = env_int("QUACKLE_SIM_HARD_THRESHOLD", 10);
+      const bool isHard = (diff == "hard");
+      const bool runSim = isHard && (bagSize < hardSimThreshold) && (bagSize > endgameThreshold);
+      if (runSim) {
         int simTop   = env_int("QUACKLE_SIM_TOP", 5);
         int simDepth = env_int("QUACKLE_SIM_DEPTH", 2);
         int simIters = env_int("QUACKLE_SIM_ITERS", 40);
@@ -908,7 +911,7 @@ int main(int argc, char** argv){
           response["words"] = json::array();
           response["move_type"] = "exchange";
           response["engine_fallback"] = false;
-          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedSimulator ? "simulating" : (usedEndgameSolver ? "endgame" : "static")}};
+          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedEndgameSolver ? "endgame" : (usedSimulator ? "simulating" : "static")}};
           std::cout << response.dump() << std::endl;
         } else if (best.action == Quackle::Move::Place && !best.tiles().empty()) {
           debugLog("Processing place move...");
@@ -920,7 +923,7 @@ int main(int argc, char** argv){
           response["words"] = words;
           response["move_type"] = "play";
           response["engine_fallback"] = false;
-          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedSimulator ? "simulating" : (usedEndgameSolver ? "endgame" : "static")}};
+          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedEndgameSolver ? "endgame" : (usedSimulator ? "simulating" : "static")}};
           
           std::cout << response.dump() << std::endl;
         } else {
@@ -931,7 +934,7 @@ int main(int argc, char** argv){
           response["words"] = json::array();
           response["move_type"] = "pass";
           response["engine_fallback"] = false;
-          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedSimulator ? "simulating" : (usedEndgameSolver ? "endgame" : "static")}};
+          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedEndgameSolver ? "endgame" : (usedSimulator ? "simulating" : "static")}};
           std::cout << response.dump() << std::endl;
         }
         
