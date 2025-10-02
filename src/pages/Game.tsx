@@ -41,7 +41,7 @@ const GameContent = () => {
     moveHistory,
     gameId
   } = useGameContext()
-  const { difficulty } = useQuackleContext()
+  const { difficulty, lastEngineInfo } = useQuackleContext() as any
 
   // Show loading while waiting a very short time for contexts to initialize
   if (gameState.players.length === 0) {
@@ -157,7 +157,8 @@ const GameContent = () => {
                 selectedTiles={!isBotTurn && selectedTileIndex !== null ? [selectedTileIndex] : []}
                 onTileSelect={!isBotTurn ? handleTileSelect : undefined}
               />
-              <ActionBar
+              <div className="flex items-center justify-between">
+                <ActionBar
                 isBotTurn={isBotTurn}
                 pendingCount={pendingTiles.length}
                 rackLength={rackToShow.length}
@@ -170,7 +171,17 @@ const GameContent = () => {
                 onPass={passTurn}
                 onExchange={exchangeTiles}
                 onReshuffle={reshuffleTiles}
-              />
+                />
+                {lastEngineInfo && (
+                  <div className="ml-3 text-xs px-2 py-1 rounded border bg-muted/40 whitespace-nowrap" title="Engine path and settings">
+                    Engine: <b>{lastEngineInfo.path === 'hl' ? 'HL' : 'GEN'}</b>
+                    <span className="mx-1">•</span>
+                    strict: {lastEngineInfo.hl_strict ? 'on' : 'off'}
+                    <span className="mx-1">•</span>
+                    k: {lastEngineInfo.kibitz_len}
+                  </div>
+                )}
+              </div>
               {gameState.gameStatus === 'playing' && (
                 <Button
                   variant="destructive"

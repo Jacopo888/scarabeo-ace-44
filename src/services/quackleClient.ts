@@ -17,6 +17,11 @@ export interface QuackleMove {
   words: string[];
   move_type: string;
   engine_fallback?: boolean;
+  engine_info?: {
+    hl_strict: boolean;
+    path: 'hl' | 'gen';
+    kibitz_len: number;
+  };
   error?: string;
 }
 
@@ -66,13 +71,17 @@ export async function quackleBestMove(payload: any): Promise<QuackleMove> {
   const data = await r.json();
   
   // DEEP DEBUG: Log raw response from bridge
-  if (import.meta.env.DEV && data?.tiles?.length > 0) {
-    console.log('[quackleClient] 🔍 RAW BRIDGE RESPONSE:', {
+  if (import.meta.env.DEV && data) {
+    const ei = data?.engine_info
+    const pathInfo = ei && typeof ei === 'object' ? `path=${ei.path} strict=${ei.hl_strict} k=${ei.kibitz_len}` : 'path=?'
+    qlog('[quackleClient] 🔍 RAW BRIDGE RESPONSE:', {
       score: data.score,
       move_type: data.move_type,
       words: data.words,
-      tiles_count: data.tiles?.length,
-      first_tile: data.tiles?.[0]
+      tiles_count: Array.isArray(data.tiles) ? data.tiles.length : 0,
+      first_tile: Array.isArray(data.tiles) ? data.tiles[0] : undefined,
+      engine_info: ei || null,
+      summary: pathInfo,
     })
   }
   

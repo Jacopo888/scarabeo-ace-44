@@ -131,6 +131,13 @@ async def best_move(req: Request):
             "move_type": result.get("move_type", "play" if result.get("tiles") else "pass"),
             "engine_fallback": False
         }
+        # Pass through engine telemetry if provided by the bridge
+        try:
+            eng_info = result.get("engine_info") if isinstance(result, dict) else None
+            if isinstance(eng_info, dict):
+                out["engine_info"] = eng_info
+        except Exception:
+            pass
         took_ms = (_t.perf_counter() - _start) * 1000.0
         record_best_move_latency_ms(took_ms, {"path": "/best-move", "outcome": out.get("move_type", "play"), "rack_len": len(rack_norm)})
         return out

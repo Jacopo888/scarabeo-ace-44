@@ -202,8 +202,8 @@ int main(int argc, char** argv){
     std::set<std::pair<int,int>> originalBoardSquares;
     const json jrack  = req.value("rack",  json::array());
     const std::string ruleset = req.value("ruleset", std::string("en"));
-    const std::string diff = req.value("difficulty", std::string("medium"));
-    const int kibitzLen = kibitzLenFor(diff);
+  const std::string diff = req.value("difficulty", std::string("medium"));
+  const int kibitzLen = kibitzLenFor(diff);
 
     debugLog("Board keys count: " + std::to_string(jboard.size()));
     debugLog("Difficulty: " + diff);
@@ -731,8 +731,12 @@ int main(int argc, char** argv){
     debugLog(std::string("[DEBUG] Board empty: ") + (boardEmpty ? "YES" : "NO"));
     try { pos.ensureBoardIsPreparedForAnalysis(); } catch (...) {}
 
-    Quackle::Move best;
-    bool foundValidMove = false;
+  Quackle::Move best;
+  bool foundValidMove = false;
+  // Strict HL is enabled via env or by difficulty medium/hard by default
+  const bool strictHL = env_flag_on("QUACKLE_STRICT_HL") || (diff == "medium" || diff == "hard");
+  bool hlSucceeded = false;
+  std::string enginePath = "hl"; // track which path produced the final move
 
     // High-Level path
     try {
@@ -751,6 +755,7 @@ int main(int argc, char** argv){
       }
       // Consider a Place move valid even if tiles() is empty; we'll reconstruct tiles from wordTiles().
       foundValidMove = (best.action == Quackle::Move::Place);
+      hlSucceeded = true;
       fprintf(stderr, "[DEBUG] HL result: action=%d score=%d\n", (int)best.action, best.score);
     } catch (const std::exception &e) {
       debugLog(std::string("Exception during high-level kibitz: ") + e.what());
@@ -762,7 +767,13 @@ int main(int argc, char** argv){
       foundValidMove = false;
     }
 
-    // Fallback to Generator if HL produced pass or no move
+    // If strict HL is enabled and HL succeeded, accept HL decision even if Exchange/Pass
+    if (strictHL && hlSucceeded) {
+      // Accept whatever HL deemed best (Place/Exchange/Pass)
+      foundValidMove = true;
+    }
+
+    // Fallback to Generator if we still don't have a valid move to serialize
     if (!foundValidMove) {
       try {
         fprintf(stderr, "[DEBUG] Fallback: Using GENERATOR API via setPosition()\n");
@@ -770,8 +781,9 @@ int main(int argc, char** argv){
         gen.setPosition(pos);
         gen.allCrosses();
         // Prefer generating actual placement moves for service responses.
-        // Disallow exchanges in generator path to avoid non-play results on opening.
-        const int kibitzFlags = Quackle::Generator::CannotExchange;
+        // If strictHL is disabled, disallow exchanges to favor visible plays.
+        // If strictHL is enabled, allow exchanges also in generator path.
+        const int kibitzFlags = strictHL ? 0 : Quackle::Generator::CannotExchange;
         gen.kibitz(kibitzLen, kibitzFlags);
         debugLog(std::string("Generator kibitz done. Moves found: ") + std::to_string(gen.kibitzList().size()));
         const Quackle::MoveList &moves = gen.kibitzList();
@@ -783,14 +795,17 @@ int main(int argc, char** argv){
           debugLog("GEN kibitz returned no moves");
           best = Quackle::Move::createPassMove();
         }
+        enginePath = "gen";
       } catch (const std::exception &e) {
         debugLog(std::string("Exception during generator kibitz: ") + e.what());
         best = Quackle::Move::createPassMove();
         foundValidMove = false;
+        enginePath = "gen";
       } catch (...) {
         debugLog("Unknown exception during generator kibitz");
         best = Quackle::Move::createPassMove();
         foundValidMove = false;
+        enginePath = "gen";
       }
     }
 
@@ -821,7 +836,19 @@ int main(int argc, char** argv){
             response["words"] = json::array();
             response["move_type"] = "pass";
             response["engine_fallback"] = false;
+            response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}};
             std::cout << response.dump() << std::endl;
+        } else if (best.action == Quackle::Move::Exchange) {
+          debugLog("Processing exchange move...");
+          json response;
+          // For exchange, there are no board tiles to place
+          response["tiles"] = json::array();
+          response["score"] = best.score;
+          response["words"] = json::array();
+          response["move_type"] = "exchange";
+          response["engine_fallback"] = false;
+          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}};
+          std::cout << response.dump() << std::endl;
         } else if (best.action == Quackle::Move::Place && !best.tiles().empty()) {
           debugLog("Processing place move...");
           serialize_place_move(best, alphabetParams, originalBoardSquares, tiles, words);
@@ -832,6 +859,7 @@ int main(int argc, char** argv){
           response["words"] = words;
           response["move_type"] = "play";
           response["engine_fallback"] = false;
+          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}};
           
           std::cout << response.dump() << std::endl;
         } else {
@@ -842,6 +870,7 @@ int main(int argc, char** argv){
           response["words"] = json::array();
           response["move_type"] = "pass";
           response["engine_fallback"] = true;
+          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}};
           std::cout << response.dump() << std::endl;
         }
         

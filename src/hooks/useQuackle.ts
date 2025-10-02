@@ -60,6 +60,7 @@ export const useQuackle = () => {
   const BOARD_SCHEMA = (import.meta.env.VITE_BOARD_SCHEMA ?? 'coord_map_1based').toString()
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
   const [isThinking, setIsThinking] = useState(false)
+  const [lastEngineInfo, setLastEngineInfo] = useState<{ hl_strict: boolean; path: 'hl' | 'gen'; kibitz_len: number } | null>(null)
 
   const makeMove = useCallback(async (
     gameState: GameState,
@@ -96,6 +97,12 @@ export const useQuackle = () => {
         quackleBestMove(payload),
         new Promise(resolve => setTimeout(resolve, thinkingTime))
       ])
+      if (move && typeof move === 'object' && move.engine_info && typeof move.engine_info === 'object') {
+        const ei = move.engine_info as any
+        if (ei && (ei.path === 'hl' || ei.path === 'gen')) {
+          setLastEngineInfo({ hl_strict: !!ei.hl_strict, path: ei.path, kibitz_len: Number(ei.kibitz_len) || 0 })
+        }
+      }
       
       // Log pulito per debug
       if (import.meta.env.DEV) logQuackleMove(playerRack, move)
@@ -109,7 +116,8 @@ export const useQuackle = () => {
     difficulty,
     setDifficulty,
     makeMove,
-    isThinking
+    isThinking,
+    lastEngineInfo
   }
 }
 

@@ -158,6 +158,29 @@ def debug_strategy_probe():
     res = call_bridge_simple_op("probe_strategy")
     return res
 
+@router.get("/debug/engine-config")
+def debug_engine_config(request: Request):
+    try:
+        # difficulty mapping used by the bridge
+        def kibitz_len_for(d: str) -> int:
+            return 15 if d == 'easy' else (100 if d == 'hard' else 50)
+
+        difficulty = (request.query_params.get('difficulty') or 'medium').strip().lower()
+        if difficulty not in { 'easy', 'medium', 'hard' }:
+            difficulty = 'medium'
+        env_strict = str(os.getenv('QUACKLE_STRICT_HL', '')).strip().lower() in {'1','true','yes','on'}
+        strict_by_diff = difficulty in {'medium','hard'}
+        hl_strict = env_strict or strict_by_diff
+        return {
+            'difficulty': difficulty,
+            'kibitz_len': kibitz_len_for(difficulty),
+            'env_strict': env_strict,
+            'strict_default_medium_hard': True,
+            'hl_strict_computed': hl_strict,
+        }
+    except Exception as e:
+        return JSONResponse({ 'error': str(e) }, status_code=500)
+
 @router.get("/debug/sample-moves")
 def debug_sample_moves():
     cases = []
