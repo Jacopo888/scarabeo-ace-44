@@ -27,6 +27,7 @@ import { buildHistoryEntry, contiguousSummary } from '@/lib/game/quackleUtils'
 import { titleForConfirmError } from '@/lib/game/toast'
 import { shouldPassBotMove } from '@/lib/game/botPass'
 import { summarizeMoveInfo } from '@/lib/game/moveUtils'
+import { logPlayerMove, logPlayerAction } from '@/utils/debugLogger'
 
   // helpers estratti in src/lib/game
 
@@ -101,6 +102,19 @@ export const useGame = () => {
     const { words: moveWords, score: delta } = summarizeMoveInfo(res.moveInfo)
     toast({ title: 'Move confirmed!', description: `+${delta} points for words: ${moveWords.join(', ')}` })
 
+      // Log mossa giocatore (dev mode)
+      if (import.meta.env.DEV && res.moveInfo) {
+        const currentPlayer = prev.players[prev.currentPlayerIndex]
+        const playerRack = getCurrentRack(prev)
+        logPlayerMove(
+          currentPlayer?.name || 'Player',
+          playerRack,
+          pendingTiles,
+          moveWords,
+          delta
+        )
+      }
+
   // Record move
       if (res.moveInfo) {
         setMoveHistory(prevMH => [...prevMH, { ...(res.moveInfo as any), move_index: prevMH.length + 1 }])
@@ -127,13 +141,29 @@ export const useGame = () => {
 
   const exchangeTiles = useCallback(() => {
     cancelMove()
-    setGameState(prev => applyExchangeTiles(prev))
+    setGameState(prev => {
+      // Log exchange (dev mode)
+      if (import.meta.env.DEV) {
+        const currentPlayer = prev.players[prev.currentPlayerIndex]
+        const playerRack = getCurrentRack(prev)
+        logPlayerAction(currentPlayer?.name || 'Player', playerRack, 'exchange', playerRack.length)
+      }
+      return applyExchangeTiles(prev)
+    })
   }, [cancelMove])
 
 
   const passTurn = useCallback(() => {
     cancelMove()
-    setGameState(prev => applyPassTurn(prev))
+    setGameState(prev => {
+      // Log pass (dev mode)
+      if (import.meta.env.DEV) {
+        const currentPlayer = prev.players[prev.currentPlayerIndex]
+        const playerRack = getCurrentRack(prev)
+        logPlayerAction(currentPlayer?.name || 'Player', playerRack, 'pass')
+      }
+      return applyPassTurn(prev)
+    })
   }, [cancelMove])
 
   const surrenderGame = useCallback(() => {

@@ -3,6 +3,7 @@ import { Difficulty } from '@/components/DifficultyModal'
 import { GameState, Tile, PlacedTile } from '@/types/game'
 import { toServiceCoord } from '@/lib/coords'
 import { quackleBestMove, QuackleMove } from '@/services/quackleClient'
+import { logQuackleMove } from '@/utils/debugLogger'
 
 // Build a Quackle board mapping using 1-based indices and stabilized tiles only
 // Output: { "r,c": { letter: string, isBlank: boolean } }
@@ -96,7 +97,8 @@ export const useQuackle = () => {
         new Promise(resolve => setTimeout(resolve, thinkingTime))
       ])
       
-  if (import.meta.env.DEV) console.log('[useQuackle] Raw move from Quackle service:', move)
+      // Log pulito per debug
+      if (import.meta.env.DEV) logQuackleMove(playerRack, move)
       return move
     } finally {
       setIsThinking(false)
