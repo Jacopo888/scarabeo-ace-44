@@ -919,7 +919,7 @@ int main(int argc, char** argv){
             response["exchange_blind"] = isBlind;
             if (!isBlind) {
               // Convert to user-visible string, then split into single-letter strings
-              auto uv = alphabetParams.userVisible(t);
+              auto uv = alphabetParams->userVisible(t);
               json letters = json::array();
               for (size_t i = 0; i < uv.size(); ++i) {
                 // push each character as a string

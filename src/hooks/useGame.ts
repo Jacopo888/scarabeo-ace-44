@@ -246,9 +246,23 @@ export const useGame = () => {
         return
       }
 
-      const sanitizedTiles = move.tiles
+      let sanitizedTiles = move.tiles
         .map(sanitizeQuackleTile)
         .filter((tile): tile is PlacedTile => tile !== null)
+      // Evita di includere posizioni già occupate sulla board esistente (ancoraggi/croci)
+      if (sanitizedTiles.length > 0) {
+        const occupied = new Set<string>()
+        snapshot.board.forEach((_, t: any) => {
+          // t può essere chiave stringa "r,c" o il tile stesso a seconda del tipo di mappa
+          if (typeof t === 'string') {
+            occupied.add(t)
+          }
+        })
+        // Se la board usa chiavi stringa "r,c" (come da convenzione), filtra le tessere che collidono
+        if (occupied.size > 0) {
+          sanitizedTiles = sanitizedTiles.filter(t => !occupied.has(`${t.row},${t.col}`))
+        }
+      }
 
       // Diagnostics for continuity and bounds
       if (sanitizedTiles.length > 0) contiguousSummary(sanitizedTiles)
