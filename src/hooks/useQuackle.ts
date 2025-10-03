@@ -89,7 +89,7 @@ export const useQuackle = () => {
           }).filter(Boolean)
         : []
 
-      const payload = { board, rack, difficulty, board_schema: BOARD_SCHEMA, bag_count: bagPool.length, bag_pool: bagPool }
+  const payload = { board, rack, difficulty, board_schema: BOARD_SCHEMA, bag_pool: bagPool }
 
       // Structured debug log
       const bkeys = Object.keys(board)

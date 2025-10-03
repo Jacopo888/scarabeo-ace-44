@@ -13,6 +13,7 @@ from .config import (
 from .runtime import ensure_lexicon_files, ensure_lexicon_ready as _ensure_lexicon_ready
 from .routes_best_move import router as best_move_router
 from .routes_health import router as health_router
+from .config import ENV_MODE
 from .routes_debug import router as debug_router
 import re
 from typing import Dict, Any
@@ -60,7 +61,11 @@ app.add_middleware(RequestLoggerMiddleware)
 # Register routers
 app.include_router(health_router)
 app.include_router(best_move_router)
-app.include_router(debug_router)
+# Mount debug routes only when not running in production, unless explicitly enabled via env DEBUG_ROUTES=1
+import os as _os
+_dbg_enable = _os.getenv("DEBUG_ROUTES", "").strip().lower() in {"1","true","yes","on","dev","test"}
+if ENV_MODE != 'prod' or _dbg_enable:
+    app.include_router(debug_router)
 
 """
 Main FastAPI app bootstrap: mounts routers and adds a tiny request-logging middleware.

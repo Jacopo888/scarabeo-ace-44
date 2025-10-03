@@ -5,7 +5,7 @@ Ultimo aggiornamento: 2025-09-29
 ## Architettura in breve
 - `src/` Frontend Vite + React + TypeScript. Test Vitest vicino al codice (`*.test.ts(x)`).
 - `service-quackle/` FastAPI che fa da bridge a Quackle (binario C++). Endpoint chiave: `GET /health`, `POST /best-move`.
-- `engine/` Build pipeline C++/FastAPI e wrapper Quackle; usata per immagini Docker e diagnostica avanzata.
+- `engine/` [LEGACY/REMOVED] Vecchia pipeline C++/FastAPI e wrapper Quackle. Oggi si usa solo `service-quackle/` come bridge ufficiale.
 - `rating-api/` Express + Drizzle (TypeScript) con Postgres/Redis; test in `src/__tests__/`.
 - `data/` volume locale per lessici e appdata (`/data/lexica`, `/data/appdata`).
 
@@ -44,7 +44,7 @@ Ultimo aggiornamento: 2025-09-29
 
 ## Dove guardare per esempi
 - Integrazione servizio: `service-quackle/README.md` (payload, normalizzazione, errori, env).
-- Pipeline engine e diagnostica: `engine/README.md`.
+- Pipeline engine e diagnostica (storico): vedi `docs/Guida integrazione quackle` per i dettagli legacy dell'ex cartella `engine/`.
 - Multiplayer FE: `src/services/multiplayer/README.md` (contratti e helper endgame).
 - Comandi e convenzioni riassunti: `AGENTS.md`.
 
