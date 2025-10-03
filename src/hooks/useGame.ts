@@ -19,7 +19,7 @@ import { initGameState } from '@/lib/game/init'
 import { applyPassTurn } from '@/lib/game/actions'
 import { applyConfirmMove } from '@/lib/game/actionsConfirm'
 import { applyCancelMove } from '@/lib/game/actionsCancel'
-import { applyExchangeTiles } from '@/lib/game/actionsExchange'
+import { applyExchangeTiles, applyExchangeSelected, applyBotExchange } from '@/lib/game/actionsExchange'
 import { applyEndTurn } from '@/lib/game/actionsEndTurn'
 import { applyPlaceTile } from '@/lib/game/actionsPlace'
 import { applyPickupTile } from '@/lib/game/actionsPickup'
@@ -140,14 +140,18 @@ export const useGame = () => {
     })
   }, [cancelMove])
 
-  const exchangeTiles = useCallback(() => {
+  const exchangeTiles = useCallback((indexes?: number[]) => {
     cancelMove()
     setGameState(prev => {
       // Log exchange (dev mode)
       if (import.meta.env.DEV) {
         const currentPlayer = prev.players[prev.currentPlayerIndex]
         const playerRack = getCurrentRack(prev)
-        logPlayerAction(currentPlayer?.name || 'Player', playerRack, 'exchange', playerRack.length)
+        const count = Array.isArray(indexes) && indexes.length > 0 ? indexes.length : playerRack.length
+        logPlayerAction(currentPlayer?.name || 'Player', playerRack, 'exchange', count)
+      }
+      if (Array.isArray(indexes) && indexes.length > 0) {
+        return applyExchangeSelected(prev, indexes)
       }
       return applyExchangeTiles(prev)
     })
@@ -220,6 +224,7 @@ export const useGame = () => {
       }
 
       if (!move || move.move_type === 'pass' || !move.tiles || move.tiles.length === 0) {
+        toast({ title: 'Quackle passed', description: 'No playable move this turn.' })
         passTurn()
         return
       }
@@ -231,7 +236,15 @@ export const useGame = () => {
       // Diagnostics for continuity and bounds
       if (sanitizedTiles.length > 0) contiguousSummary(sanitizedTiles)
 
+      if (move.move_type === 'exchange') {
+        const count = typeof (move as any).exchange_count === 'number' ? (move as any).exchange_count : Math.min(7, getCurrentRack(snapshot).length)
+        toast({ title: 'Quackle exchanged tiles', description: `Changed ${count} tile${count === 1 ? '' : 's'}.` })
+        setGameState(prev => applyBotExchange(prev, null, count))
+        return
+      }
+
       if (shouldPassBotMove(move, sanitizedTiles)) {
+        toast({ title: 'Quackle passed', description: 'No playable move this turn.' })
         passTurn()
         return
       }
@@ -247,7 +260,9 @@ export const useGame = () => {
       }
 
     // Apply bot move to game state (delegated)
-    toast({ title: 'Quackle played!', description: `Quackle scored ${finalScore} points with: ${move.words.join(', ')}` })
+  // Show all words formed (primary + cross words)
+  const wordsList = (move.words && move.words.length > 0) ? move.words : []
+  toast({ title: 'Quackle played!', description: `+${finalScore} with words: ${wordsList.join(', ')}` })
     const applied = applyBotMove(snapshot, { sanitizedTiles, score: finalScore, words: move.words })
   setGameState(applied.next)
 

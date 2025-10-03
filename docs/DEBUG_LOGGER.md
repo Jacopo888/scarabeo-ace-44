@@ -33,7 +33,8 @@ I log seguono il pattern: **rack → mossa (score)**
 
 - **Blanks**: Le tessere blank sono mostrate tra parentesi quadre `[A]`
 - **Emoji**: 🤖 per Quackle, 👤 per giocatori umani
-- **Dev Only**: I log appaiono solo in modalità sviluppo (`import.meta.env.DEV`)
+- **Visibili anche in user mode**: I log sono visibili anche in modalità utente normale per facilitare il supporto.
+- **Disattivabili**: Imposta `VITE_DEBUG_QUACKLE=false` per disattivarli (predefinito: attivi se non specificato).
 - **Leggibilità**: Formato compatto su una riga per seguire facilmente il flusso di gioco
 
 ## Utilizzo
@@ -73,3 +74,10 @@ logPlayerAction(playerName, rack, 'exchange', 3)
 ✅ Identifica subito chi gioca (AI vs Giocatore)
 ✅ Mostra rack e risultato in modo compatto
 ✅ Utile per debugging e testing manuale
+
+## Configurazione
+
+- Variabile: `VITE_DEBUG_QUACKLE`
+	- `true` → forza l'attivazione dei log
+	- `false` → disattiva i log
+	- non definita → i log sono attivi per impostazione predefinita in UI

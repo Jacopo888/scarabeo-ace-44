@@ -4,6 +4,7 @@ import { GameState, Tile, PlacedTile } from '@/types/game'
 import { toServiceCoord } from '@/lib/coords'
 import { quackleBestMove, QuackleMove } from '@/services/quackleClient'
 import { logQuackleMove } from '@/utils/debugLogger'
+import { isDebugQuackle } from '@/config/debug'
 
 // Build a Quackle board mapping using 1-based indices and stabilized tiles only
 // Output: { "r,c": { letter: string, isBlank: boolean } }
@@ -92,7 +93,7 @@ export const useQuackle = () => {
 
       // Structured debug log
       const bkeys = Object.keys(board)
-      if (import.meta.env.DEV) console.log({
+      if (isDebugQuackle) console.log({
         tag: 'quackle_payload',
         boardCellCount: bkeys.length,
         sampleKeys: bkeys.slice(0, 3),
@@ -114,7 +115,7 @@ export const useQuackle = () => {
       }
       
       // Log pulito per debug
-      if (import.meta.env.DEV) logQuackleMove(playerRack, move)
+  if (isDebugQuackle) logQuackleMove(playerRack, move)
       return move
     } finally {
       setIsThinking(false)

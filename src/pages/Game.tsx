@@ -19,6 +19,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { Link } from "react-router-dom"
 import { ScorePanel } from "@/components/game/ScorePanel"
 import { ActionBar } from "@/components/game/ActionBar"
+import { ExchangeTilesDialog } from '@/components/ExchangeTilesDialog'
 import { GameHeader } from "@/components/game/GameHeader"
 import { GameResults } from "@/components/game/GameResults"
 import EngineStatusBadge from "@/components/EngineStatusBadge"
@@ -60,6 +61,7 @@ const GameContent = () => {
   const { toast } = useToast()
   const [selectedTileIndex, setSelectedTileIndex] = useState<number | null>(null)
   const [blankTile, setBlankTile] = useState<{ row: number, col: number, tile: Tile } | null>(null)
+  const [exchangeOpen, setExchangeOpen] = useState(false)
   // UI extras disabled
 
   const humanPlayer = gameState.players.find(p => !p.isBot) || currentPlayer
@@ -170,7 +172,7 @@ const GameContent = () => {
                 onConfirm={confirmMove}
                 onCancel={cancelMove}
                 onPass={passTurn}
-                onExchange={exchangeTiles}
+                onExchange={() => setExchangeOpen(true)}
                 onReshuffle={reshuffleTiles}
                 />
                 <div className="flex items-center gap-2 ml-3">
@@ -200,6 +202,11 @@ const GameContent = () => {
         </div>
 
       </div>
+      <ExchangeTilesDialog
+        open={exchangeOpen}
+        onOpenChange={setExchangeOpen}
+        onConfirm={(indexes) => exchangeTiles(indexes)}
+      />
     </div>
   )
 }

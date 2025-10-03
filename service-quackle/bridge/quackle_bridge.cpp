@@ -910,6 +910,13 @@ int main(int argc, char** argv){
           response["score"] = best.score;
           response["words"] = json::array();
           response["move_type"] = "exchange";
+          // Provide a count of exchanged tiles if available (length of usedTiles or tiles)
+          try {
+            int exc = 0;
+            auto t = best.tiles();
+            exc = (int)t.length();
+            response["exchange_count"] = exc;
+          } catch (...) {}
           response["engine_fallback"] = false;
           response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedEndgameSolver ? "endgame" : (usedSimulator ? "simulating" : "static")}};
           std::cout << response.dump() << std::endl;

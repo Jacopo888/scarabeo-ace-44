@@ -16,6 +16,7 @@ export interface QuackleMove {
   score: number;
   words: string[];
   move_type: string;
+  exchange_count?: number;
   engine_fallback?: boolean;
   engine_info?: {
     hl_strict: boolean;

@@ -1,5 +1,6 @@
 import type { GameState, Player, PlacedTile, Tile } from '@/types/game'
 import { drawTiles } from './random'
+import { isDebugQuackle } from '@/config/debug'
 import { canEndGame } from '@/utils/gameRules'
 import { computeFinalPlayers } from './endgame'
 
@@ -18,7 +19,7 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
     const key = `${tile.row},${tile.col}`
     if (newBoard.has(key)) {
       // Do not overwrite an existing board square; this indicates a duplicate/overlap from engine
-      if (import.meta.env.DEV) console.warn('[applyBotMove] Skip overwrite at', key, 'existing:', newBoard.get(key), 'incoming:', tile)
+      if (isDebugQuackle) console.warn('[applyBotMove] Skip overwrite at', key, 'existing:', newBoard.get(key), 'incoming:', tile)
       return
     }
     newBoard.set(key, {
@@ -33,9 +34,9 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
   const currentPlayer = prev.players[prev.currentPlayerIndex]
   const newRack: Tile[] = [...currentPlayer.rack]
   // eslint-disable-next-line no-console
-  if (import.meta.env.DEV) console.log('[applyBotMove] Rack before:', newRack.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
+  if (isDebugQuackle) console.log('[applyBotMove] Rack before:', newRack.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
   // eslint-disable-next-line no-console
-  if (import.meta.env.DEV) console.log('[applyBotMove] Using tiles:', sanitizedTiles.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
+  if (isDebugQuackle) console.log('[applyBotMove] Using tiles:', sanitizedTiles.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
   sanitizedTiles.forEach(usedTile => {
     const idx = newRack.findIndex(t => {
       if (usedTile.isBlank && t.isBlank) return true
@@ -44,7 +45,7 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
     if (idx !== -1) newRack.splice(idx, 1)
   })
   // eslint-disable-next-line no-console
-  if (import.meta.env.DEV) console.log('[applyBotMove] Rack after removal:', newRack.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
+  if (isDebugQuackle) console.log('[applyBotMove] Rack after removal:', newRack.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
 
   const tilesNeeded = 7 - newRack.length
   const { drawn, remaining } = tilesNeeded > 0 && prev.tileBag.length > 0
@@ -70,7 +71,7 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
 
   if (currentEmptiedAndBagEmpty || endGame) {
     // eslint-disable-next-line no-console
-  if (import.meta.env.DEV) console.log('[applyBotMove] Finishing game:', {
+  if (isDebugQuackle) console.log('[applyBotMove] Finishing game:', {
       remaining: remaining.length,
       rackLen: newPlayers[prev.currentPlayerIndex].rack.length,
       currentEmptiedAndBagEmpty,
@@ -92,7 +93,7 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
   }
 
   // eslint-disable-next-line no-console
-  if (import.meta.env.DEV) console.log('[applyBotMove] Continuing game (advance turn):', {
+  if (isDebugQuackle) console.log('[applyBotMove] Continuing game (advance turn):', {
     remaining: remaining.length,
     rackLen: newPlayers[prev.currentPlayerIndex].rack.length
   })
