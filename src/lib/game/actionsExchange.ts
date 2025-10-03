@@ -70,7 +70,6 @@ export function applyBotExchange(prev: GameState, letters: string[] | null | und
   const lettersNorm = Array.isArray(letters) ? letters.map(l => (l || '').toUpperCase()).filter(Boolean) : []
   const count = lettersNorm.length > 0 ? lettersNorm.length : Math.max(0, Math.min(countHint || 0, rack.length))
   if (count <= 0) return prev
-  if (prev.tileBag.length < Math.max(2, count)) return prev
 
   // Remove from rack by matching letters if provided, otherwise remove first count
   const toReturn: Tile[] = []

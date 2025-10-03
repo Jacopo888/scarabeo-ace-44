@@ -29,6 +29,8 @@ export interface QuackleMove {
     status?: 'simulating' | 'endgame' | 'static';
   };
   error?: string;
+  exchange_letters?: string[] // e.g., ['A','E','?'] '?' indicates blank
+  exchange_blind?: boolean
 }
 
 // fetchWithTimeout now provided by ./http

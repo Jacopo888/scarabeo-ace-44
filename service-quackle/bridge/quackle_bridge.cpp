@@ -902,7 +902,7 @@ int main(int argc, char** argv){
             response["engine_fallback"] = false;
             response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedSimulator ? "simulating" : (usedEndgameSolver ? "endgame" : "static")}};
             std::cout << response.dump() << std::endl;
-        } else if (best.action == Quackle::Move::Exchange) {
+        } else if (best.action == Quackle::Move::Exchange || best.action == Quackle::Move::BlindExchange) {
           debugLog("Processing exchange move...");
           json response;
           // For exchange, there are no board tiles to place
@@ -910,12 +910,23 @@ int main(int argc, char** argv){
           response["score"] = best.score;
           response["words"] = json::array();
           response["move_type"] = "exchange";
-          // Provide a count of exchanged tiles if available (length of usedTiles or tiles)
+          // Provide count and letters (if non-blind)
           try {
-            int exc = 0;
             auto t = best.tiles();
-            exc = (int)t.length();
+            int exc = (int)t.length();
             response["exchange_count"] = exc;
+            bool isBlind = (best.action == Quackle::Move::BlindExchange);
+            response["exchange_blind"] = isBlind;
+            if (!isBlind) {
+              // Convert to user-visible string, then split into single-letter strings
+              auto uv = alphabetParams.userVisible(t);
+              json letters = json::array();
+              for (size_t i = 0; i < uv.size(); ++i) {
+                // push each character as a string
+                letters.push_back(std::string(1, (char)uv[i]));
+              }
+              response["exchange_letters"] = letters;
+            }
           } catch (...) {}
           response["engine_fallback"] = false;
           response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedEndgameSolver ? "endgame" : (usedSimulator ? "simulating" : "static")}};

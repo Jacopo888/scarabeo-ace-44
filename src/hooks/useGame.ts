@@ -223,7 +223,24 @@ export const useGame = () => {
         console.log('[useGame] 🔍 DEEP DEBUG - Words:', move.words)
       }
 
-      if (!move || move.move_type === 'pass' || !move.tiles || move.tiles.length === 0) {
+      // Handle explicit exchange first (exchange has no board tiles by design)
+      if (move && move.move_type === 'exchange') {
+        const letters = (move as any).exchange_letters as string[] | undefined
+        const count = typeof (move as any).exchange_count === 'number' ? (move as any).exchange_count : (letters?.length ?? Math.min(7, getCurrentRack(snapshot).length))
+        toast({ title: 'Quackle exchanged tiles', description: `Changed ${count} tile${count === 1 ? '' : 's'}.` })
+        setGameState(prev => applyBotExchange(prev, letters, count))
+        return
+      }
+
+      // Explicit pass
+      if (!move || move.move_type === 'pass') {
+        toast({ title: 'Quackle passed', description: 'No playable move this turn.' })
+        passTurn()
+        return
+      }
+
+      // For place moves, tiles must be present; otherwise treat as pass
+      if (!move.tiles || move.tiles.length === 0) {
         toast({ title: 'Quackle passed', description: 'No playable move this turn.' })
         passTurn()
         return
@@ -235,13 +252,6 @@ export const useGame = () => {
 
       // Diagnostics for continuity and bounds
       if (sanitizedTiles.length > 0) contiguousSummary(sanitizedTiles)
-
-      if (move.move_type === 'exchange') {
-        const count = typeof (move as any).exchange_count === 'number' ? (move as any).exchange_count : Math.min(7, getCurrentRack(snapshot).length)
-        toast({ title: 'Quackle exchanged tiles', description: `Changed ${count} tile${count === 1 ? '' : 's'}.` })
-        setGameState(prev => applyBotExchange(prev, null, count))
-        return
-      }
 
       if (shouldPassBotMove(move, sanitizedTiles)) {
         toast({ title: 'Quackle passed', description: 'No playable move this turn.' })
