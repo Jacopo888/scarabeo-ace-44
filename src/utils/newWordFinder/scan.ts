@@ -1,5 +1,13 @@
 import type { PlacedTile } from '@/types/game'
-import type { FoundWord } from '../newWordFinder'
+
+export interface FoundWord {
+  word: string
+  tiles: PlacedTile[]
+  direction: 'horizontal' | 'vertical'
+  startRow: number
+  startCol: number
+  isNewWord?: boolean
+}
 
 export const findAllWords = (allTiles: Map<string, PlacedTile>): FoundWord[] => {
   const words: FoundWord[] = []

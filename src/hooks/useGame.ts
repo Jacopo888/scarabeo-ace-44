@@ -1,9 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { GameState, Player, Tile, PlacedTile } from '@/types/game'
-import { validateMoveLogic } from '@/utils/moveValidation'
-import { findNewWordsFormed } from '@/utils/newWordFinder'
-import { calculateScore } from '@/utils/scoring'
+import { calculateScore, calculateScoreFromBoard } from '@/utils/scoring'
 import { useToast } from '@/hooks/use-toast'
 import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
@@ -28,6 +26,7 @@ import { titleForConfirmError } from '@/lib/game/toast'
 import { shouldPassBotMove } from '@/lib/game/botPass'
 import { summarizeMoveInfo } from '@/lib/game/moveUtils'
 import { logPlayerMove, logPlayerAction } from '@/utils/debugLogger'
+import { makeCoreConfirmDeps } from '@/core/confirmDeps'
 // score unificato
 
   // helpers estratti in src/lib/game
@@ -57,6 +56,7 @@ export const useGame = () => {
   // Initialize with empty state and wait for difficulty
   const [gameState, setGameState] = useState<GameState>(() => ({
     board: new Map(),
+    boardMatrix: Array.from({ length: 15 }, () => Array.from({ length: 15 }, () => null)),
     players: [],
     currentPlayerIndex: 0,
     tileBag: [],
@@ -88,7 +88,20 @@ export const useGame = () => {
   }, [pendingTiles])
 
   const confirmMove = useCallback(() => {
-  const deps = { validateMoveLogic, findNewWordsFormed, calculateScore, isValidWord }
+  const coreDeps = makeCoreConfirmDeps(isValidWord)
+  // Prefer core-based validation/word-extraction for simplicity; keep calculateScore passthrough
+  const deps = { 
+    validateMoveLogic: coreDeps.validateMoveLogic,
+    findNewWordsFormed: coreDeps.findNewWordsFormed,
+    // Prefer matrix scoring when available in state
+    calculateScore: (opts: any) => {
+      if (gameState.boardMatrix) {
+        return calculateScoreFromBoard({ tiles: opts.tiles, board: gameState.boardMatrix, context: opts.context })
+      }
+      return calculateScore(opts)
+    },
+    isValidWord
+  }
     setGameState(prev => {
       const res = applyConfirmMove(prev, pendingTiles, deps)
       if (!res.ok) {
@@ -274,7 +287,9 @@ export const useGame = () => {
       }
 
   // Recalculate score using our board multipliers (bridge may be off)
-  const finalScore = calculateScore({ tiles: sanitizedTiles, existingBoard: snapshot.board, context: 'quackle' })
+  const finalScore = snapshot.boardMatrix
+    ? calculateScoreFromBoard({ tiles: sanitizedTiles, board: snapshot.boardMatrix as any, context: 'quackle' })
+    : calculateScore({ tiles: sanitizedTiles, existingBoard: snapshot.board, context: 'quackle' })
       
       if (import.meta.env.DEV) {
         console.log('[useGame] 🔧 SCORE FIX - Bridge score:', move.score, '→ Recalculated:', finalScore)

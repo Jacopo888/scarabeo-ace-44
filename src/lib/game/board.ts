@@ -3,7 +3,7 @@ import type { Tile as StoreTile } from '@/store/game'
 
 // Board può essere una mappa controllata (puzzle/gioco locale)
 // oppure la griglia dello store (15x15) con StoreTile|null
-export type AnyBoard = Map<string, PlacedTile> | (StoreTile | null)[][]
+export type AnyBoard = Map<string, PlacedTile> | (StoreTile | null)[][] | (PlacedTile | null)[][]
 
 export function boardKey(row: number, col: number): string {
   return `${row},${col}`

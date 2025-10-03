@@ -26,5 +26,9 @@ describe('applyBotMove', () => {
     // original A must remain at 7,7; B is skipped, I placed at 7,8
     expect(next.board.get('7,7')!.letter).toBe('A')
     expect(next.board.get('7,8')!.letter).toBe('I')
+    // boardMatrix shadow-write
+    expect(next.boardMatrix).toBeTruthy()
+    expect(next.boardMatrix?.[7][7]?.letter).toBe('A')
+    expect(next.boardMatrix?.[7][8]?.letter).toBe('I')
   })
 })

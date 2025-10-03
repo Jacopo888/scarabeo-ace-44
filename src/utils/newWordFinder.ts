@@ -1,3 +1,10 @@
+/**
+ * DEPRECATION NOTICE
+ * Questo modulo rimane per compatibilità test e referenze storiche.
+ * Per trovare le parole formate da una mossa, usare i core helpers:
+ *  - scanMainLine / scanCrossWords in `src/core/board.ts`
+ *  - wrapper `findNewWordsFormed` esposto da `src/core/confirmDeps.ts`
+ */
 import { PlacedTile } from '@/types/game'
 import { findAllWords } from './newWordFinder/scan'
 

@@ -1,3 +1,12 @@
+/**
+ * DEPRECATION NOTICE
+ * Questo modulo è mantenuto per retrocompatibilità nei test.
+ * La validazione della mossa è stata centralizzata in `src/core/board.ts`
+ * ed esposta al resto dell'app tramite `makeCoreConfirmDeps` in `src/core/confirmDeps.ts`.
+ * Nuovo flusso consigliato:
+ *   - canPlace(boardMatrix, move)
+ *   - scanMainLine/scanCrossWords per le parole
+ */
 import { PlacedTile } from '@/types/game'
 // Import dagli helper (barrel) per evitare l'auto-import ciclico di questo file
 import {

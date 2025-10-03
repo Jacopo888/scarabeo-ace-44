@@ -1,4 +1,5 @@
 import type { GameState, Player, PlacedTile, Tile } from '@/types/game'
+import { cloneBoard, createEmptyBoard } from '@/core/board'
 import { drawTiles } from './random'
 import { isDebugQuackle } from '@/config/debug'
 import { canEndGame } from '@/utils/gameRules'
@@ -30,6 +31,32 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
       isBlank: tile.isBlank || false
     })
   })
+
+  // Shadow-write boardMatrix if present
+  const nextMatrix = (() => {
+    const matrix = prev.boardMatrix
+    if (matrix) {
+      const cloned = cloneBoard(matrix)
+      sanitizedTiles.forEach(t => {
+        if (t.row >= 0 && t.row < cloned.length && t.col >= 0 && t.col < cloned[0].length) {
+          if (cloned[t.row][t.col] === null) {
+            cloned[t.row][t.col] = { ...t }
+          }
+        }
+      })
+      return cloned
+    }
+    // Build matrix from newBoard Map if not existing
+    const built = createEmptyBoard()
+    newBoard.forEach((pt, key) => {
+      const [rStr, cStr] = key.split(',')
+      const r = Number(rStr), c = Number(cStr)
+      if (Number.isFinite(r) && Number.isFinite(c) && r >= 0 && c >= 0 && r < built.length && c < built[0].length) {
+        built[r][c] = { ...pt }
+      }
+    })
+    return built
+  })()
 
   const currentPlayer = prev.players[prev.currentPlayerIndex]
   const newRack: Tile[] = [...currentPlayer.rack]
@@ -83,6 +110,7 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
       next: {
         ...prev,
         board: newBoard,
+        boardMatrix: nextMatrix,
         players: finalPlayers,
         tileBag: remaining,
         gameStatus: 'finished',
@@ -102,6 +130,7 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
     next: {
       ...prev,
       board: newBoard,
+  boardMatrix: nextMatrix,
       players: newPlayers,
       tileBag: remaining,
       currentPlayerIndex: (prev.currentPlayerIndex + 1) % prev.players.length,

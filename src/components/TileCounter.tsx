@@ -8,7 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 
 interface TileCounterProps {
   tileBag?: any[]
-  boardMap?: Map<string, PlacedTile> | Record<string, PlacedTile>
+  boardMap?: Map<string, PlacedTile> | Record<string, PlacedTile> | (PlacedTile | null)[][]
   myRack?: Tile[]
   opponentRack?: Tile[]
   className?: string
@@ -37,7 +37,9 @@ export const TileCounter: FC<TileCounterProps> = ({ tileBag, boardMap, myRack, o
       if (!k || k === '.') return
       d[k] = (d[k] || 0) + 1
     }
-    if (boardMap instanceof Map) {
+    if (Array.isArray(boardMap)) {
+      for (const row of boardMap) for (const cell of row) push(cell)
+    } else if (boardMap instanceof Map) {
       for (const [, v] of boardMap.entries()) push(v)
     } else {
       for (const v of Object.values(boardMap as Record<string, PlacedTile>)) push(v)

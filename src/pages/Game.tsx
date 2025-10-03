@@ -2,6 +2,7 @@ import { GameProvider, useGameContext } from "@/contexts/GameContext"
 import { Button } from "@/components/ui/button"
 import { GameFlow } from "@/components/GameFlow"
 import { ScrabbleBoard } from "@/components/ScrabbleBoard"
+import { mapToBoard } from '@/core/adapters'
 import { TileCounter } from "@/components/TileCounter"
 import { TileRack } from "@/components/TileRack"
 import { TileActions } from "@/components/TileActions"
@@ -138,7 +139,7 @@ const GameContent = () => {
                 disabled={isBotTurn || currentPlayer.isBot}
                 selectedTile={selectedTile}
                 onUseSelectedTile={clearSelectedTile}
-                boardMap={gameState.board}
+                boardMap={(gameState.boardMatrix as any) || mapToBoard(gameState.board)}
                 pendingTiles={pendingTiles}
                 onPlaceTile={(row, col, tile) => {
                   const gameTile: Tile = 'value' in tile && !('points' in tile)
@@ -166,7 +167,7 @@ const GameContent = () => {
                 pendingCount={pendingTiles.length}
                 rackLength={rackToShow.length}
                 tileBag={gameState.tileBag as any}
-                boardMap={gameState.board as any}
+                boardMap={(gameState.boardMatrix as any) || mapToBoard(gameState.board)}
                 myRack={myRackForBag as any}
                 opponentRack={opponentRackForBag as any}
                 onConfirm={confirmMove}

@@ -1,5 +1,6 @@
 import { PlacedTile, Tile } from '@/types/game'
-import { findWordsOnBoard } from './wordFinder'
+import { mapToBoard } from '@/core/adapters'
+import { scanMainLine, scanCrossWords } from '@/core/board'
 
 export interface MoveValidation {
   isValid: boolean
@@ -40,8 +41,16 @@ export const validateMove = (
   }
   
   // Find all words formed by this move
-  const allWords = findWordsOnBoard(board, newTiles)
-  const wordStrings = allWords.map(w => w.word)
+  // Ricava parole formate usando il core (main + cross) e unisci in lista unica
+  const matrix = mapToBoard(board)
+  const main = scanMainLine(matrix, newTiles)
+  const crosses = scanCrossWords(matrix, newTiles)
+  const words: string[] = []
+  if (main.length > 1 || (main.length === 1 && crosses.length === 0)) {
+    words.push(main.map(t => t.letter).join(''))
+  }
+  for (const line of crosses) words.push(line.map(t => t.letter).join(''))
+  const wordStrings = Array.from(new Set(words)).filter(Boolean)
   
   // Validate all words in dictionary if validator provided
   if (isValidWordFn) {
@@ -52,7 +61,7 @@ export const validateMove = (
   }
   
   // Check if at least one word is formed
-  if (allWords.length === 0) {
+  if (wordStrings.length === 0) {
     errors.push('You must form at least one word')
   }
   

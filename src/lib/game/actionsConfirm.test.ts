@@ -61,6 +61,9 @@ describe('applyConfirmMove', () => {
     expect(next.currentPlayerIndex).toBe(1)
     expect(next.passCounts?.[0]).toBe(0)
     expect(next.tileBag.length).toBeLessThanOrEqual(bag.length)
+    // boardMatrix shadow-write must reflect the placed tile
+    expect(next.boardMatrix).toBeTruthy()
+    expect(next.boardMatrix![7][7]?.letter).toBe('A')
   })
 
   it('finishes the game when endgame condition met', () => {
@@ -72,5 +75,8 @@ describe('applyConfirmMove', () => {
     const res = applyConfirmMove(st, [tile('A',7,7)], deps)
     expect(res.ok).toBe(true)
     expect(res.next?.gameStatus).toBe('finished')
+    // boardMatrix updated also on finishing state
+    expect(res.next?.boardMatrix).toBeTruthy()
+    expect(res.next?.boardMatrix?.[7][7]?.letter).toBe('A')
   })
 })

@@ -1,4 +1,5 @@
 import { GameState, TILE_DISTRIBUTION } from '@/types/game'
+import { createEmptyBoard } from '@/core/board'
 import type { Difficulty } from '@/components/DifficultyModal'
 import { shuffleArray, drawTiles } from './random'
 
@@ -14,6 +15,7 @@ export function initGameState(mode: GameModeParam, difficulty: Difficulty | null
 
   return {
     board: new Map(),
+    boardMatrix: createEmptyBoard(),
     players: [
       {
         id: 'player1',

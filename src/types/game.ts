@@ -19,6 +19,8 @@ export interface Player {
 
 export interface GameState {
   board: Map<string, PlacedTile>
+  // Step 7 migration: matrix representation of the board (shadow-write until full switch)
+  boardMatrix?: (PlacedTile | null)[][]
   players: Player[]
   currentPlayerIndex: number
   tileBag: Tile[]

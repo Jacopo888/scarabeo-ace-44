@@ -10,7 +10,7 @@ export function BoardPanel(props: {
   isMyTurn: boolean
   selectedTile: GameOrStoreTile | null
   onUseSelectedTile: () => void
-  boardMap: Map<string, PlacedTile>
+  boardMap: Map<string, PlacedTile> | (PlacedTile | null)[][]
   pendingTiles: PlacedTile[]
   onPlaceTile: (row: number, col: number, tile: GameTile) => void
   onPickupTile: (row: number, col: number) => void

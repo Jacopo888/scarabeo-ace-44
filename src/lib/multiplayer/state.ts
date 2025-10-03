@@ -1,5 +1,6 @@
 import { GameRecord } from '@/types/multiplayer'
 import { GameState, PlacedTile, Tile } from '@/types/game'
+import { mapToBoard } from '@/core/adapters'
 
 const normalizeRack = (rack: Tile[] = []): Tile[] =>
   rack.map((t) => ({
@@ -38,6 +39,8 @@ export const buildGameState = (gameData: GameRecord, userId: string): { state: G
     ],
     currentPlayerIndex: gameData.current_player_id === gameData.player1_id ? 0 : 1,
     board: boardMap,
+    // Prefer internal matrix model for consumers; keep Map for serialization boundaries
+    boardMatrix: mapToBoard(boardMap),
     tileBag: gameData.tile_bag,
     gameStatus: 'playing',
   }

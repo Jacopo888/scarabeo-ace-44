@@ -16,7 +16,7 @@ interface ScrabbleBoardProps {
   selectedTile?: StoreTile | GameTile | null
   onUseSelectedTile?: () => void
   // Puzzle mode props for controlled usage
-  boardMap?: Map<string, PlacedTile>
+  boardMap?: Map<string, PlacedTile> | (PlacedTile | null)[][]
   pendingTiles?: PlacedTile[]
   onPlaceTile?: (row: number, col: number, tile: StoreTile | GameTile) => void
   onPickupTile?: (row: number, col: number) => void

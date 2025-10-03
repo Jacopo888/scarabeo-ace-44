@@ -4,8 +4,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import { GameRecord, MoveRecord } from '@/types/multiplayer'
 import { GameState, Tile, PlacedTile } from '@/types/game'
 import { useToast } from '@/hooks/use-toast'
-import { validateMoveLogic } from '@/utils/moveValidation'
-import { findNewWordsFormed } from '@/utils/newWordFinder'
 import { calculateScore } from '@/utils/scoring'
 import { shuffleArray, drawTiles } from '@/lib/multiplayer/tiles'
 import { shouldEndGameAfterMove, applyEndgamePenalties } from '@/lib/multiplayer/endgame'
@@ -17,6 +15,7 @@ import { getOpponentInfo as _getOpponentInfo, getMyScore as _getMyScore, getCurr
 import { computeValidatedMove, applyPendingTilesToBoard } from '@/lib/multiplayer/moveUtils'
 import { upsertPendingTile, removePendingTile } from '@/lib/multiplayer/pending'
 import { prepareSubmitOutcome } from '@/lib/multiplayer/prepare'
+import { makeCoreConfirmDeps } from '@/core/confirmDeps'
 
 const API_BASE = import.meta.env.VITE_RATING_API_URL || (import.meta.env.MODE === 'development' ? '/api' : '')
 
@@ -120,7 +119,13 @@ export const useMultiplayerGame = (gameId: string) => {
 
       // Prepare board and compute validated move via pure helpers
       const boardMap = new Map<string, PlacedTile>(Object.entries(game.board_state || {}) as [string, PlacedTile][])
-  const prepared = prepareSubmitOutcome(boardMap, pendingTiles, { validateMoveLogic, findNewWordsFormed, calculateScore, isValidWord })
+      const coreDeps = makeCoreConfirmDeps(isValidWord)
+      const prepared = prepareSubmitOutcome(boardMap, pendingTiles, {
+        validateMoveLogic: coreDeps.validateMoveLogic,
+        findNewWordsFormed: coreDeps.findNewWordsFormed,
+        calculateScore,
+        isValidWord
+      })
       if (!prepared.ok) {
         const errs = (prepared as { ok: false; errors: string[] }).errors || []
         toast({ title: 'Invalid move', description: errs.join(', '), variant: 'destructive' })

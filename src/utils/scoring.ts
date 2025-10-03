@@ -1,6 +1,15 @@
 import { PlacedTile } from '@/types/game'
-import { FoundWord } from './wordFinder'
+// Keep a local FoundWord shape to avoid depending on legacy facades
+export interface FoundWord {
+  word: string
+  tiles: PlacedTile[]
+  direction: 'horizontal' | 'vertical'
+  startRow: number
+  startCol: number
+}
 import { getMultipliersAt } from '@/config/boardConstants'
+import { mapToBoard } from '@/core/adapters'
+import { scoreMove as scoreMoveCore, type Board } from '@/core/board'
 
 export const calculateWordScore = (
   word: FoundWord,
@@ -62,46 +71,24 @@ export interface ScoreCalculationOptions {
 export function calculateScore(options: ScoreCalculationOptions): number {
   const { tiles, existingBoard } = options
   if (!tiles || tiles.length === 0) return 0
+  // Delegate to the new matrix-based core using an adapter for backward compatibility
+  const board = mapToBoard(existingBoard)
+  const { score } = scoreMoveCore(board, tiles)
+  return score
+}
 
-  // Detect direction
-  const rows = tiles.map(t => t.row)
-  const cols = tiles.map(t => t.col)
-  const uniqueRows = new Set(rows).size
-  const uniqueCols = new Set(cols).size
-  const isHorizontal = uniqueRows === 1 && uniqueCols > 1
-  const isVertical = uniqueCols === 1 && uniqueRows > 1
-  const isSingleTile = tiles.length === 1 || (!isHorizontal && !isVertical)
+// New: direct scoring from matrix board (preferred path for new code)
+export interface ScoreFromBoardOptions {
+  tiles: PlacedTile[]
+  board: Board
+  context?: 'player' | 'quackle'
+}
 
-  if (isSingleTile) {
-    return calculateSingleTileScore(tiles[0])
-  }
-
-  // Main word
-  const mainWord = buildFullWord(tiles, existingBoard, isHorizontal)
-  let mainScore = 0
-  let wordMult = 1
-  mainWord.forEach(tile => {
-    const isNew = tiles.some(t => t.row === tile.row && t.col === tile.col)
-    let letterScore = Number(tile.points) || 0
-    if (isNew) {
-      const mul = getMultipliersAt(tile.row, tile.col)
-      letterScore *= mul.letter
-      wordMult *= mul.word
-    }
-    mainScore += letterScore
-  })
-
-  let total = mainScore * wordMult
-
-  // Cross-words formed by each new tile
-  tiles.forEach(tile => {
-    total += calculateCrossWordScore(tile, existingBoard, isHorizontal)
-  })
-
-  // Bingo
-  if (tiles.length === 7) total += 50
-
-  return total
+export function calculateScoreFromBoard(options: ScoreFromBoardOptions): number {
+  const { tiles, board } = options
+  if (!tiles || tiles.length === 0) return 0
+  const { score } = scoreMoveCore(board, tiles)
+  return score
 }
 
 function calculateSingleTileScore(tile: PlacedTile): number {
