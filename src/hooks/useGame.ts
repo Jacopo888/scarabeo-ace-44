@@ -282,8 +282,8 @@ export const useGame = () => {
         return
       }
 
-      // Usa sempre il punteggio calcolato da Quackle (già completo, include tutti i moltiplicatori)
-      const finalScore = typeof move.score === 'number' ? move.score : 0
+      // Calcola sempre il punteggio lato client per coerenza con la board visualizzata
+      const finalScore = calculateScore({ tiles: sanitizedTiles, board: snapshot.boardMatrix, context: 'quackle' })
 
       if (import.meta.env.DEV) {
         console.log('[useGame] 🎯 Using Quackle score:', finalScore)

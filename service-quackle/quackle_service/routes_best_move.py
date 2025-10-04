@@ -209,14 +209,10 @@ async def best_move(req: Request):
 
         computed_words = _compute_words(board_out.get("grid", []), tiles_out)
         # Prefer engine main word if present, but merge with computed crosses
-        engine_words = result.get("words", []) if isinstance(result, dict) else []
-        merged_words: list[str] = []
-        for w in (engine_words or []):
-            if isinstance(w, str) and w and w not in merged_words:
-                merged_words.append(w)
-        for w in (computed_words or []):
-            if isinstance(w, str) and w and w not in merged_words:
-                merged_words.append(w)
+        # Rely exclusively on server-side computed words to reflect the actual
+        # post-move board state we expose to the client. Engine-provided words
+        # may include context unknown to the UI.
+        merged_words: list[str] = computed_words or []
 
         out = {
             "tiles": tiles_out,
