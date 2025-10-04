@@ -46,8 +46,7 @@ def test_endgame_empty_bag_finishing_play_possible():
             "grid": empty_grid(),
         },
         "difficulty": "hard",
-        # Endgame: empty bag
-        "bag_count": 0,
+        # Endgame: empty bag (bag_count derived from bag_pool length)
         "bag_pool": [],
     }
     r = client.post('/best-move', json=body)
@@ -78,8 +77,7 @@ def test_endgame_empty_bag_no_play_then_pass():
             "grid": empty_grid(),
         },
         "difficulty": "hard",
-        # Endgame: empty bag
-        "bag_count": 0,
+        # Endgame: empty bag (bag_count derived from bag_pool length)
         "bag_pool": [],
     }
     r = client.post('/best-move', json=body)

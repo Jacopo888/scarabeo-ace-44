@@ -9,6 +9,7 @@ import logging
 from .config import (
     LEXDIR,
     APPDATA,
+    ENV_MODE,
 )
 from .runtime import ensure_lexicon_files, ensure_lexicon_ready as _ensure_lexicon_ready
 from .routes_best_move import router as best_move_router
@@ -60,7 +61,14 @@ app.add_middleware(RequestLoggerMiddleware)
 # Register routers
 app.include_router(health_router)
 app.include_router(best_move_router)
-app.include_router(debug_router)
+
+# Conditional debug router: mount only if DEBUG_ROUTES enabled or non-prod environment
+DEBUG_ROUTES_ENABLED = os.getenv("DEBUG_ROUTES", "").strip().lower() in {"1", "true", "yes", "on"}
+if DEBUG_ROUTES_ENABLED or ENV_MODE != "prod":
+    app.include_router(debug_router)
+    _log.info("[startup] 🐛 Debug routes ENABLED (DEBUG_ROUTES=%s, ENV=%s)", DEBUG_ROUTES_ENABLED, ENV_MODE)
+else:
+    _log.info("[startup] 🔒 Debug routes DISABLED (production mode, ENV=%s)", ENV_MODE)
 
 """
 Main FastAPI app bootstrap: mounts routers and adds a tiny request-logging middleware.

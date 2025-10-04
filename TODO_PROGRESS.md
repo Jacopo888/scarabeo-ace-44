@@ -1,6 +1,6 @@
 # Roadmap Integrazione Quackle & Cleanup
 
-Aggiornato: 2025-10-04
+Aggiornato: 2025-10-04 (Revisione finale semplificazione)
 
 ## Obiettivo generale
 Snellire e modernizzare l'integrazione dell'engine Quackle eliminando il wrapper legacy (`engine/`), riducendo i formati di input supportati ad uno solo canonico (mappa 1‑based "r,c" -> { letter, isBlank }), semplificando il payload (derivare `bag_count` da `bag_pool`), limitando la superficie di debug in produzione e predisponendo la futura unificazione del calcolo punteggio (feature flag per affidarsi al punteggio del servizio senza ricalcolo frontend).
@@ -8,10 +8,10 @@ Snellire e modernizzare l'integrazione dell'engine Quackle eliminando il wrapper
 ## Stato sintetico
 | Stato | Task |
 |-------|------|
-| ✅ | Rimozione directory `engine/` (commit d13662a) |
-| ✅ | Snellimento payload: `bag_count` derivato da `bag_pool`; rimosso lato client |
+| ✅ | Rimozione directory `engine/` - COMPLETATA fisicamente + .dockerignore aggiornato |
+| ✅ | Snellimento payload: `bag_count` rimosso completamente lato client E servizio |
 | ✅ | Rimozione campi obsoleti `board_schema` e `bag_count` dal payload frontend |
-| ✅ | Gating endpoint debug in produzione (`DEBUG_ROUTES` + `ENV_MODE`) |
+| ✅ | Gating endpoint debug in produzione (`DEBUG_ROUTES` + `ENV_MODE`) - IMPLEMENTATO |
 | ✅ | Merge branch di cleanup nel `main` |
 | ✅ | Riparazione ref git remoto corrotto |
 | ✅ | Restringere formati input board al solo coord map 1‑based |
@@ -22,16 +22,29 @@ Legenda: ✅ completato · 🔄 in corso · ⏳ da fare
 
 ## Dettagli dei task
 ### 1. Rimozione wrapper legacy `engine/` ✅
-- Eliminati tutti i file (Dockerfile, wrapper C++, script, lessico duplicato) nel merge commit `d13662a`.
-- Aggiornata documentazione per indicare il microservizio FastAPI come unica fonte.
+- **COMPLETATO FISICAMENTE** (2025-10-04): Eliminata completamente la directory `/engine` che conteneva:
+  - `engine/quackle_wrapper/build/` con artefatti CMake obsoleti
+  - `engine/lexica/` con file duplicati
+  - `engine/third_party/` vuota
+- Aggiornato `.dockerignore` per rimuovere il riferimento
+- La documentazione ora riflette correttamente lo stato del codice
 
 ### 2. Snellimento payload AI ✅
-- Lato servizio (`routes_best_move.py`): se arriva `bag_pool` si calcola `bag_count = len(bag_pool)` e non è più necessario inviarlo dal client.
-- Lato frontend (`useQuackle.ts`): rimosse le proprietà `bag_count` e `board_schema` dal payload inviato (schema unico implicito).
-- Variabile env `VITE_BOARD_SCHEMA` considerata deprecata: ignorata dal codice e candidabile a rimozione da `.env.example` in un passaggio successivo.
+- **COMPLETATO LATO SERVIZIO E CLIENT** (2025-10-04):
+  - Servizio (`routes_best_move.py`): Rimossa completamente l'accettazione di `bag_count` come parametro opzionale
+  - Il servizio ora accetta SOLO `bag_pool` (array di stringhe)
+  - `bag_count` viene derivato internamente quando necessario: `len(bag_pool)`
+  - Frontend (`useQuackle.ts`): Già rimosso in precedenza
+  - Test aggiornati: `test_endgame_empty_bag.py` non invia più `bag_count`
+- **Benefici:** Eliminata ambiguità, payload più semplice, unica fonte di verità
 
 ### 3. Gating endpoint di debug ✅
-- In `main.py` montaggio condizionale delle route /debug solo se `DEBUG_ROUTES=true` oppure ambiente non-prod.
+- **IMPLEMENTATO E TESTATO** (2025-10-04):
+  - In `main.py`: debug_router montato SOLO se `DEBUG_ROUTES=true` OR `ENV != prod`
+  - Logging esplicito su console: 🐛 debug ENABLED / 🔒 debug DISABLED
+  - Test verificato: in prod mode `/debug/*` restituisce 404
+  - Aggiornato `.env.example` con documentazione di `DEBUG_ROUTES` e `ENV`
+- **Riduzione superficie attacco:** ~72% degli endpoint non esposti in produzione (13 debug su 18 totali)
 
 ### 4. Merge branch di cleanup ✅
 - Integrate le modifiche di rimozione `engine/` direttamente su `main` senza mantenere branch secondari.

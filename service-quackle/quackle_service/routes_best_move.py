@@ -44,14 +44,9 @@ async def best_move(req: Request):
         diff_raw = (body.get("difficulty") if isinstance(body, dict) else None) or None
         if isinstance(diff_raw, str) and diff_raw.strip().lower() in {"easy", "medium", "hard"}:
             payload["difficulty"] = diff_raw.strip().lower()
-        # Optional: pass-through bag_count if provided by the client for legality checks (e.g., exchange)
-        try:
-            bc = body.get("bag_count") if isinstance(body, dict) else None
-            if isinstance(bc, int):
-                payload["bag_count"] = bc
-        except Exception:
-            pass
+        
         # Optional: pass-through bag_pool (list of single-letter strings, '?' for blanks)
+        # bag_count is now derived internally from bag_pool length when needed
         try:
             bp = body.get("bag_pool") if isinstance(body, dict) else None
             if isinstance(bp, list) and all(isinstance(x, str) and len(x) >= 1 for x in bp):
