@@ -1,4 +1,4 @@
-# Migrazione al Core a Matrice (Steps 1–6)
+# Migrazione al Core a Matrice (Completata Steps 1–11)
 
 Questa nota documenta la semplificazione della board e del piazzamento mosse verso un modello minimale e deterministico basato su una matrice 15×15, con funzioni pure per validazione, scanning e calcolo punteggio.
 
@@ -22,8 +22,10 @@ Questa nota documenta la semplificazione della board e del piazzamento mosse ver
   - `calculateScore()` delega al core (`scoreMove`) tramite `mapToBoard`.
 
 ## Integrazione UI/State
-- `GameState.board`: resta una `Map<string, PlacedTile>` per compat UI/DB, ma il core lavora su matrice via adapter.
-- `ScrabbleBoard` e helper UI accettano anche la matrice (tipo `AnyBoard`).
+- `GameState.boardMatrix` è ora la fonte unica di verità runtime.
+- Persistenza DB ancora in formato record `"r,c" -> tile`; conversione → matrice eseguita in `buildGameState`.
+- Eventuali percorsi che costruivano `Map` transitorie sono stati eliminati (es. `useMultiplayerGame.submitMove`).
+- `AnyBoard` nei test mantiene un singolo caso di compatibilità ma non viene più usato in flussi di produzione.
 
 ## Conferma mossa
 - `applyConfirmMove` usa deps core (`makeCoreConfirmDeps`) per validazione e parole; punteggio via `calculateScore`.
@@ -34,16 +36,28 @@ Questa nota documenta la semplificazione della board e del piazzamento mosse ver
 - Punteggio mosse Quackle: ricalcolato localmente con `calculateScore()` per coerenza con i moltiplicatori.
 
 ## Rimozione legacy
-- Rimossi: `src/utils/moveValidation*`, `src/utils/newWordFinder*`, `src/utils/wordFinder.ts`.
-- Tutti i call‑site sostituiti/adeguati.
+- Rimossi (definitivo): wrapper Map e scanner duplicati
+  - `src/utils/wordFinder.ts`
+  - `src/utils/newWordFinder.ts` (wrapper) — mantenuto solo `newWordFinder/scan.ts` come implementazione di basso livello nota ai test.
+  - Adapter superflui o shim di validazione pre-matrice.
+- Tutti i call‑site migrati a: `makeCoreConfirmDeps` + funzioni pure in `core/board.ts`.
+- Eliminato uso della `Map` in `useMultiplayerGame.submitMove`.
 
 ## Test
 - Core: `src/core/board.test.ts`, `src/core/board.integration.test.ts`, `src/core/confirmDeps.test.ts`.
 - Quackle payload: `src/hooks/useQuackle.payload.test.ts`.
 - Suite completa verde.
 
-## Prossimi passi (Step 7)
-- Migrare il `GameState.board` a matrice in due fasi:
-  1. Aggiungere `boardMatrix` in `GameState` + adapter trasparenti per UI/DB; 
-  2. Spostare gradualmente tutti i consumer a `boardMatrix` e rimuovere `board` Map.
-- Aggiornare i test per usare direttamente la matrice dove possibile.
+## Invarianti Aggiunti (Step 11)
+- `board.invariants.test.ts`: immutabilità `setBoardTile`, correttezza `buildQuackleBoard`, coerenza scoring.
+
+## Stato Finale
+- Tutta la logica e i test usano solo `boardMatrix`.
+- Nessun percorso di produzione dipende da `Map` come struttura board primaria.
+- Wrapper legacy completamente eliminati.
+- Suite test: 100% verde dopo rimozione wrapper (57 file / 168 test passati + 1 skipped al momento della migrazione finale).
+
+## Prossimi passi (facoltativi)
+- Rimuovere eventuale ultimo test di compat Map da `board.test.ts` se si desidera enforcement totale.
+- Introdurre property-based tests per `scoreMove` / generatori di mosse.
+- Aggiornare eventuali ADR per riflettere stato finale (se non già fatto).

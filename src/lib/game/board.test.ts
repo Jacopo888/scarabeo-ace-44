@@ -17,12 +17,6 @@ describe('board helpers', () => {
     expect(boardKey(7, 14)).toBe('7,14')
   })
 
-  it('getBoardTile works with Map board', () => {
-    const m = new Map<string, PlacedTile>()
-    m.set('1,2', makePlaced('A', 1, 2))
-    expect(getBoardTile(m as AnyBoard, 1, 2)).toEqual({ letter: 'A', points: 1, row: 1, col: 2 })
-    expect(getBoardTile(m as AnyBoard, 0, 0)).toBeUndefined()
-  })
 
   it('getBoardTile works with matrix board (StoreTile|null)', () => {
     const grid: (StoreTile | null)[][] = Array.from({ length: 15 }, () => Array(15).fill(null))

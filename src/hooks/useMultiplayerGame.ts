@@ -117,10 +117,14 @@ export const useMultiplayerGame = (gameId: string) => {
     try {
       setLoading(true)
 
-      // Prepare board and compute validated move via pure helpers
-      const boardMap = new Map<string, PlacedTile>(Object.entries(game.board_state || {}) as [string, PlacedTile][])
+      // Prepare board (matrix already in gameState) and compute validated move via pure helpers
+      if (!gameState) {
+        setLoading(false)
+        return
+      }
+      const boardMatrix = gameState.boardMatrix
       const coreDeps = makeCoreConfirmDeps(isValidWord)
-      const prepared = prepareSubmitOutcome(boardMap, pendingTiles, {
+      const prepared = prepareSubmitOutcome(boardMatrix, pendingTiles, {
         validateMoveLogic: coreDeps.validateMoveLogic,
         findNewWordsFormed: coreDeps.findNewWordsFormed,
         calculateScore,
