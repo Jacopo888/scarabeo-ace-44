@@ -20,11 +20,18 @@ const recordToBoardMatrix = (boardState: Record<string, PlacedTile> = {}): (Plac
 }
 
 const normalizeRack = (rack: Tile[] = []): Tile[] =>
-  rack.map((t) => ({
-    letter: t.letter ?? '',
-    points: t.points ?? 0,
-    isBlank: t.isBlank ?? (t.letter === '' && t.points === 0),
-  }))
+  rack.map((t) => {
+    const rawLetter = (t.letter ?? '').toString()
+    const isBlank = t.isBlank ?? (rawLetter === '' && (t.points ?? 0) === 0)
+    const letter = isBlank && (rawLetter === '?' || rawLetter === null)
+      ? ''
+      : (rawLetter || '')
+    return {
+      letter,
+      points: t.points ?? 0,
+      isBlank,
+    }
+  })
 
 export const buildGameState = (gameData: GameRecord, userId: string): { state: GameState; isMyTurn: boolean } => {
   const boardMatrix = recordToBoardMatrix(gameData.board_state || {})

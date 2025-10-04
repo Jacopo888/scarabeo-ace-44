@@ -144,7 +144,7 @@ const GameContent = () => {
                   const gameTile: Tile = 'value' in tile && !('points' in tile)
                     ? { letter: tile.letter, points: Number(tile.value), isBlank: Boolean('isBlank' in tile ? tile.isBlank : false) }
                     : tile as Tile
-                  if (gameTile.isBlank && gameTile.letter === '') {
+                  if (gameTile.isBlank && (gameTile.letter === '' || gameTile.letter === '?')) {
                     setBlankTile({ row, col, tile: gameTile })
                   } else {
                     placeTile(row, col, gameTile)

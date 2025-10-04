@@ -62,7 +62,19 @@ export function applyConfirmMove(prev: GameState, pendingTiles: PlacedTile[], de
 
   // Update player score and rack
   const currentPlayer = prev.players[prev.currentPlayerIndex]
-  const tilesNeeded = 7 - currentPlayer.rack.length
+  // Remove used tiles from rack before drawing replacements
+  const rackAfterRemoval: Tile[] = (() => {
+    const base = [...currentPlayer.rack]
+    for (const used of pendingTiles) {
+      const idx = base.findIndex(t => {
+        if (used.isBlank && t.isBlank) return true
+        return (t.letter || '').toUpperCase() === used.letter && (t.points || 0) === (used.points || 0)
+      })
+      if (idx !== -1) base.splice(idx, 1)
+    }
+    return base
+  })()
+  const tilesNeeded = Math.max(0, 7 - rackAfterRemoval.length)
 
   const { drawn, remaining } = tilesNeeded > 0 && prev.tileBag.length > 0
     ? drawTiles(prev.tileBag, Math.min(tilesNeeded, prev.tileBag.length))
@@ -72,7 +84,7 @@ export function applyConfirmMove(prev: GameState, pendingTiles: PlacedTile[], de
   newPlayers[prev.currentPlayerIndex] = {
     ...currentPlayer,
     score: currentPlayer.score + score,
-    rack: [...currentPlayer.rack, ...drawn]
+    rack: [...rackAfterRemoval, ...drawn]
   }
 
   // Prepare move info

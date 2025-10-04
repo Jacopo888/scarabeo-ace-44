@@ -811,13 +811,15 @@ int main(int argc, char** argv){
     // Simulatore:
     // - easy/medium: DISATTIVATO
     // - hard: ATTIVO solo in pre-endgame (bag < 10) e NON in vero endgame (dove usiamo il solver)
+    //   (override opzionale via env QUACKLE_SIM_IN_ENDGAME=1 per attivarlo anche in endgame)
     try {
       int bagSize = (bagCountHint >= 0) ? bagCountHint : (int)pos.bag().size();
       int endgameThreshold = env_int("QUACKLE_ENDGAME_THRESHOLD", 7);
       // Enable simulator only for hard when 0 < bag < 10 and above endgameThreshold
       int hardSimThreshold = env_int("QUACKLE_SIM_HARD_THRESHOLD", 10);
       const bool isHard = (diff == "hard");
-      const bool runSim = isHard && (bagSize < hardSimThreshold) && (bagSize > endgameThreshold);
+      const bool allowSimInEndgame = env_int("QUACKLE_SIM_IN_ENDGAME", 0) != 0;
+      const bool runSim = isHard && (bagSize < hardSimThreshold) && ((bagSize > endgameThreshold) || (allowSimInEndgame && bagSize > 0));
       if (runSim) {
         int simTop   = env_int("QUACKLE_SIM_TOP", 5);
         int simDepth = env_int("QUACKLE_SIM_DEPTH", 2);

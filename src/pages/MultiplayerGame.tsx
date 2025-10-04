@@ -149,7 +149,7 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
                     const gameTile: any = 'value' in t && !('points' in t)
                       ? { letter: t.letter, points: t.value, isBlank: t.isBlank }
                       : t
-                    if (gameTile?.isBlank && gameTile.letter === '') {
+                    if (gameTile?.isBlank && (gameTile.letter === '' || gameTile.letter === '?')) {
                       setBlankTile({ row, col, tile: gameTile })
                     } else {
                       placeTile(row, col, gameTile)

@@ -30,7 +30,8 @@ export const ScrabbleTile = ({
   className
 }: ScrabbleTileProps) => {
   const isMobile = useIsMobile()
-  const displayLetter = isBlank && letter === '' ? '★' : letter
+  // Show star for unassigned blanks (empty or '?')
+  const displayLetter = isBlank && (letter === '' || letter === '?') ? '★' : letter
   const displayPoints = isBlank ? '★' : points
   return (
     <motion.div

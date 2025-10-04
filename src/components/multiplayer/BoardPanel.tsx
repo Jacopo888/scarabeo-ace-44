@@ -30,7 +30,7 @@ export function BoardPanel(props: {
         const gameTile: GameTile = 'value' in t && !('points' in t)
           ? { letter: t.letter, points: t.value, isBlank: (t as any).isBlank }
           : (t as GameTile)
-        if (gameTile?.isBlank && gameTile.letter === '') {
+        if (gameTile?.isBlank && (gameTile.letter === '' || gameTile.letter === '?')) {
           onRequestBlank(row, col, gameTile)
         } else {
           onPlaceTile(row, col, gameTile)
