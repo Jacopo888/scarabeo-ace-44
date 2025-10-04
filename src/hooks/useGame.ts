@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { GameState, Player, Tile, PlacedTile } from '@/types/game'
-import { calculateScore, calculateScoreFromBoard } from '@/utils/scoring'
+import { calculateScoreFromBoard } from '@/utils/scoring'
 import { useToast } from '@/hooks/use-toast'
 import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
@@ -9,6 +9,7 @@ import type { GameMoveLite } from '@/types/localGame'
 import { Difficulty } from '@/components/DifficultyModal'
 import { toastOnce } from '@/lib/toastOnce'
 import { sanitizeQuackleTile } from '@/lib/game/tiles'
+import { mapToBoard } from '@/core/adapters'
 // random shuffle handled by rack helpers
 import { isCurrentPlayerTurn as isCurrentTurn } from '@/lib/game/turns'
 import { getCurrentRack, reshuffleRack, withCurrentRack } from '@/lib/game/rack'
@@ -89,16 +90,14 @@ export const useGame = () => {
 
   const confirmMove = useCallback(() => {
   const coreDeps = makeCoreConfirmDeps(isValidWord)
-  // Prefer core-based validation/word-extraction for simplicity; keep calculateScore passthrough
+  // Prefer core-based validation/word-extraction for simplicity; always use matrix scoring
   const deps = { 
     validateMoveLogic: coreDeps.validateMoveLogic,
     findNewWordsFormed: coreDeps.findNewWordsFormed,
-    // Prefer matrix scoring when available in state
+    // Always use matrix scoring (convert Map to matrix if needed)
     calculateScore: (opts: any) => {
-      if (gameState.boardMatrix) {
-        return calculateScoreFromBoard({ tiles: opts.tiles, board: gameState.boardMatrix, context: opts.context })
-      }
-      return calculateScore(opts)
+      const board = gameState.boardMatrix || mapToBoard(gameState.board)
+      return calculateScoreFromBoard({ tiles: opts.tiles, board, context: opts.context })
     },
     isValidWord
   }
@@ -229,11 +228,9 @@ export const useGame = () => {
       console.log('[useGame] Bot move received:', move)
       console.log('[useGame] Move details - tiles:', move?.tiles?.length, 'move_type:', move?.move_type, 'engine_fallback:', move?.engine_fallback)
       
-      const USE_SERVICE_SCORE = (import.meta.env.VITE_USE_SERVICE_SCORE || 'false').toString().toLowerCase() === 'true'
-
       // DEEP DEBUG: Log complete move details per indagine punteggi
       if (import.meta.env.DEV && move?.tiles) {
-        console.log('[useGame] 🔍 DEEP DEBUG - Raw score from Quackle:', move.score)
+        console.log('[useGame] 🔍 DEEP DEBUG - Score from Quackle:', move.score)
         console.log('[useGame] 🔍 DEEP DEBUG - Tiles with coordinates:', JSON.stringify(move.tiles, null, 2))
         console.log('[useGame] 🔍 DEEP DEBUG - Words:', move.words)
       }
@@ -288,27 +285,11 @@ export const useGame = () => {
         return
       }
 
-      // Calcolo di riferimento locale
-      const localScore = snapshot.boardMatrix
-        ? calculateScoreFromBoard({ tiles: sanitizedTiles, board: snapshot.boardMatrix as any, context: 'quackle' })
-        : calculateScore({ tiles: sanitizedTiles, existingBoard: snapshot.board, context: 'quackle' })
-
-      // Decisione punteggio (feature flag): se attivo usa quello del servizio, altrimenti quello locale
-      const serviceScore = typeof move.score === 'number' ? move.score : 0
-      const finalScore = USE_SERVICE_SCORE ? serviceScore : localScore
+      // Usa sempre il punteggio calcolato da Quackle (già completo, include tutti i moltiplicatori)
+      const finalScore = typeof move.score === 'number' ? move.score : 0
 
       if (import.meta.env.DEV) {
-        const mismatch = serviceScore !== localScore
-        console.log('[useGame] 🔧 SCORE DECISION', {
-          USE_SERVICE_SCORE,
-          serviceScore,
-            localScore,
-          finalScore,
-          mismatch
-        })
-        if (mismatch) {
-          console.warn('[useGame] ⚠️ Score mismatch (service vs local)', { serviceScore, localScore, chosen: finalScore })
-        }
+        console.log('[useGame] 🎯 Using Quackle score:', finalScore)
       }
 
     // Apply bot move to game state (delegated)
@@ -411,10 +392,4 @@ export const useGame = () => {
     moveHistory,
     gameId: gameIdRef.current
   }
-}
-
-// Helper puro (exportato per test) che applica il feature flag di scoring
-export function decideScore(params: { useService: boolean; serviceScore: number; localScore: number }): number {
-  const { useService, serviceScore, localScore } = params
-  return useService ? serviceScore : localScore
 }

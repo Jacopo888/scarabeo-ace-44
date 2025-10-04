@@ -1,0 +1,59 @@
+docs: riorganizzazione documentazione in cartelle tematiche
+
+Riorganizzata tutta la documentazione storica e i file temporanei in
+una struttura più chiara e scalabile:
+
+📁 Nuova struttura:
+
+1. docs/refactoring-history/
+   - Tutta la documentazione storica dei refactoring
+   - TODO_PROGRESS.md (roadmap e tracking)
+   - SEMPLIFICAZIONE_COMPLETATA.md (report finale)
+   - GUIDA_DEBUG_GATING.md (guida operativa)
+   - README.md (indice della cartella)
+
+2. temp-logs/ (ignorata da git)
+   - Log temporanei e file di debug
+   - File di test payload
+   - .gitignore per proteggere da commit accidentali
+   - README.md con best practices
+
+3. DOCS_INDEX.md (root)
+   - Guida navigazione globale
+   - Quick links per trovare rapidamente documenti
+   - Struttura organizzata per area/funzionalità
+
+✨ Benefici:
+
+- ✅ Root del progetto più pulita (-16 file)
+- ✅ Documentazione storica facilmente consultabile
+- ✅ Log temporanei protetti da commit accidentali
+- ✅ Guide di navigazione per orientarsi rapidamente
+- ✅ Struttura scalabile per futuri refactoring
+
+📊 Modifiche:
+
+File spostati (Renamed):
+- TODO_PROGRESS.md → docs/refactoring-history/
+- SEMPLIFICAZIONE_COMPLETATA.md → docs/refactoring-history/
+- GUIDA_DEBUG_GATING.md → docs/refactoring-history/
+
+File rimossi dal tracking (ora in temp-logs/):
+- *.log (13 file)
+- simulation_*.json (2 file)
+- test*.json (2 file)
+- test_fixes.cpp (1 file)
+
+Nuovi file:
+- DOCS_INDEX.md (guida navigazione globale)
+- docs/refactoring-history/README.md (indice storico)
+- temp-logs/README.md (guida uso cartella temporanea)
+- temp-logs/.gitignore (protezione commit)
+
+Aggiornamenti:
+- .gitignore → aggiunta cartella temp-logs/
+
+🎯 Obiettivo:
+
+Mantenere il repository pulito e organizzato, con documentazione
+facilmente accessibile e file temporanei separati dal codice versionato.

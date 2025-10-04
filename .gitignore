@@ -57,6 +57,9 @@ data/appdata/strategy/
 temp_lexica/
 lexica/
 
+# Temporary logs and test files (organized)
+temp-logs/
+
 # Keep directory structure with explicit placeholders
 !data/appdata/strategy/.keep
 !temp_lexica/.keep
