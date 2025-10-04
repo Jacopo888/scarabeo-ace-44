@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from quackle_service.main import app
+from quackle_service.normalization import grid_to_coordmap
 
 
 def make_client():
@@ -13,10 +14,9 @@ def empty_grid():
 
 def test_bag_summary_empty_board_and_rack():
     client = make_client()
-    body = {
-        "board": {"rows": 15, "cols": 15, "grid": empty_grid()},
-        "rack": "AEIRSTZ",
-    }
+    grid = empty_grid()
+    coord_map = grid_to_coordmap(grid)
+    body = {"board": coord_map, "rack": "AEIRSTZ"}
     r = client.post("/bag/summary", json=body)
     assert r.status_code == 200, r.text
     j = r.json()
@@ -38,10 +38,8 @@ def test_bag_summary_center_A_and_HELLO_blanks():
     row[7] = 'A'
     grid[7] = ''.join(row)
 
-    body = {
-        "board": {"rows": 15, "cols": 15, "grid": grid},
-        "rack": "HELLO??",
-    }
+    coord_map = grid_to_coordmap(grid)
+    body = {"board": coord_map, "rack": "HELLO??"}
     r = client.post("/bag/summary", json=body)
     assert r.status_code == 200, r.text
     j = r.json()
@@ -64,11 +62,8 @@ def test_bag_summary_with_opponent_rack():
     row[7] = 'A'
     grid[7] = ''.join(row)
 
-    body = {
-        "board": {"rows": 15, "cols": 15, "grid": grid},
-        "rack": "HELLO??",
-        "opponent_rack": "AB",  # opponent holds A and B
-    }
+    coord_map = grid_to_coordmap(grid)
+    body = {"board": coord_map, "rack": "HELLO??", "opponent_rack": "AB"}
     r = client.post("/bag/summary", json=body)
     assert r.status_code == 200, r.text
     j = r.json()
@@ -82,17 +77,14 @@ def test_bag_summary_with_opponent_rack():
 
 
 def test_bag_summary_partial_rack_allowed():
-  client = make_client()
-  grid = empty_grid()
-  body = {
-    "board": {"rows": 15, "cols": 15, "grid": grid},
-    "rack": "HELLO",  # 5 tiles only
-    "opponent_rack": "ABCD",
-  }
-  r = client.post("/bag/summary", json=body)
-  assert r.status_code == 200, r.text
-  j = r.json()
-  # Total unseen = 100 - 0(board) - 5 = 95
-  assert j.get("unseen_count") == 95
-  # Bag after removing opponent 4 tiles = 91
-  assert j.get("bag_count") == 91
+        client = make_client()
+        grid = empty_grid()
+        coord_map = grid_to_coordmap(grid)
+        body = {"board": coord_map, "rack": "HELLO", "opponent_rack": "ABCD"}
+        r = client.post("/bag/summary", json=body)
+        assert r.status_code == 200, r.text
+        j = r.json()
+        # Total unseen = 100 - 0(board) - 5 = 95
+        assert j.get("unseen_count") == 95
+        # Bag after removing opponent 4 tiles = 91
+        assert j.get("bag_count") == 91

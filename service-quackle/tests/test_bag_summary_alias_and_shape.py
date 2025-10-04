@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from quackle_service.main import app
+from quackle_service.normalization import grid_to_coordmap
 
 
 def make_client():
@@ -14,16 +15,9 @@ def empty_grid():
 def test_bag_summary_alias_opponentRack_and_shape():
     client = make_client()
     grid = empty_grid()
-    body_camel = {
-        "board": {"rows": 15, "cols": 15, "grid": grid},
-        "rack": "ABCDEF?",
-        "opponentRack": "GH",  # alias camelCase
-    }
-    body_snake = {
-        "board": {"rows": 15, "cols": 15, "grid": grid},
-        "rack": "ABCDEF?",
-        "opponent_rack": "GH",  # snake_case
-    }
+    coord_map = grid_to_coordmap(grid)
+    body_camel = {"board": coord_map, "rack": "ABCDEF?", "opponentRack": "GH"}
+    body_snake = {"board": coord_map, "rack": "ABCDEF?", "opponent_rack": "GH"}
 
     r1 = client.post("/bag/summary", json=body_camel)
     r2 = client.post("/bag/summary", json=body_snake)

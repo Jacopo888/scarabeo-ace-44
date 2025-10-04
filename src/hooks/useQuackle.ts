@@ -57,7 +57,6 @@ export function formatRackStringForQuackle(rack: Tile[]): string {
 }
 
 export const useQuackle = () => {
-  const BOARD_SCHEMA = (import.meta.env.VITE_BOARD_SCHEMA ?? 'coord_map_1based').toString()
   const [difficulty, setDifficulty] = useState<Difficulty | null>(null)
   const [isThinking, setIsThinking] = useState(false)
   const [lastEngineInfo, setLastEngineInfo] = useState<{ hl_strict: boolean; path: 'hl' | 'gen' | 'endgame'; kibitz_len: number; status?: 'simulating' | 'endgame' | 'static'; used_simulator?: boolean } | null>(null)
@@ -89,7 +88,7 @@ export const useQuackle = () => {
           }).filter(Boolean)
         : []
 
-      const payload = { board, rack, difficulty, board_schema: BOARD_SCHEMA, bag_count: bagPool.length, bag_pool: bagPool }
+  const payload = { board, rack, difficulty, bag_pool: bagPool }
 
       // Structured debug log
       const bkeys = Object.keys(board)
@@ -99,8 +98,7 @@ export const useQuackle = () => {
         sampleKeys: bkeys.slice(0, 3),
         rack,
         rackLen: playerRack.length,
-        difficulty,
-        board_schema: BOARD_SCHEMA
+        difficulty
       })
 
       const [move] = await Promise.all([

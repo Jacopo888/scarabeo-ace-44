@@ -229,7 +229,9 @@ export const useGame = () => {
       console.log('[useGame] Bot move received:', move)
       console.log('[useGame] Move details - tiles:', move?.tiles?.length, 'move_type:', move?.move_type, 'engine_fallback:', move?.engine_fallback)
       
-      // DEEP DEBUG: Log complete move details for score investigation
+      const USE_SERVICE_SCORE = (import.meta.env.VITE_USE_SERVICE_SCORE || 'false').toString().toLowerCase() === 'true'
+
+      // DEEP DEBUG: Log complete move details per indagine punteggi
       if (import.meta.env.DEV && move?.tiles) {
         console.log('[useGame] 🔍 DEEP DEBUG - Raw score from Quackle:', move.score)
         console.log('[useGame] 🔍 DEEP DEBUG - Tiles with coordinates:', JSON.stringify(move.tiles, null, 2))
@@ -286,15 +288,26 @@ export const useGame = () => {
         return
       }
 
-  // Recalculate score using our board multipliers (bridge may be off)
-  const finalScore = snapshot.boardMatrix
-    ? calculateScoreFromBoard({ tiles: sanitizedTiles, board: snapshot.boardMatrix as any, context: 'quackle' })
-    : calculateScore({ tiles: sanitizedTiles, existingBoard: snapshot.board, context: 'quackle' })
-      
+      // Calcolo di riferimento locale
+      const localScore = snapshot.boardMatrix
+        ? calculateScoreFromBoard({ tiles: sanitizedTiles, board: snapshot.boardMatrix as any, context: 'quackle' })
+        : calculateScore({ tiles: sanitizedTiles, existingBoard: snapshot.board, context: 'quackle' })
+
+      // Decisione punteggio (feature flag): se attivo usa quello del servizio, altrimenti quello locale
+      const serviceScore = typeof move.score === 'number' ? move.score : 0
+      const finalScore = USE_SERVICE_SCORE ? serviceScore : localScore
+
       if (import.meta.env.DEV) {
-        console.log('[useGame] 🔧 SCORE FIX - Bridge score:', move.score, '→ Recalculated:', finalScore)
-        if (move.score !== finalScore) {
-          console.warn('[useGame] ⚠️ Score mismatch detected! Using recalculated value.')
+        const mismatch = serviceScore !== localScore
+        console.log('[useGame] 🔧 SCORE DECISION', {
+          USE_SERVICE_SCORE,
+          serviceScore,
+            localScore,
+          finalScore,
+          mismatch
+        })
+        if (mismatch) {
+          console.warn('[useGame] ⚠️ Score mismatch (service vs local)', { serviceScore, localScore, chosen: finalScore })
         }
       }
 
@@ -398,4 +411,10 @@ export const useGame = () => {
     moveHistory,
     gameId: gameIdRef.current
   }
+}
+
+// Helper puro (exportato per test) che applica il feature flag di scoring
+export function decideScore(params: { useService: boolean; serviceScore: number; localScore: number }): number {
+  const { useService, serviceScore, localScore } = params
+  return useService ? serviceScore : localScore
 }

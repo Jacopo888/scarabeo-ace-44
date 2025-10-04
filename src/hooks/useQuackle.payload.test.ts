@@ -60,3 +60,4 @@ describe('Local score recalculation parity (core)', () => {
     expect(score).toBeGreaterThanOrEqual(3) // at least sum of letters; exact depends on specials
   })
 })
+

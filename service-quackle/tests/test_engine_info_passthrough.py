@@ -24,10 +24,7 @@ def test_engine_info_passthrough(monkeypatch):
     monkeypatch.setattr(rb, "_adapter_best_move", fake_call_bridge)
     monkeypatch.setattr(rb, "ensure_lexicon_ready", lambda: (True, "/tmp/dawg", "/tmp/gaddag"))
 
-    body = {
-        "rack": "AEIRST?",
-        "board": {"rows": 15, "cols": 15, "grid": ["." * 15 for _ in range(15)]},
-    }
+    body = {"rack": "AEIRST?", "board": {}}
     r = client.post("/best-move", json=body)
     assert r.status_code == 200, r.text
     data = r.json()

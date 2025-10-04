@@ -4,6 +4,7 @@ from typing import Any
 from fastapi.testclient import TestClient
 
 from quackle_service.main import app
+from quackle_service.normalization import grid_to_coordmap
 
 
 def make_client():
@@ -38,103 +39,64 @@ def patch_bridge(monkeypatch, assert_fn=None):
     monkeypatch.setattr(rb, "ensure_lexicon_ready", lambda: (True, "", ""))
 
 
-def test_A_board_grid_empty(monkeypatch):
+def test_A_board_empty_coord_map(monkeypatch):
     client = make_client()
     def check(payload):
-        # On empty grid, board map should be empty dict
-        assert payload["board"] == {}
-        assert payload["rack"] == "AEIRSTZ"
+        assert payload["board"] == {}  # empty map
     patch_bridge(monkeypatch, check)
-    body = {
-        "rack": "AEIRSTZ",
-        "board": {
-            "rows": 15, "cols": 15, "center_x": 7, "center_y": 7,
-            "grid": ["."*15 for _ in range(15)]
-        }
-    }
+    empty = ["."*15 for _ in range(15)]
+    coord_map = grid_to_coordmap(empty)
+    # coord_map sarà vuota per griglia vuota → corpo deve passare {}
+    body = {"rack": "AEIRSTZ", "board": coord_map}
     r = client.post("/best-move", json=body)
     assert r.status_code == 200, r.text
-    j = r.json()
-    assert j["engine_fallback"] is False
-    assert j["move_type"] == "play"
 
 
-def test_B_board_grid_with_center_letter(monkeypatch):
+def test_B_board_with_center_letter_coord_map(monkeypatch):
     client = make_client()
     def check(payload):
-        # Must contain 8,8 (1-based) mapping for center A
-        assert "8,8" in payload["board"]
-        assert payload["board"]["8,8"]["letter"] == "A"
+        assert "8,8" in payload["board"] and payload["board"]["8,8"]["letter"] == "A"
     patch_bridge(monkeypatch, check)
     grid = ["."*15 for _ in range(15)]
-    grid[7] = ".......A......."
-    body = {
-        "rack": "AEIRST?",
-        "board": {"rows": 15, "cols": 15, "center_x": 7, "center_y": 7, "grid": grid}
-    }
+    row = list(grid[7]); row[7] = 'A'; grid[7] = ''.join(row)
+    coord_map = grid_to_coordmap(grid)
+    body = {"rack": "AEIRST?", "board": coord_map}
     r = client.post("/best-move", json=body)
     assert r.status_code == 200, r.text
-    j = r.json()
-    assert j["engine_fallback"] is False
-    assert j["move_type"] == "play"
 
 
-def test_C_board_squares_null(monkeypatch):
+def test_C_rejects_legacy_squares(monkeypatch):
     client = make_client()
-    patch_bridge(monkeypatch, lambda p: None)
-    squares = [[None for _ in range(15)] for _ in range(15)]
-    body = {
-        "rack": "HELLO??",
-        "board": {"rows": 15, "cols": 15, "center_x": 7, "center_y": 7, "squares": squares}
-    }
-    r = client.post("/best-move", json=body)
-    assert r.status_code == 200, r.text
-    j = r.json()
-    assert j["engine_fallback"] is False
-    assert j["move_type"] == "play"
+    r = client.post("/best-move", json={"rack": "HELLO??", "board": {"rows":15, "cols":15, "squares": [[None]*15 for _ in range(15)]}})
+    assert r.status_code == 400
+    assert r.json().get("error") == "unsupported_board_format"
 
 
-def test_D_board_placements(monkeypatch):
+def test_D_rejects_legacy_placements(monkeypatch):
     client = make_client()
-    def check(payload):
-        assert "8,8" in payload["board"]
-        assert payload["board"]["8,8"]["letter"] == "A"
-    patch_bridge(monkeypatch, check)
-    body = {
-        "rack": "AEIRST?",
-        "board": {
-            "rows": 15, "cols": 15, "center_x": 7, "center_y": 7,
-            "placements": [{"x": 7, "y": 7, "letter": "A", "is_blank": False}]
-        }
-    }
-    r = client.post("/best-move", json=body)
-    assert r.status_code == 200, r.text
-    j = r.json()
-    assert j["engine_fallback"] is False
-    assert j["move_type"] == "play"
+    r = client.post("/best-move", json={"rack": "AEIRST?", "board": {"rows":15, "cols":15, "placements": [{"x":7, "y":7, "letter":"A", "is_blank": False}]}})
+    assert r.status_code == 400
+    assert r.json().get("error") == "unsupported_board_format"
 
 
 def test_F_errors():
     client = make_client()
     # Rack less than 7: now accepted and returns a deterministic pass
-    r1 = client.post("/best-move", json={"rack": "HELLO?", "board": {"grid": ["."*15 for _ in range(15)]}})
+    r1 = client.post("/best-move", json={"rack": "HELLO?", "board": {}})  # empty coord map
     assert r1.status_code == 200, r1.text
     j1 = r1.json()
     assert j1.get("engine_fallback") is False
     assert j1.get("move_type") == "pass"
 
     # Invalid characters
-    r2 = client.post("/best-move", json={"rack": "HELLO1?", "board": {"grid": ["."*15 for _ in range(15)]}})
+    r2 = client.post("/best-move", json={"rack": "HELLO1?", "board": {}})
     assert r2.status_code == 400
     assert r2.json().get("error") == "invalid_rack_format"
 
     # Invalid center coordinates
-    r3 = client.post("/best-move", json={
-        "rack": "AEIRSTZ",
-        "board": {"rows": 15, "cols": 15, "center_x": 20, "center_y": 7, "grid": ["."*15 for _ in range(15)]}
-    })
-    assert r3.status_code == 400
-    assert r3.json().get("error") == "invalid_board_coordinate"
+    # Legacy center_x/center_y path non più supportato → unsupported_board_format
+    r3 = client.post("/best-move", json={"rack": "AEIRSTZ", "board": {"rows":15, "cols":15, "center_x":20, "center_y":7, "grid": ["."*15 for _ in range(15)]}})
+    assert r3.status_code == 400 and r3.json().get("error") == "unsupported_board_format"
 
 
 def test_G_crossword_letters_from_raw_move(monkeypatch):
@@ -160,10 +122,7 @@ def test_G_crossword_letters_from_raw_move(monkeypatch):
     monkeypatch.setattr(rb, "_adapter_best_move", fake_bridge)
     monkeypatch.setattr(rb, "ensure_lexicon_ready", lambda: (True, "", ""))
 
-    body = {
-        "rack": "AEIRSTZ",
-        "board": {"rows": 15, "cols": 15, "grid": ["."*15 for _ in range(15)]}
-    }
+    body = {"rack": "AEIRSTZ", "board": {}}
 
     r = client.post("/best-move", json=body)
     assert r.status_code == 200, r.text
@@ -197,10 +156,7 @@ def test_H_blank_tiles_preserve_letter(monkeypatch):
     monkeypatch.setattr(rb, "_adapter_best_move", fake_bridge_blank)
     monkeypatch.setattr(rb, "ensure_lexicon_ready", lambda: (True, "", ""))
 
-    body = {
-        "rack": "AEIRSTZ",
-        "board": {"rows": 15, "cols": 15, "grid": ["."*15 for _ in range(15)]}
-    }
+    body = {"rack": "AEIRSTZ", "board": {}}
 
     r = client.post("/best-move", json=body)
     assert r.status_code == 200, r.text

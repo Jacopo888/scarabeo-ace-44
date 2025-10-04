@@ -140,47 +140,26 @@ def reconstruct_tiles_from_raw_move(raw_move: Dict[str, Any], words: Optional[An
     return tiles
 
 def normalize_board_for_bridge(board_input: Any) -> Dict[str, Any]:
-    if isinstance(board_input, list):
-        grid = board_input
-    elif isinstance(board_input, dict):
-        rows = int(board_input.get("rows") or 15)
-        cols = int(board_input.get("cols") or 15)
-        if "center_x" in board_input or "center_y" in board_input:
-            try:
-                cx = int(board_input.get("center_x"))
-                cy = int(board_input.get("center_y"))
-            except Exception:
-                raise HTTPException(status_code=400, detail="malformed_board")
-            if not (0 <= cx < cols and 0 <= cy < rows):
-                raise HTTPException(status_code=400, detail="invalid_board_coordinate")
-        if "grid" in board_input:
-            grid = board_input.get("grid")
-        elif is_coord_map(board_input):
-            squares = squares_from_coord_map(board_input, rows, cols)
-            grid = [''.join(_cell_to_char(v) for v in row) for row in squares]
-        elif isinstance(board_input.get("squares"), list):
-            squares = board_input.get("squares")
-            if not (isinstance(squares, list) and len(squares) == rows and all(isinstance(r, list) and len(r) == cols for r in squares)):
-                raise HTTPException(status_code=400, detail="malformed_board_squares_size")
-            grid = [''.join(_cell_to_char(cell) for cell in r) for r in squares]
-        elif isinstance(board_input.get("placements"), list):
-            squares = [[None for _ in range(cols)] for _ in range(rows)]
-            for p in board_input.get("placements"):
-                try:
-                    x = int(p.get("x"))
-                    y = int(p.get("y"))
-                    letter = str(p.get("letter", "")).upper()[:1]
-                    is_blank = bool(p.get("is_blank") or p.get("isBlank") or False)
-                except Exception:
-                    raise HTTPException(status_code=400, detail="malformed_board")
-                if not (0 <= x < cols and 0 <= y < rows):
-                    raise HTTPException(status_code=400, detail="invalid_board_coordinate")
-                squares[y][x] = '?' if is_blank or letter in ('?', '*') else letter
-            grid = [''.join(_cell_to_char(v) for v in row) for row in squares]
-        else:
-            raise HTTPException(status_code=400, detail="board.grid missing")
-    else:
-        raise HTTPException(status_code=400, detail="board invalid type")
-    if not (isinstance(grid, list) and len(grid) == 15 and all(isinstance(r, str) and len(r) == 15 for r in grid)):
-        raise HTTPException(status_code=400, detail="board.grid must be 15 strings of length 15")
-    return {"rows": 15, "cols": 15, "grid": grid}
+    """Accetta SOLO una coord map 1-based {"r,c": {letter,isBlank}}.
+
+    Tutti i precedenti formati (lista grid, dict con grid, squares, placements) ora generano
+    un HTTP 400 con detail = "unsupported_board_format" per ridurre complessità e ambiguità.
+    """
+    if not isinstance(board_input, dict) or not is_coord_map(board_input):
+        # Manteniamo messaggi precedenti specifici per coordinate invalide quando riconoscibili,
+        # ma qui semplifichiamo: solo coord map valida ammessa.
+        raise HTTPException(status_code=400, detail="unsupported_board_format")
+
+    rows = 15
+    cols = 15
+    try:
+        squares = squares_from_coord_map(board_input, rows, cols)
+    except HTTPException as e:
+        # Propaga errori formali (malformed_board / invalid_board_coordinate) dalla conversione.
+        raise e
+
+    grid = [''.join(_cell_to_char(v) for v in row) for row in squares]
+    # Validazione finale di sicurezza
+    if not (len(grid) == 15 and all(isinstance(r, str) and len(r) == 15 for r in grid)):
+        raise HTTPException(status_code=400, detail="malformed_board")
+    return {"rows": rows, "cols": cols, "grid": grid}

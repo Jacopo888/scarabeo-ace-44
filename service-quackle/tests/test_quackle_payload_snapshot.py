@@ -3,6 +3,7 @@ from typing import Any, Dict
 from fastapi.testclient import TestClient
 
 from quackle_service.main import app
+from quackle_service.normalization import grid_to_coordmap
 
 
 def make_client():
@@ -40,11 +41,8 @@ def test_bridge_payload_snapshot(monkeypatch):
     row = list(grid[7])
     row[7] = 'A'
     grid[7] = ''.join(row)
-    body = {
-        "rack": golden["rack"],
-        "difficulty": golden.get("difficulty"),
-        "board": {"rows": 15, "cols": 15, "center_x": 7, "center_y": 7, "grid": grid}
-    }
+    coord_map = grid_to_coordmap(grid)
+    body = {"rack": golden["rack"], "difficulty": golden.get("difficulty"), "board": coord_map}
 
     r = client.post("/best-move", json=body)
     assert r.status_code == 200, r.text
