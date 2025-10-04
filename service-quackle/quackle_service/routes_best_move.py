@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from .config import ENV_MODE, SKIP_LEXICON_CHECK
 from .runtime import ensure_lexicon_ready
-from .normalization import normalize_rack_flexible, normalize_board_for_bridge, grid_to_coordmap, reconstruct_tiles_from_raw_move
+from .normalization import normalize_rack_flexible, normalize_board_for_bridge, grid_to_coordmap, reconstruct_tiles_from_raw_move, is_coord_map, sanitize_none
 from .errors import json_error, from_http_exc, status_from_engine_result
 from .adapters.quackle import best_move as _adapter_best_move
 from .metrics import record_best_move_latency_ms, local_latency_snapshot
@@ -24,7 +24,8 @@ async def best_move(req: Request):
             raise HTTPException(status_code=400, detail="invalid_rack_format")
 
         rack_norm = normalize_rack_flexible(body.get("rack"))
-        board_out = normalize_board_for_bridge(body.get("board"))
+        original_board_in = body.get("board")
+        board_out = normalize_board_for_bridge(original_board_in)
 
         if len(rack_norm) == 0:
             out = {"tiles": [], "score": 0, "words": [], "move_type": "pass", "engine_fallback": False}
@@ -38,9 +39,14 @@ async def best_move(req: Request):
             if not ok:
                 raise HTTPException(status_code=500, detail="lexicon_not_ready")
 
-        board_map = grid_to_coordmap(board_out.get("grid"))
+        # Keep coordinate-map as provided (preserve blanks and assigned letters).
+        if isinstance(original_board_in, dict) and is_coord_map(original_board_in):
+            board_map = {k: v for k, v in original_board_in.items() if isinstance(k, str)}
+        else:
+            board_map = grid_to_coordmap(board_out.get("grid"))
+        board_map = sanitize_none(board_map or {})
         board_is_empty = (not bool(board_map))
-        payload: Dict[str, Any] = {"board": (board_map if board_map else {}), "rack": rack_norm}
+        payload: Dict[str, Any] = {"board": board_map, "rack": rack_norm}
         diff_raw = (body.get("difficulty") if isinstance(body, dict) else None) or None
         if isinstance(diff_raw, str) and diff_raw.strip().lower() in {"easy", "medium", "hard"}:
             payload["difficulty"] = diff_raw.strip().lower()
