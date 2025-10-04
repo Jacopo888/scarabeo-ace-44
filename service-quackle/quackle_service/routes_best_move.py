@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from .config import ENV_MODE, SKIP_LEXICON_CHECK
 from .runtime import ensure_lexicon_ready
-from .normalization import normalize_rack_flexible, normalize_board_for_bridge, grid_to_coordmap, reconstruct_tiles_from_raw_move, is_coord_map, sanitize_none
+from .normalization import normalize_rack_flexible, normalize_board_for_bridge, grid_to_coordmap, is_coord_map, sanitize_none
 from .errors import json_error, from_http_exc, status_from_engine_result
 from .adapters.quackle import best_move as _adapter_best_move
 from .metrics import record_best_move_latency_ms, local_latency_snapshot
@@ -45,7 +45,6 @@ async def best_move(req: Request):
         else:
             board_map = grid_to_coordmap(board_out.get("grid"))
         board_map = sanitize_none(board_map or {})
-        board_is_empty = (not bool(board_map))
         payload: Dict[str, Any] = {"board": board_map, "rack": rack_norm}
         diff_raw = (body.get("difficulty") if isinstance(body, dict) else None) or None
         if isinstance(diff_raw, str) and diff_raw.strip().lower() in {"easy", "medium", "hard"}:
@@ -61,170 +60,42 @@ async def best_move(req: Request):
             pass
 
         result = _adapter_best_move(payload)
+        # Nessun fallback artificiale: in caso di errore del motore, esponi l'errore
         if result.get("engine_fallback") or (isinstance(result, dict) and result.get("error")):
             err = (result.get("error") or "engine_error")
             rc_val = result.get("rc") if isinstance(result, dict) else None
             status = status_from_engine_result(err, rc_val if isinstance(rc_val, int) else None)
-            if len(rack_norm) < 7:
-                out = {"tiles": [], "score": 0, "words": [], "move_type": "pass", "engine_fallback": False}
-                took_ms = (_t.perf_counter() - _start) * 1000.0
-                record_best_move_latency_ms(took_ms, {"path": "/best-move", "outcome": "pass_short_rack", "rack_len": len(rack_norm), "err": err, "rc": rc_val})
-                return out
-            body_out = {k: v for k, v in result.items() if k in {"engine_fallback", "error", "stderr", "ldd", "rc"}}
             took_ms = (_t.perf_counter() - _start) * 1000.0
             record_best_move_latency_ms(took_ms, {"path": "/best-move", "outcome": "engine_error", "rack_len": len(rack_norm), "err": err, "rc": rc_val})
-            return json_error(err, status_code=status, engine=True, extra=body_out or None)
+            return json_error(err, status_code=status, engine=True, extra={k: v for k, v in result.items() if k in {"engine_fallback", "error", "stderr", "ldd", "rc"}})
 
-        # Prefer tiles provided directly by the bridge. Only reconstruct from raw_move if tiles are missing.
-        tiles_out = result.get("tiles", [])
-        raw_move = result.get("raw_move") if isinstance(result, dict) else None
-        if (not tiles_out) and isinstance(raw_move, dict):
-            rebuilt = reconstruct_tiles_from_raw_move(raw_move, result.get("words"))
-            if rebuilt:
-                tiles_out = rebuilt
-
-        # Centralized normalization of tile coordinates (0-based, 15x15)
-        def _normalize_tiles_0based(tiles: list[dict], empty_board: bool) -> list[dict]:
-            """Keep engine coordinates as-is; just coerce ints and drop out-of-bounds.
-
-            Quackle already returns 0-based coordinates within [0,14]. Any additional
-            shifting/centering risks corrupting the move. We only enforce typing and
-            bounds here.
-            """
+        # Usa direttamente le tiles restituite dal bridge; nessuna ricostruzione raw_move
+        tiles_out = result.get("tiles", []) or []
+        # Normalizza solo numeri e bounds; nessun "snap to center"
+        def _normalize_tiles_0based(tiles: list[dict]) -> list[dict]:
             if not isinstance(tiles, list):
                 return []
-            norm: list[dict] = []
+            out: list[dict] = []
             for t in tiles:
                 try:
-                    r = int(t.get("row"))
-                    c = int(t.get("col"))
+                    r = int(t.get("row")); c = int(t.get("col"))
                 except Exception:
                     continue
                 if 0 <= r < 15 and 0 <= c < 15:
-                    norm.append({**t, "row": r, "col": c})
-            if not norm:
-                return []
-            # Snap-to-center only for the very first play on an empty board.
-            if empty_board:
-                rows = [t["row"] for t in norm]
-                cols = [t["col"] for t in norm]
-                CENTER = 7
-                is_h = len(set(rows)) == 1
-                is_v = len(set(cols)) == 1
-                if is_h and (CENTER in cols):
-                    r0 = rows[0]
-                    if r0 != CENTER:
-                        cand = [{**t, "row": CENTER} for t in norm]
-                        if all(0 <= tt["row"] < 15 for tt in cand):
-                            norm = cand
-                elif is_v and (CENTER in rows):
-                    c0 = cols[0]
-                    if c0 != CENTER:
-                        cand = [{**t, "col": CENTER} for t in norm]
-                        if all(0 <= tt["col"] < 15 for tt in cand):
-                            norm = cand
-            return norm
+                    out.append({**t, "row": r, "col": c})
+            return out
+        tiles_out = _normalize_tiles_0based(tiles_out)
 
-        tiles_out = _normalize_tiles_0based(tiles_out, board_is_empty and result.get("move_type") == "play")
-
-        # Build words list (main + cross) based on the board we sent + returned tiles.
-        # Rationale: ensure UI receives authoritative words set w.r.t. the engine's view of the board,
-        # avoiding client-side discrepancies. Filter out 1-letter crosses and any word containing non A-Z.
-        def _compute_words(grid: List[str], tiles: List[dict]) -> List[str]:
-            try:
-                if not tiles:
-                    return []
-                # Build post-move grid (15x15) using returned tiles
-                G = [list(r) for r in (grid or [])]
-                for t in tiles:
-                    try:
-                        r = int(t.get("row")); c = int(t.get("col"))
-                        L = str(t.get("letter") or "").upper()[:1]
-                        if 0 <= r < 15 and 0 <= c < 15 and L and L != '.':
-                            G[r][c] = L
-                    except Exception:
-                        continue
-
-                rows = {int(t.get("row")) for t in tiles if isinstance(t, dict) and t.get("row") is not None}
-                cols = {int(t.get("col")) for t in tiles if isinstance(t, dict) and t.get("col") is not None}
-                alignedH = len(rows) == 1
-                alignedV = len(cols) == 1
-
-                def scan_line(r0: int, c0: int, dr: int, dc: int) -> str:
-                    r, c = r0, c0
-                    # back to start
-                    while 0 <= r - dr < 15 and 0 <= c - dc < 15 and G[r - dr][c - dc] != '.':
-                        r -= dr; c -= dc
-                    out: list[str] = []
-                    i, j = r, c
-                    while 0 <= i < 15 and 0 <= j < 15 and G[i][j] != '.':
-                        out.append(G[i][j])
-                        i += dr; j += dc
-                    return ''.join(out)
-
-                # helper: word contains only A-Z
-                import re as _re
-                def _is_clean(w: str) -> bool:
-                    return bool(w) and _re.fullmatch(r"[A-Z]+", w) is not None
-
-                words: list[str] = []
-                if tiles:
-                    t0 = tiles[0]
-                    r0 = int(t0.get("row")); c0 = int(t0.get("col"))
-                    if alignedH:
-                        cmin = min(int(t.get("col")) for t in tiles)
-                        main = scan_line(r0, cmin, 0, 1)
-                        if len(main) > 1 and _is_clean(main):
-                            words.append(main)
-                    elif alignedV:
-                        rmin = min(int(t.get("row")) for t in tiles)
-                        main = scan_line(rmin, c0, 1, 0)
-                        if len(main) > 1 and _is_clean(main):
-                            words.append(main)
-                    else:
-                        # single tile or scattered; pick the longer of the two lines
-                        hor = scan_line(r0, c0, 0, 1)
-                        ver = scan_line(r0, c0, 1, 0)
-                        candidate = hor if len(hor) >= len(ver) else ver
-                        if (len(candidate) > 1) and _is_clean(candidate):
-                            words.append(candidate)
-
-                # Cross words (length > 1)
-                for t in tiles:
-                    r = int(t.get("row")); c = int(t.get("col"))
-                    # vertical cross when alignedH, horizontal cross when alignedV; for single tile, scan both
-                    scan_vert = alignedH or (not alignedH and not alignedV)
-                    scan_hor = alignedV or (not alignedH and not alignedV)
-                    if scan_vert:
-                        v = scan_line(r, c, 1, 0)
-                        if len(v) > 1 and _is_clean(v):
-                            words.append(v)
-                    if scan_hor:
-                        h = scan_line(r, c, 0, 1)
-                        if len(h) > 1 and _is_clean(h):
-                            words.append(h)
-
-                # Unique preserve order
-                seen = set(); out = []
-                for w in words:
-                    if w not in seen:
-                        seen.add(w); out.append(w)
-                return out
-            except Exception:
-                return []
-
-        computed_words = _compute_words(board_out.get("grid", []), tiles_out)
-        # Prefer engine main word if present, but merge with computed crosses
-        # Rely exclusively on server-side computed words to reflect the actual
-        # post-move board state we expose to the client. Engine-provided words
-        # may include context unknown to the UI.
-        merged_words: list[str] = computed_words or []
-
+        # Semplificazione del tipo di mossa
+        declared = (result.get("move_type") if isinstance(result, dict) else None) or ""
+        move_type = "play" if tiles_out else ("exchange" if declared == "exchange" else "pass")
+        words_out = (result.get("words") if isinstance(result, dict) else []) if move_type == "play" else []
+        score_out = result.get("score", 0) if move_type == "play" else 0
         out = {
             "tiles": tiles_out,
-            "score": result.get("score", 0),
-            "words": merged_words,
-            "move_type": result.get("move_type", "play" if result.get("tiles") else "pass"),
+            "score": score_out,
+            "words": words_out or [],
+            "move_type": move_type,
             "engine_fallback": False
         }
         # Pass through engine telemetry if provided by the bridge
@@ -234,8 +105,20 @@ async def best_move(req: Request):
                 out["engine_info"] = eng_info
         except Exception:
             pass
+        # Passa info exchange se presenti
+        try:
+            if move_type == "exchange":
+                if "exchange_count" in result:
+                    out["exchange_count"] = int(result.get("exchange_count") or 0)
+                if isinstance(result.get("exchange_letters"), list):
+                    out["exchange_letters"] = result.get("exchange_letters")
+                if isinstance(result.get("exchange_blind"), bool):
+                    out["exchange_blind"] = result.get("exchange_blind")
+        except Exception:
+            pass
+
         took_ms = (_t.perf_counter() - _start) * 1000.0
-        record_best_move_latency_ms(took_ms, {"path": "/best-move", "outcome": out.get("move_type", "play"), "rack_len": len(rack_norm)})
+        record_best_move_latency_ms(took_ms, {"path": "/best-move", "outcome": move_type, "rack_len": len(rack_norm)})
         return out
     except HTTPException as e:
         return from_http_exc(e, engine=True)

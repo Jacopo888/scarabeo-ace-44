@@ -91,6 +91,15 @@ export async function quackleBestMove(payload: any): Promise<QuackleMove> {
       engine_info: ei || null,
       summary: pathInfo,
     })
+    try {
+      if (ei && typeof ei === 'object') {
+        if (ei.used_simulator || ei.status === 'simulating') {
+          qlog('[quackleClient] 🧪 Monte Carlo simulator USED')
+        } else if (ei.path === 'endgame' || ei.used_endgame_solver || ei.status === 'endgame') {
+          qlog('[quackleClient] 🧮 Endgame solver USED')
+        }
+      }
+    } catch {}
   }
   
   if (data && (data.engine_fallback === true) && data.error) {

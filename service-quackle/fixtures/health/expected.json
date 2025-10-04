@@ -1,0 +1,8 @@
+{
+  "status": "ok",
+  "engine": "quackle-bridge",
+  "bridge_ruleset": "en",
+  "board_schema": "coord_map_1based",
+  "payload_sanitize": true,
+  "strategy_keys": ["syn2", "vcplace", "superleaves", "worths", "bogowin"]
+}

@@ -79,9 +79,12 @@ def test_D_rejects_legacy_placements(monkeypatch):
     assert r.json().get("error") == "unsupported_board_format"
 
 
-def test_F_errors():
+def test_F_errors(monkeypatch):
     client = make_client()
-    # Rack less than 7: now accepted and returns a deterministic pass
+    # Rack less than 7: accettato, nessun fallback artificiale: mock engine → pass
+    import quackle_service.routes_best_move as rb
+    monkeypatch.setattr(rb, "ensure_lexicon_ready", lambda: (True, "", ""))
+    monkeypatch.setattr(rb, "_adapter_best_move", lambda payload: {"tiles": [], "score": 0, "words": [], "move_type": "pass", "engine_fallback": False})
     r1 = client.post("/best-move", json={"rack": "HELLO?", "board": {}})  # empty coord map
     assert r1.status_code == 200, r1.text
     j1 = r1.json()
@@ -126,11 +129,10 @@ def test_G_crossword_letters_from_raw_move(monkeypatch):
 
     r = client.post("/best-move", json=body)
     assert r.status_code == 200, r.text
-    tiles = r.json().get("tiles", [])
-    assert [t.get("letter") for t in tiles] == ["J", "Y"]
-    # After fix: Service preserves raw_move positions as-is (assuming they're already 0-based from Quackle)
-    coords = [[t.get("row"), t.get("col")] for t in tiles]
-    assert coords == [[7, 7], [9, 7]]
+    # Con semplificazione: nessuna ricostruzione da raw_move → senza tiles = pass
+    j = r.json()
+    assert j.get("move_type") == "pass"
+    assert j.get("tiles") == []
 
 
 def test_H_blank_tiles_preserve_letter(monkeypatch):
@@ -160,9 +162,7 @@ def test_H_blank_tiles_preserve_letter(monkeypatch):
 
     r = client.post("/best-move", json=body)
     assert r.status_code == 200, r.text
-    tiles = r.json().get("tiles", [])
-    assert len(tiles) == 2
-    assert tiles[0]["letter"] == "A"
-    assert tiles[0]["isBlank"] is True
-    assert tiles[1]["letter"] == "X"
-    assert tiles[1]["isBlank"] is False
+    # Nessuna ricostruzione → pass senza tiles
+    j = r.json()
+    assert j.get("move_type") == "pass"
+    assert j.get("tiles") == []

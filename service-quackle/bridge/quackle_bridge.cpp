@@ -810,16 +810,16 @@ int main(int argc, char** argv){
 
     // Simulatore:
     // - easy/medium: DISATTIVATO
-    // - hard: ATTIVO solo in pre-endgame (bag < 10) e NON in vero endgame (dove usiamo il solver)
-    //   (override opzionale via env QUACKLE_SIM_IN_ENDGAME=1 per attivarlo anche in endgame)
+    // - hard: ATTIVO quando il sacchetto ha poche tessere (1..9 di default)
+    //   Preferiamo il risultato del simulatore all'endgame solver quando usato,
+    //   così in console risulta chiaro che è stata eseguita la Monte Carlo.
     try {
       int bagSize = (bagCountHint >= 0) ? bagCountHint : (int)pos.bag().size();
       int endgameThreshold = env_int("QUACKLE_ENDGAME_THRESHOLD", 7);
-      // Enable simulator only for hard when 0 < bag < 10 and above endgameThreshold
-      int hardSimThreshold = env_int("QUACKLE_SIM_HARD_THRESHOLD", 10);
+      // Abilita il simulatore solo in hard quando 1 <= bag < 8 (soglia configurabile)
+      int hardSimThreshold = env_int("QUACKLE_SIM_HARD_THRESHOLD", 8);
       const bool isHard = (diff == "hard");
-      const bool allowSimInEndgame = env_int("QUACKLE_SIM_IN_ENDGAME", 0) != 0;
-      const bool runSim = isHard && (bagSize < hardSimThreshold) && ((bagSize > endgameThreshold) || (allowSimInEndgame && bagSize > 0));
+      const bool runSim = isHard && (bagSize > 0) && (bagSize < hardSimThreshold);
       if (runSim) {
         int simTop   = env_int("QUACKLE_SIM_TOP", 5);
         int simDepth = env_int("QUACKLE_SIM_DEPTH", 2);
@@ -835,6 +835,7 @@ int main(int argc, char** argv){
           int m = std::min(simTop, n);
           for (int i = 0; i < m; ++i) topMoves.push_back(pos.moves()[i]);
           if (m > 0) {
+            fprintf(stderr, "[DEBUG] Running MONTE CARLO simulator: bag=%d top=%d depth=%d iters=%d threads=%d\n", bagSize, simTop, simDepth, simIters, simThreads);
             sim.setIncludedMoves(topMoves);
             sim.setIgnoreOppos(false);
             sim.simulate(simDepth, simIters);
@@ -860,7 +861,7 @@ int main(int argc, char** argv){
     try {
       int bagSize = (bagCountHint >= 0) ? bagCountHint : (int)pos.bag().size();
       int endgameThreshold = env_int("QUACKLE_ENDGAME_THRESHOLD", 7);
-      if (diff == "hard" && bagSize <= endgameThreshold) {
+      if (diff == "hard" && bagSize <= endgameThreshold && !usedSimulator) {
         Quackle::Endgame eg;
         eg.setPosition(pos);
         Quackle::Move egm = eg.solve(/*nestedness=*/0);
