@@ -229,6 +229,8 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
         open={exchangeOpen}
         onOpenChange={setExchangeOpen}
         onConfirm={handleExchange}
+        tiles={currentRack as any}
+        tileBagCount={(game?.tile_bag || []).length}
       />
     </div>
   </div>

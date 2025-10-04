@@ -233,7 +233,10 @@ export const useGame = () => {
       // Handle explicit exchange first (exchange has no board tiles by design)
       if (move && move.move_type === 'exchange') {
         const letters = (move as any).exchange_letters as string[] | undefined
-        const count = typeof (move as any).exchange_count === 'number' ? (move as any).exchange_count : (letters?.length ?? Math.min(7, getCurrentRack(snapshot).length))
+        // Usa il conteggio fornito dal motore; se assente, usa la lunghezza di letters; evita fallback arbitrari a 7
+        const count = typeof (move as any).exchange_count === 'number'
+          ? (move as any).exchange_count
+          : (Array.isArray(letters) ? letters.length : 0)
         toast({ title: 'Quackle exchanged tiles', description: `Changed ${count} tile${count === 1 ? '' : 's'}.` })
         setGameState(prev => applyBotExchange(prev, letters, count))
         return

@@ -44,7 +44,7 @@ export const ActionBar: React.FC<ActionBarProps> = ({
       <Button onClick={onPass} variant="outline">
         Pass Turn
       </Button>
-      <Button onClick={onExchange} variant="outline" disabled={tileBag.length < rackLength}>
+      <Button onClick={onExchange} variant="outline">
         Swap Tiles
       </Button>
       <Button onClick={onReshuffle} variant="outline">

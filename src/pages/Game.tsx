@@ -206,6 +206,8 @@ const GameContent = () => {
         open={exchangeOpen}
         onOpenChange={setExchangeOpen}
         onConfirm={(indexes) => exchangeTiles(indexes)}
+        tiles={rackToShow as any}
+        tileBagCount={(gameState.tileBag || []).length}
       />
     </div>
   )
