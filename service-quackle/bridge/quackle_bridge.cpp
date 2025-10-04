@@ -722,6 +722,8 @@ int main(int argc, char** argv){
       pos.makeMove(m, /*maintainBoard=*/true);
     }
     debugLog("Board tiles placed successfully");
+    // Ensure board is prepared (anchors, cross-checks) before generation.
+    try { pos.ensureBoardIsPreparedForAnalysis(); } catch (...) {}
 
     // Before generating, ensure strategy files are present and strategy loaded
     // Always require strategy files before generation

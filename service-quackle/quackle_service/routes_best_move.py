@@ -96,6 +96,27 @@ async def best_move(req: Request):
                     continue
                 if 0 <= r < 15 and 0 <= c < 15:
                     norm.append({**t, "row": r, "col": c})
+            if not norm:
+                return []
+            # Snap-to-center only for the very first play on an empty board.
+            if empty_board:
+                rows = [t["row"] for t in norm]
+                cols = [t["col"] for t in norm]
+                CENTER = 7
+                is_h = len(set(rows)) == 1
+                is_v = len(set(cols)) == 1
+                if is_h and (CENTER in cols):
+                    r0 = rows[0]
+                    if r0 != CENTER:
+                        cand = [{**t, "row": CENTER} for t in norm]
+                        if all(0 <= tt["row"] < 15 for tt in cand):
+                            norm = cand
+                elif is_v and (CENTER in rows):
+                    c0 = cols[0]
+                    if c0 != CENTER:
+                        cand = [{**t, "col": CENTER} for t in norm]
+                        if all(0 <= tt["col"] < 15 for tt in cand):
+                            norm = cand
             return norm
 
         tiles_out = _normalize_tiles_0based(tiles_out, board_is_empty and result.get("move_type") == "play")
