@@ -1,6 +1,23 @@
 import { GameRecord } from '@/types/multiplayer'
 import { GameState, PlacedTile, Tile } from '@/types/game'
-import { mapToBoard } from '@/core/adapters'
+
+// Convert legacy persisted board_state (record "r,c" -> tile) into matrix Board
+const recordToBoardMatrix = (boardState: Record<string, PlacedTile> = {}): (PlacedTile | null)[][] => {
+  const matrix: (PlacedTile | null)[][] = Array.from({ length: 15 }, () => Array.from({ length: 15 }, () => null))
+  for (const [key, val] of Object.entries(boardState)) {
+    const [rStr, cStr] = key.split(',')
+    const r = Number(rStr)
+    const c = Number(cStr)
+    if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || r >= 15 || c < 0 || c >= 15) continue
+    matrix[r][c] = {
+      ...val,
+      isBlank: val.isBlank ?? (val.letter === '' && val.points === 0),
+      row: r,
+      col: c
+    }
+  }
+  return matrix
+}
 
 const normalizeRack = (rack: Tile[] = []): Tile[] =>
   rack.map((t) => ({
@@ -9,19 +26,8 @@ const normalizeRack = (rack: Tile[] = []): Tile[] =>
     isBlank: t.isBlank ?? (t.letter === '' && t.points === 0),
   }))
 
-const mapBoardState = (boardState: Record<string, PlacedTile> = {}): Map<string, PlacedTile> => {
-  const entries = Object.entries(boardState).map(([key, val]) => {
-    const tile: PlacedTile = {
-      ...val,
-      isBlank: val.isBlank ?? (val.letter === '' && val.points === 0),
-    }
-    return [key, tile] as [string, PlacedTile]
-  })
-  return new Map<string, PlacedTile>(entries)
-}
-
 export const buildGameState = (gameData: GameRecord, userId: string): { state: GameState; isMyTurn: boolean } => {
-  const boardMap = mapBoardState(gameData.board_state || {})
+  const boardMatrix = recordToBoardMatrix(gameData.board_state || {})
   const state: GameState = {
     players: [
       {
@@ -38,9 +44,7 @@ export const buildGameState = (gameData: GameRecord, userId: string): { state: G
       },
     ],
     currentPlayerIndex: gameData.current_player_id === gameData.player1_id ? 0 : 1,
-    board: boardMap,
-    // Prefer internal matrix model for consumers; keep Map for serialization boundaries
-    boardMatrix: mapToBoard(boardMap),
+    boardMatrix,
     tileBag: gameData.tile_bag,
     gameStatus: 'playing',
   }

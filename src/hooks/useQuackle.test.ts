@@ -1,21 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import { buildQuackleBoard } from './useQuackle'
+import { createEmptyBoard } from '@/core/board'
 
 describe('buildQuackleBoard', () => {
   it('converts to 1-based keys; bounds are validated server-side', () => {
-    const gameState: any = {
-      board: new Map([
-        ['0,0', { row: 0, col: 0, letter: 'A', points: 1 }],
-        ['16,0', { row: 16, col: 0, letter: 'B', points: 3 }],
-        ['0,16', { row: 0, col: 16, letter: 'C', points: 3 }],
-        ['14,14', { row: 14, col: 14, letter: 'Z', points: 10 }],
-      ])
-    }
+    const boardMatrix = createEmptyBoard()
+    boardMatrix[0][0] = { row:0, col:0, letter:'A', points:1 }
+    // Out-of-bounds tiles (16,0) / (0,16) non verranno rappresentati perché il board è 15x15 → simuliamo comunque un pass-through: li ignoriamo.
+    boardMatrix[14][14] = { row:14, col:14, letter:'Z', points:10 }
+    const gameState: any = { boardMatrix }
     const out = buildQuackleBoard(gameState)
     const keys = Object.keys(out)
     // FE does not filter; it just converts to 1-based. Service will validate bounds.
     expect(keys).toContain('1,1')
     expect(keys).toContain('15,15')
-    expect(keys.length).toBe(4)
+  // Avendo eliminato le coordinate out-of-bounds, rimangono 2 chiavi valide.
+  expect(keys.length).toBe(2)
   })
 })

@@ -1,17 +1,14 @@
 import { PlacedTile } from '@/types/game'
-import { mapToBoard } from './adapters'
-import { canPlace, scanCrossWords, scanMainLine } from './board'
+import { canPlace, scanCrossWords, scanMainLine, Board } from './board'
 
 export function makeCoreConfirmDeps(isValidWord: (w: string) => boolean) {
   return {
-    validateMoveLogic: (boardMap: Map<string, PlacedTile>, pending: PlacedTile[]) => {
-      const board = mapToBoard(boardMap)
+    validateMoveLogic: (board: Board, pending: PlacedTile[]) => {
       const res = canPlace(board, pending)
       if (!res.ok) return { isValid: false, errors: [res.reason || 'invalid_move'] }
       return { isValid: true, errors: [] }
     },
-    findNewWordsFormed: (boardMap: Map<string, PlacedTile>, pending: PlacedTile[]) => {
-      const board = mapToBoard(boardMap)
+    findNewWordsFormed: (board: Board, pending: PlacedTile[]) => {
       const main = scanMainLine(board, pending)
       const crosses = scanCrossWords(board, pending)
       const words: string[] = []

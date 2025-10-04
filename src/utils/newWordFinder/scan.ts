@@ -1,4 +1,5 @@
 import type { PlacedTile } from '@/types/game'
+import type { Board } from '@/core/board'
 
 export interface FoundWord {
   word: string
@@ -9,7 +10,15 @@ export interface FoundWord {
   isNewWord?: boolean
 }
 
-export const findAllWords = (allTiles: Map<string, PlacedTile>): FoundWord[] => {
+// Accept legacy Map or new Board matrix
+export const findAllWords = (allTiles: Map<string, PlacedTile> | Board): FoundWord[] => {
+  const get = (r: number, c: number): PlacedTile | undefined => {
+    if (Array.isArray(allTiles)) {
+      if (r < 0 || r >= 15 || c < 0 || c >= 15) return undefined
+      return allTiles[r][c] || undefined
+    }
+    return allTiles.get(`${r},${c}`)
+  }
   const words: FoundWord[] = []
   const processedPositions = new Set<string>()
 
@@ -18,8 +27,7 @@ export const findAllWords = (allTiles: Map<string, PlacedTile>): FoundWord[] => 
     let currentWord: PlacedTile[] = []
     let startCol = 0
     for (let col = 0; col < 15; col++) {
-      const key = `${row},${col}`
-      const tile = allTiles.get(key)
+  const tile = get(row, col)
       if (tile) {
         if (currentWord.length === 0) startCol = col
         currentWord.push(tile)
@@ -64,8 +72,7 @@ export const findAllWords = (allTiles: Map<string, PlacedTile>): FoundWord[] => 
     let currentWord: PlacedTile[] = []
     let startRow = 0
     for (let row = 0; row < 15; row++) {
-      const key = `${row},${col}`
-      const tile = allTiles.get(key)
+  const tile = get(row, col)
       if (tile) {
         if (currentWord.length === 0) startRow = row
         currentWord.push(tile)

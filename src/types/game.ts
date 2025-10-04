@@ -18,9 +18,9 @@ export interface Player {
 }
 
 export interface GameState {
-  board: Map<string, PlacedTile>
-  // Step 7 migration: matrix representation of the board (shadow-write until full switch)
-  boardMatrix?: (PlacedTile | null)[][]
+  // MIGRATION: Removed board Map, using only boardMatrix (15x15 array)
+  // See: docs/adr/ADR-001-migrate-to-boardmatrix.md
+  boardMatrix: (PlacedTile | null)[][]
   players: Player[]
   currentPlayerIndex: number
   tileBag: Tile[]

@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { applyConfirmMove, type ConfirmDeps } from './actionsConfirm'
 import type { GameState, PlacedTile, Tile } from '@/types/game'
 
+import { createEmptyBoard } from '@/core/board'
 const makeState = (over: Partial<GameState> = {}): GameState => ({
-  board: new Map(),
+  boardMatrix: createEmptyBoard(),
   players: [
     { id: 'p1', name: 'P1', score: 0, rack: [], isBot: false },
     { id: 'p2', name: 'P2', score: 0, rack: [], isBot: true }
@@ -62,8 +63,8 @@ describe('applyConfirmMove', () => {
     expect(next.passCounts?.[0]).toBe(0)
     expect(next.tileBag.length).toBeLessThanOrEqual(bag.length)
     // boardMatrix shadow-write must reflect the placed tile
-    expect(next.boardMatrix).toBeTruthy()
-    expect(next.boardMatrix![7][7]?.letter).toBe('A')
+  expect(next.boardMatrix).toBeTruthy()
+  expect(next.boardMatrix[7][7]?.letter).toBe('A')
   })
 
   it('finishes the game when endgame condition met', () => {
@@ -76,7 +77,7 @@ describe('applyConfirmMove', () => {
     expect(res.ok).toBe(true)
     expect(res.next?.gameStatus).toBe('finished')
     // boardMatrix updated also on finishing state
-    expect(res.next?.boardMatrix).toBeTruthy()
-    expect(res.next?.boardMatrix?.[7][7]?.letter).toBe('A')
+  expect(res.next?.boardMatrix).toBeTruthy()
+  expect(res.next?.boardMatrix[7][7]?.letter).toBe('A')
   })
 })

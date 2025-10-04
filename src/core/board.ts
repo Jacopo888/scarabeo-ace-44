@@ -28,6 +28,33 @@ export function isBoardEmpty(board: Board): boolean {
   return true
 }
 
+/**
+ * Get tile at position (with bounds check)
+ * @returns PlacedTile if present, null if empty or out of bounds
+ */
+export function getBoardTile(board: Board, row: number, col: number): PlacedTile | null {
+  if (!isInBounds(row, col)) return null
+  return board[row][col]
+}
+
+/**
+ * Set tile at position (immutable, returns new board)
+ * @returns New board with tile placed, or original if out of bounds
+ */
+export function setBoardTile(board: Board, row: number, col: number, tile: PlacedTile | null): Board {
+  if (!isInBounds(row, col)) return board
+  const next = cloneBoard(board)
+  next[row][col] = tile
+  return next
+}
+
+/**
+ * Check if position is occupied
+ */
+export function isTileAt(board: Board, row: number, col: number): boolean {
+  return getBoardTile(board, row, col) !== null
+}
+
 function coordKey(r: number, c: number): string { return `${r},${c}` }
 
 function makeVirtualLookup(board: Board, move: PlacedTile[]) {

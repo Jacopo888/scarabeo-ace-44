@@ -1,14 +1,14 @@
 import type { GameState, PlacedTile, Player, Tile } from '@/types/game'
-import { cloneBoard, createEmptyBoard } from '@/core/board'
+import { cloneBoard, Board } from '@/core/board'
 import { drawTiles } from './random'
 import { canEndGame } from '@/utils/gameRules'
 import { computeFinalPlayers } from './endgame'
 
 export interface ConfirmDeps {
-  validateMoveLogic: (board: Map<string, PlacedTile>, pending: PlacedTile[]) => { isValid: boolean; errors: string[] }
-  findNewWordsFormed: (board: Map<string, PlacedTile>, pending: PlacedTile[]) => Array<{ word: string }>
-  // Unified API: calculate full score from tiles and board (required)
-  calculateScore: (opts: { tiles: PlacedTile[]; existingBoard: Map<string, PlacedTile>; context?: 'player' | 'quackle' }) => number
+  validateMoveLogic: (board: Board, pending: PlacedTile[]) => { isValid: boolean; errors: string[] }
+  findNewWordsFormed: (board: Board, pending: PlacedTile[]) => Array<{ word: string }>
+  // Unified API: calculate full score from tiles and board matrix
+  calculateScore: (opts: { tiles: PlacedTile[]; board: Board; context?: 'player' | 'quackle' }) => number
   isValidWord: (w: string) => boolean
 }
 
@@ -38,50 +38,27 @@ export function applyConfirmMove(prev: GameState, pendingTiles: PlacedTile[], de
     return { ok: false, errorCode: 'empty', error: 'No tiles to confirm' }
   }
 
-  const validation = deps.validateMoveLogic(prev.board, pendingTiles)
+  const validation = deps.validateMoveLogic(prev.boardMatrix, pendingTiles)
   if (!validation.isValid) {
     return { ok: false, errorCode: 'invalid_move', error: validation.errors.join(', ') }
   }
 
-  const newWords = deps.findNewWordsFormed(prev.board, pendingTiles)
+  const newWords = deps.findNewWordsFormed(prev.boardMatrix, pendingTiles)
   const invalidWords = newWords.filter(w => !deps.isValidWord(w.word))
   if (invalidWords.length > 0) {
     return { ok: false, errorCode: 'invalid_words', error: `Invalid words: ${invalidWords.map(w => w.word).join(', ')}` }
   }
 
-  // Calculate using the unified scorer
-  const score = deps.calculateScore({ tiles: pendingTiles, existingBoard: prev.board, context: 'player' })
+  // Calculate score using matrix
+  const score = deps.calculateScore({ tiles: pendingTiles, board: prev.boardMatrix, context: 'player' })
 
-  // Add tiles to board
-  const newBoard = new Map(prev.board)
+  // Add tiles to board matrix (immutable clone)
+  const nextMatrix = cloneBoard(prev.boardMatrix)
   pendingTiles.forEach(tile => {
-    const key = `${tile.row},${tile.col}`
-    newBoard.set(key, tile)
-  })
-
-  // Shadow-write boardMatrix if present
-  const nextMatrix = (() => {
-    const matrix = prev.boardMatrix
-    if (matrix) {
-      const cloned = cloneBoard(matrix)
-      pendingTiles.forEach(t => {
-        if (t.row >= 0 && t.row < cloned.length && t.col >= 0 && t.col < cloned[0].length) {
-          cloned[t.row][t.col] = { ...t }
-        }
-      })
-      return cloned
+    if (tile.row >= 0 && tile.row < nextMatrix.length && tile.col >= 0 && tile.col < nextMatrix[0].length) {
+      nextMatrix[tile.row][tile.col] = { ...tile }
     }
-    // Build from the newBoard Map when no matrix existed yet
-    const built = createEmptyBoard()
-    newBoard.forEach((pt, key) => {
-      const [rStr, cStr] = key.split(',')
-      const r = Number(rStr), c = Number(cStr)
-      if (Number.isFinite(r) && Number.isFinite(c) && r >= 0 && c >= 0 && r < built.length && c < built[0].length) {
-        built[r][c] = { ...pt }
-      }
-    })
-    return built
-  })()
+  })
 
   // Update player score and rack
   const currentPlayer = prev.players[prev.currentPlayerIndex]
@@ -129,8 +106,7 @@ export function applyConfirmMove(prev: GameState, pendingTiles: PlacedTile[], de
       moveInfo,
       next: {
         ...prev,
-        board: newBoard,
-  boardMatrix: nextMatrix,
+        boardMatrix: nextMatrix,
         players: finalPlayers,
         tileBag: remaining,
         gameStatus: 'finished',
@@ -145,8 +121,7 @@ export function applyConfirmMove(prev: GameState, pendingTiles: PlacedTile[], de
     moveInfo,
     next: {
       ...prev,
-      board: newBoard,
-  boardMatrix: nextMatrix,
+      boardMatrix: nextMatrix,
       players: newPlayers,
       tileBag: remaining,
       currentPlayerIndex: nextPlayerIndex,

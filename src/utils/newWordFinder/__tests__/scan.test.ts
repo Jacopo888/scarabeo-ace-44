@@ -1,18 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import type { PlacedTile } from '@/types/game'
 import { findAllWords } from '../scan'
+import { createEmptyBoard, Board } from '@/core/board'
 
 const T = (r: number, c: number, ch = 'A', p = 1): PlacedTile => ({ row: r, col: c, letter: ch, points: p })
 
 describe('word scanning helper', () => {
   it('finds horizontal and vertical words length > 1', () => {
-    const board = new Map<string, PlacedTile>()
+  const board: Board = createEmptyBoard()
     // Horizontal: CAT at row 7, cols 5-7
     const cat = [T(7, 5, 'C'), T(7, 6, 'A'), T(7, 7, 'T')]
     // Vertical: HI at rows 3-4, col 2
     const hi = [T(3, 2, 'H'), T(4, 2, 'I')]
 
-    for (const t of [...cat, ...hi]) board.set(`${t.row},${t.col}`, t)
+  for (const t of [...cat, ...hi]) board[t.row][t.col] = t
 
     const words = findAllWords(board)
     const strings = words.map(w => `${w.direction}:${w.word}@${w.startRow},${w.startCol}`)
@@ -24,7 +25,7 @@ describe('word scanning helper', () => {
   })
 
   it('handles words at board borders (row 0/14 and col 0/14)', () => {
-    const board = new Map<string, PlacedTile>()
+  const board: Board = createEmptyBoard()
     // Top row border: AB at row 0, cols 0-1
     const top = [T(0, 0, 'A'), T(0, 1, 'B')]
     // Bottom row border: XY at row 14, cols 13-14
@@ -34,7 +35,7 @@ describe('word scanning helper', () => {
     // Right col border: MN at rows 13-14, col 14 (overlap with bottom at 14,14)
     const right = [T(13, 14, 'M'), T(14, 14, 'Y')] // Y reused, acceptable for scan test
 
-    for (const t of [...top, ...bottom, ...left, ...right]) board.set(`${t.row},${t.col}`, t)
+  for (const t of [...top, ...bottom, ...left, ...right]) board[t.row][t.col] = t
 
     const words = findAllWords(board)
     const set = new Set(words.map(w => `${w.direction}:${w.word}@${w.startRow},${w.startCol}`))

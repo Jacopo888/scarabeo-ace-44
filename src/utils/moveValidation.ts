@@ -8,6 +8,7 @@
  *   - scanMainLine/scanCrossWords per le parole
  */
 import { PlacedTile } from '@/types/game'
+import { createEmptyBoard, Board, isBoardEmpty } from '@/core/board'
 // Import dagli helper (barrel) per evitare l'auto-import ciclico di questo file
 import {
   areNewTilesContiguous,
@@ -23,9 +24,20 @@ export interface MoveValidation {
 }
 
 export const validateMoveLogic = (
-  board: Map<string, PlacedTile>,
+  boardInput: Map<string, PlacedTile> | Board,
   newTiles: PlacedTile[]
 ): MoveValidation => {
+  // Normalizza a Board matrix (migrazione). Permette compat con vecchi test che passavano Map.
+  let board: Board
+  if (Array.isArray(boardInput)) {
+    board = boardInput
+  } else {
+    board = createEmptyBoard()
+    for (const [k, tile] of boardInput.entries()) {
+      const [r, c] = k.split(',').map(Number)
+      if (r >= 0 && r < 15 && c >= 0 && c < 15) board[r][c] = tile
+    }
+  }
   // Contract (riassunto):
   // - Input: board = mappa ("row,col" -> PlacedTile) con le tessere già piazzate; newTiles = tessere del turno corrente
   // - Assunzioni: coordinate 0..14, nessuna mutazione degli input; isBlank può essere true ma letter deve essere valorizzata
@@ -43,14 +55,13 @@ export const validateMoveLogic = (
   
   // Check if tiles are placed on empty squares
   for (const tile of newTiles) {
-    const key = `${tile.row},${tile.col}`
-    if (board.has(key)) {
+    if (board[tile.row][tile.col] !== null) {
       errors.push('Cannot place tile on occupied square')
     }
   }
 
   const contiguous = areNewTilesContiguous(newTiles)
-  const gapsFilled = areGapsFilledByExistingTiles(board, newTiles)
+  const gapsFilled = areGapsFilledByExistingTiles(board as any, newTiles)
 
   // Check if tiles are contiguous
   if (newTiles.length > 1 && !contiguous && !gapsFilled) {
@@ -63,12 +74,12 @@ export const validateMoveLogic = (
   }
   
   // Check if first move covers center square
-  if (board.size === 0 && !coversCenter(newTiles)) {
+  if (isBoardEmpty(board) && !coversCenter(newTiles)) {
     errors.push('First move must cover the center square')
   }
   
   // Check if tiles are adjacent to existing tiles (except first move)
-  if (board.size > 0 && !areNewTilesAdjacentToBoard(board, newTiles)) {
+  if (!isBoardEmpty(board) && !areNewTilesAdjacentToBoard(board as any, newTiles)) {
     errors.push('New tiles must be adjacent to existing tiles')
   }
   

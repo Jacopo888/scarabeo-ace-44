@@ -142,7 +142,7 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
                   isMyTurn={isMyTurn}
                   selectedTile={selectedTile as any}
                   onUseSelectedTile={clearSelectedTile}
-                  boardMap={(gameState.boardMatrix as any) || gameState.board}
+                  boardMap={gameState.boardMatrix as any}
                   pendingTiles={pendingTiles}
                   onPlaceTile={(row, col, tile) => {
                     const t: any = tile
@@ -188,7 +188,7 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
                     onOpenExchange={() => setExchangeOpen(true)}
                     tileCounter={{
                       tileBag: game?.tile_bag || [],
-                      boardMap: (gameState.boardMatrix as any) || gameState.board,
+                      boardMap: gameState.boardMatrix as any,
                       myRack: getCurrentRack() as any,
                       opponentRack: (game.player1_id === user.id ? game.player2_rack : game.player1_rack) as any,
                       className: "w-40 text-xs ml-auto"

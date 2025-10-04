@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { PlacedTile } from '@/types/game'
 import { prepareSubmitOutcome } from './prepare'
+import { createEmptyBoard, Board } from '@/core/board'
 
-const board = new Map<string, PlacedTile>()
+const board: Board = createEmptyBoard()
 
 describe('prepareSubmitOutcome', () => {
   it('returns ok=false when validation fails', () => {

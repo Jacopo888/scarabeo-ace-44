@@ -1,7 +1,9 @@
 import type { PlacedTile } from '@/types/game'
+import type { Board } from '@/core/board'
+import { hasTile } from './boardUtils'
 
 export const areGapsFilledByExistingTiles = (
-  board: Map<string, PlacedTile>,
+  board: Board,
   newTiles: PlacedTile[]
 ): boolean => {
   if (newTiles.length <= 1) return true
@@ -17,8 +19,7 @@ export const areGapsFilledByExistingTiles = (
       const prevCol = sortedTiles[i - 1].col
       const currentCol = sortedTiles[i].col
       for (let col = prevCol + 1; col < currentCol; col++) {
-        const key = `${sortedTiles[0].row},${col}`
-        if (!board.has(key)) return false
+        if (!hasTile(board, sortedTiles[0].row, col)) return false
       }
     }
   } else {
@@ -26,8 +27,7 @@ export const areGapsFilledByExistingTiles = (
       const prevRow = sortedTiles[i - 1].row
       const currentRow = sortedTiles[i].row
       for (let row = prevRow + 1; row < currentRow; row++) {
-        const key = `${row},${sortedTiles[0].col}`
-        if (!board.has(key)) return false
+        if (!hasTile(board, row, sortedTiles[0].col)) return false
       }
     }
   }

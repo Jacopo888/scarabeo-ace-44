@@ -1,5 +1,6 @@
 import type { PlacedTile } from '@/types/game'
 import { computeValidatedMove, applyPendingTilesToBoard, type MoveDeps } from './moveUtils'
+import type { Board } from '@/core/board'
 
 export type PreparedSubmit =
   | { ok: false; errors: string[] }
@@ -10,14 +11,14 @@ export type PreparedSubmit =
  * the score, words and the resulting board state after applying pending tiles.
  */
 export function prepareSubmitOutcome(
-  boardMap: Map<string, PlacedTile>,
+  board: Board,
   pendingTiles: PlacedTile[],
   deps: MoveDeps
 ): PreparedSubmit {
-  const outcome = computeValidatedMove(boardMap, pendingTiles, deps)
+  const outcome = computeValidatedMove(board, pendingTiles, deps)
   if (!outcome.ok) {
     return { ok: false, errors: outcome.errors || [] }
   }
-  const newBoardState = applyPendingTilesToBoard(boardMap, pendingTiles)
+  const newBoardState = applyPendingTilesToBoard(board, pendingTiles)
   return { ok: true, score: outcome.score, words: outcome.newWords.map(w => w.word), newBoardState }
 }

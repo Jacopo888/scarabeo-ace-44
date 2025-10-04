@@ -14,7 +14,6 @@ export function initGameState(mode: GameModeParam, difficulty: Difficulty | null
   const startingPlayerIndex = Math.floor(Math.random() * 2)
 
   return {
-    board: new Map(),
     boardMatrix: createEmptyBoard(),
     players: [
       {

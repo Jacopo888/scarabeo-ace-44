@@ -7,6 +7,7 @@
  */
 import { PlacedTile } from '@/types/game'
 import { findAllWords } from './newWordFinder/scan'
+import type { Board } from '@/core/board'
 
 export interface FoundWord {
   word: string
@@ -17,41 +18,18 @@ export interface FoundWord {
   isNewWord: boolean // True if this word contains at least one new tile
 }
 
-export const findNewWordsFormed = (
-  board: Map<string, PlacedTile>,
-  newTiles: PlacedTile[]
-): FoundWord[] => {
-  // Create a combined map of existing and new tiles
-  const allTiles = new Map(board)
-  const newTilePositions = new Set<string>()
-  
-  newTiles.forEach(tile => {
-    const key = `${tile.row},${tile.col}`
-    allTiles.set(key, tile)
-    newTilePositions.add(key)
-  })
-
-  const newWords: FoundWord[] = []
-
-  // Find words that contain at least one new tile
-  const allWords = findAllWords(allTiles)
-  
-  for (const word of allWords) {
-    // Check if this word contains at least one new tile
-    const containsNewTile = word.tiles.some(tile => {
-      const key = `${tile.row},${tile.col}`
-      return newTilePositions.has(key)
-    })
-    
-    if (containsNewTile) {
-      newWords.push({
-        ...word,
-        isNewWord: true
-      })
+export const findNewWordsFormed = (board: Board, newTiles: PlacedTile[]): FoundWord[] => {
+  const allTiles = new Map<string, PlacedTile>()
+  for (let r = 0; r < 15; r++) {
+    for (let c = 0; c < 15; c++) {
+      const t = board[r][c]
+      if (t) allTiles.set(`${r},${c}`, t)
     }
   }
-
-  return newWords
+  const newPos = new Set<string>()
+  newTiles.forEach(t => { allTiles.set(`${t.row},${t.col}`, t); newPos.add(`${t.row},${t.col}`) })
+  const allWords = findAllWords(allTiles)
+  return allWords.filter(w => w.tiles.some(t => newPos.has(`${t.row},${t.col}`))).map(w => ({ ...w, isNewWord: true }))
 }
 
 // moved scanning implementation to ./newWordFinder/scan

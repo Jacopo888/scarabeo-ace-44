@@ -1,5 +1,11 @@
 import { PlacedTile } from '@/types/game'
-// Keep a local FoundWord shape to avoid depending on legacy facades
+import { getMultipliersAt } from '@/config/boardConstants'
+import { scoreMove as scoreMoveCore, type Board } from '@/core/board'
+
+// NOTE MIGRATION: Questo modulo è stato convertito per usare esclusivamente la Board matrix.
+// API pubblica consolidata: calculateScore({ tiles, board })
+// Rimosso supporto legacy Map(existingBoard) + funzione duplicata calculateScoreFromBoard.
+
 export interface FoundWord {
   word: string
   tiles: PlacedTile[]
@@ -7,9 +13,6 @@ export interface FoundWord {
   startRow: number
   startCol: number
 }
-import { getMultipliersAt } from '@/config/boardConstants'
-import { mapToBoard } from '@/core/adapters'
-import { scoreMove as scoreMoveCore, type Board } from '@/core/board'
 
 export const calculateWordScore = (
   word: FoundWord,
@@ -62,29 +65,14 @@ export const calculateMoveScore = (
 // Note: special square lookup helpers are available in '@/config/boardConstants'
 
 // Unified scoring: calculate full move score from tiles and existing board
-export interface ScoreCalculationOptions {
-  tiles: PlacedTile[]
-  existingBoard: Map<string, PlacedTile>
-  context?: 'player' | 'quackle'
-}
-
-export function calculateScore(options: ScoreCalculationOptions): number {
-  const { tiles, existingBoard } = options
-  if (!tiles || tiles.length === 0) return 0
-  // Delegate to the new matrix-based core using an adapter for backward compatibility
-  const board = mapToBoard(existingBoard)
-  const { score } = scoreMoveCore(board, tiles)
-  return score
-}
-
-// New: direct scoring from matrix board (preferred path for new code)
-export interface ScoreFromBoardOptions {
+export interface ScoreOptions {
   tiles: PlacedTile[]
   board: Board
   context?: 'player' | 'quackle'
 }
 
-export function calculateScoreFromBoard(options: ScoreFromBoardOptions): number {
+// Public unified scoring function (matrix only)
+export function calculateScore(options: ScoreOptions): number {
   const { tiles, board } = options
   if (!tiles || tiles.length === 0) return 0
   const { score } = scoreMoveCore(board, tiles)
@@ -97,11 +85,13 @@ function calculateSingleTileScore(tile: PlacedTile): number {
   return base * mul.word * mul.letter
 }
 
+// Legacy helpers kept temporarily (could be removed if unused). Adapted to matrix.
 function buildFullWord(
   newTiles: PlacedTile[],
-  existingBoard: Map<string, PlacedTile>,
+  board: Board,
   isHorizontal: boolean
 ): PlacedTile[] {
+  if (newTiles.length === 0) return []
   const sorted = [...newTiles].sort((a, b) => (isHorizontal ? a.col - b.col : a.row - b.row))
   const row = sorted[0].row
   const col = sorted[0].col
@@ -110,21 +100,17 @@ function buildFullWord(
 
   if (isHorizontal) {
     for (let c = minPos - 1; c >= 0; c--) {
-      const key = `${row},${c}`
-      if (existingBoard.has(key)) minPos = c; else break
+      if (board[row][c]) minPos = c; else break
     }
     for (let c = maxPos + 1; c < 15; c++) {
-      const key = `${row},${c}`
-      if (existingBoard.has(key)) maxPos = c; else break
+      if (board[row][c]) maxPos = c; else break
     }
   } else {
     for (let r = minPos - 1; r >= 0; r--) {
-      const key = `${r},${col}`
-      if (existingBoard.has(key)) minPos = r; else break
+      if (board[r][col]) minPos = r; else break
     }
     for (let r = maxPos + 1; r < 15; r++) {
-      const key = `${r},${col}`
-      if (existingBoard.has(key)) maxPos = r; else break
+      if (board[r][col]) maxPos = r; else break
     }
   }
 
@@ -132,9 +118,8 @@ function buildFullWord(
   for (let pos = minPos; pos <= maxPos; pos++) {
     const r = isHorizontal ? row : pos
     const c = isHorizontal ? pos : col
-    const key = `${r},${c}`
     const newTile = newTiles.find(t => t.row === r && t.col === c)
-    const existing = existingBoard.get(key)
+    const existing = board[r][c]
     if (newTile) full.push(newTile)
     else if (existing) full.push(existing)
   }
@@ -143,35 +128,31 @@ function buildFullWord(
 
 function calculateCrossWordScore(
   tile: PlacedTile,
-  existingBoard: Map<string, PlacedTile>,
+  board: Board,
   mainIsHorizontal: boolean
 ): number {
   const tiles: PlacedTile[] = [tile]
   if (mainIsHorizontal) {
     // vertical cross
     for (let r = tile.row - 1; r >= 0; r--) {
-      const key = `${r},${tile.col}`
-      const t = existingBoard.get(key)
+      const t = board[r][tile.col]
       if (!t) break
       tiles.unshift(t)
     }
     for (let r = tile.row + 1; r < 15; r++) {
-      const key = `${r},${tile.col}`
-      const t = existingBoard.get(key)
+      const t = board[r][tile.col]
       if (!t) break
       tiles.push(t)
     }
   } else {
     // horizontal cross
     for (let c = tile.col - 1; c >= 0; c--) {
-      const key = `${tile.row},${c}`
-      const t = existingBoard.get(key)
+      const t = board[tile.row][c]
       if (!t) break
       tiles.unshift(t)
     }
     for (let c = tile.col + 1; c < 15; c++) {
-      const key = `${tile.row},${c}`
-      const t = existingBoard.get(key)
+      const t = board[tile.row][c]
       if (!t) break
       tiles.push(t)
     }

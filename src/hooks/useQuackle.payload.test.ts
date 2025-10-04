@@ -2,17 +2,18 @@ import { describe, it, expect } from 'vitest'
 import { buildQuackleBoard, formatRackStringForQuackle } from './useQuackle'
 import type { GameState, PlacedTile, Tile } from '@/types/game'
 import { calculateScore } from '@/utils/scoring'
+import { createEmptyBoard, applyMove } from '@/core/board'
 
 function makeState(tiles: PlacedTile[] = []): GameState {
-  const board = new Map<string, PlacedTile>()
-  tiles.forEach(t => board.set(`${t.row},${t.col}`, t))
+  let boardMatrix = createEmptyBoard()
+  boardMatrix = applyMove(boardMatrix, tiles)
   return {
-    board,
+    boardMatrix,
     players: [],
     currentPlayerIndex: 0,
     tileBag: [],
     gameStatus: 'waiting'
-  }
+  } as any
 }
 
 describe('Quackle payload builders', () => {
@@ -50,12 +51,13 @@ describe('Quackle payload builders', () => {
 describe('Local score recalculation parity (core)', () => {
   it('recalculates score with board multipliers for a simple cross word', () => {
     // Existing A at center (star is DW per board config). Add T left and E right: TAE; plus vertical cross with I.
-    const board = new Map<string, PlacedTile>([[`7,7`, { row: 7, col: 7, letter: 'A', points: 1 }]])
+  let board = createEmptyBoard()
+  board = applyMove(board, [{ row: 7, col: 7, letter: 'A', points: 1 }])
     const move: PlacedTile[] = [
       { row: 7, col: 6, letter: 'T', points: 1 },
       { row: 7, col: 8, letter: 'E', points: 1 },
     ]
-    const score = calculateScore({ tiles: move, existingBoard: board, context: 'quackle' })
+  const score = calculateScore({ tiles: move, board, context: 'quackle' })
     expect(typeof score).toBe('number')
     expect(score).toBeGreaterThanOrEqual(3) // at least sum of letters; exact depends on specials
   })

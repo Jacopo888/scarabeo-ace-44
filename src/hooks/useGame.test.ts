@@ -20,15 +20,16 @@ vi.mock('react-router-dom', () => ({
 
 import { useGame } from './useGame'
 import { buildQuackleBoard } from './useQuackle'
+import { createEmptyBoard } from '@/core/board'
 import { quackleBestMove } from '@/services/quackleClient'
 
 describe('Quackle serialization', () => {
   it('serializes board with 1-based indices (center -> "8,8")', () => {
     // Build a minimal GameState with one stabilized tile at 0-based (7,7)
-    const board = new Map<string, any>()
-    board.set('7,7', { letter: 'a', points: 1, row: 7, col: 7, isBlank: false })
+    const boardMatrix = createEmptyBoard()
+    boardMatrix[7][7] = { letter: 'a', points: 1, row: 7, col: 7, isBlank: false }
     const gameState: any = {
-      board,
+      boardMatrix,
       players: [], currentPlayerIndex: 0, tileBag: [], gameStatus: 'playing'
     }
     const out = buildQuackleBoard(gameState)

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { GameState, Player, Tile, PlacedTile } from '@/types/game'
-import { calculateScoreFromBoard } from '@/utils/scoring'
+import { calculateScore } from '@/utils/scoring'
 import { useToast } from '@/hooks/use-toast'
 import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
@@ -9,7 +9,6 @@ import type { GameMoveLite } from '@/types/localGame'
 import { Difficulty } from '@/components/DifficultyModal'
 import { toastOnce } from '@/lib/toastOnce'
 import { sanitizeQuackleTile } from '@/lib/game/tiles'
-import { mapToBoard } from '@/core/adapters'
 // random shuffle handled by rack helpers
 import { isCurrentPlayerTurn as isCurrentTurn } from '@/lib/game/turns'
 import { getCurrentRack, reshuffleRack, withCurrentRack } from '@/lib/game/rack'
@@ -56,7 +55,6 @@ export const useGame = () => {
 
   // Initialize with empty state and wait for difficulty
   const [gameState, setGameState] = useState<GameState>(() => ({
-    board: new Map(),
     boardMatrix: Array.from({ length: 15 }, () => Array.from({ length: 15 }, () => null)),
     players: [],
     currentPlayerIndex: 0,
@@ -90,15 +88,12 @@ export const useGame = () => {
 
   const confirmMove = useCallback(() => {
   const coreDeps = makeCoreConfirmDeps(isValidWord)
-  // Prefer core-based validation/word-extraction for simplicity; always use matrix scoring
+  // Always use matrix scoring directly
   const deps = { 
     validateMoveLogic: coreDeps.validateMoveLogic,
     findNewWordsFormed: coreDeps.findNewWordsFormed,
-    // Always use matrix scoring (convert Map to matrix if needed)
-    calculateScore: (opts: any) => {
-      const board = gameState.boardMatrix || mapToBoard(gameState.board)
-      return calculateScoreFromBoard({ tiles: opts.tiles, board, context: opts.context })
-    },
+    // Use matrix scoring directly (board parameter, not existingBoard)
+    calculateScore: (opts: any) => calculateScore({ tiles: opts.tiles, board: opts.board || gameState.boardMatrix, context: opts.context }),
     isValidWord
   }
     setGameState(prev => {
@@ -263,14 +258,16 @@ export const useGame = () => {
         .filter((tile): tile is PlacedTile => tile !== null)
       // Evita di includere posizioni già occupate sulla board esistente (ancoraggi/croci)
       if (sanitizedTiles.length > 0) {
+        // Iterate matrix to find occupied positions
         const occupied = new Set<string>()
-        snapshot.board.forEach((_, t: any) => {
-          // t può essere chiave stringa "r,c" o il tile stesso a seconda del tipo di mappa
-          if (typeof t === 'string') {
-            occupied.add(t)
+        for (let r = 0; r < snapshot.boardMatrix.length; r++) {
+          for (let c = 0; c < snapshot.boardMatrix[r].length; c++) {
+            if (snapshot.boardMatrix[r][c] !== null) {
+              occupied.add(`${r},${c}`)
+            }
           }
-        })
-        // Se la board usa chiavi stringa "r,c" (come da convenzione), filtra le tessere che collidono
+        }
+        // Filter tiles that collide with existing tiles
         if (occupied.size > 0) {
           sanitizedTiles = sanitizedTiles.filter(t => !occupied.has(`${t.row},${t.col}`))
         }

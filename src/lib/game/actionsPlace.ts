@@ -7,8 +7,10 @@ export interface PlaceResult {
 }
 
 export function applyPlaceTile(prev: GameState, row: number, col: number, tile: Tile): PlaceResult {
-  const key = `${row},${col}`
-  if (prev.board.has(key)) return { next: prev, didPlace: false }
+  // Check if position is already occupied in matrix
+  if (prev.boardMatrix[row]?.[col] !== null) {
+    return { next: prev, didPlace: false }
+  }
 
   const currentPlayer = prev.players[prev.currentPlayerIndex]
 

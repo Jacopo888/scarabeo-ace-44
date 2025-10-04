@@ -10,22 +10,22 @@ import { isDebugQuackle } from '@/config/debug'
 // Output: { "r,c": { letter: string, isBlank: boolean } }
 export function buildQuackleBoard(gameState: GameState): Record<string, { letter: string; isBlank: boolean }> {
   const out: Record<string, { letter: string; isBlank: boolean }> = {}
-  // gameState.board is a Map of stabilized tiles only; pending tiles live elsewhere
-  gameState.board.forEach((tile: PlacedTile) => {
-    // Only process finite integer coordinates
-    if (!Number.isFinite(tile.row) || !Number.isFinite(tile.col)) return
-    if (!Number.isInteger(tile.row) || !Number.isInteger(tile.col)) return
-  // Convert to 1-based and build key (server performs authoritative bounds validation)
-  const key = toServiceCoord(tile.row, tile.col)
-
-    const isBlank = !!tile.isBlank
-    const raw = (tile.letter ?? '').toString().trim().toUpperCase()
-    // Never send '?' or '.' as a board letter: the engine requires the represented letter for blanks
-    if (isBlank && (!raw || raw === '?' || raw === '.')) return
-    if (!raw || raw === '.') return
-
-    out[key] = { letter: raw, isBlank }
-  })
+  const board = gameState.boardMatrix
+  for (let r = 0; r < board.length; r++) {
+    const row = board[r]
+    for (let c = 0; c < row.length; c++) {
+      const tile = row[c]
+      if (!tile) continue
+      if (!Number.isFinite(tile.row) || !Number.isFinite(tile.col)) continue
+      if (!Number.isInteger(tile.row) || !Number.isInteger(tile.col)) continue
+      const key = toServiceCoord(tile.row, tile.col)
+      const isBlank = !!tile.isBlank
+      const raw = (tile.letter ?? '').toString().trim().toUpperCase()
+      if (isBlank && (!raw || raw === '?' || raw === '.')) continue
+      if (!raw || raw === '.') continue
+      out[key] = { letter: raw, isBlank }
+    }
+  }
   return out
 }
 

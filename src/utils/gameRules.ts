@@ -1,6 +1,9 @@
 import { PlacedTile, Tile } from '@/types/game'
-import { mapToBoard } from '@/core/adapters'
-import { scanMainLine, scanCrossWords } from '@/core/board'
+import { scanMainLine, scanCrossWords, type Board } from '@/core/board'
+
+// MIGRATION NOTE: Questo modulo ora accetta esclusivamente Board (matrix 15x15).
+// In precedenza: validateMove(board: Map, newTiles). Adesso: validateMove(board: Board, newTiles).
+// Rimosso mapToBoard adapter.
 
 export interface MoveValidation {
   isValid: boolean
@@ -10,7 +13,7 @@ export interface MoveValidation {
 }
 
 export const validateMove = (
-  board: Map<string, PlacedTile>,
+  board: Board,
   newTiles: PlacedTile[],
   isValidWordFn?: (word: string) => boolean
 ): MoveValidation => {
@@ -31,20 +34,19 @@ export const validateMove = (
   }
   
   // Check if tiles are adjacent to existing tiles (except first move)
-  if (board.size > 0 && !areNewTilesAdjacent(board, newTiles)) {
+  if (!boardIsEmpty(board) && !areNewTilesAdjacent(board, newTiles)) {
     errors.push('New tiles must be adjacent to existing tiles')
   }
   
   // Check if first move covers center square
-  if (board.size === 0 && !coversCenter(newTiles)) {
+  if (boardIsEmpty(board) && !coversCenter(newTiles)) {
     errors.push('First move must cover the center square')
   }
   
   // Find all words formed by this move
   // Ricava parole formate usando il core (main + cross) e unisci in lista unica
-  const matrix = mapToBoard(board)
-  const main = scanMainLine(matrix, newTiles)
-  const crosses = scanCrossWords(matrix, newTiles)
+  const main = scanMainLine(board, newTiles)
+  const crosses = scanCrossWords(board, newTiles)
   const words: string[] = []
   if (main.length > 1 || (main.length === 1 && crosses.length === 0)) {
     words.push(main.map(t => t.letter).join(''))
@@ -107,20 +109,24 @@ const areTilesInLine = (tiles: PlacedTile[]): boolean => {
   return false
 }
 
-const areNewTilesAdjacent = (
-  board: Map<string, PlacedTile>,
-  newTiles: PlacedTile[]
-): boolean => {
+const areNewTilesAdjacent = (board: Board, newTiles: PlacedTile[]): boolean => {
   return newTiles.some(tile => {
-    const directions = [
-      [-1, 0], [1, 0], [0, -1], [0, 1] // up, down, left, right
-    ]
-    
-    return directions.some(([dRow, dCol]) => {
-      const adjacentKey = `${tile.row + dRow},${tile.col + dCol}`
-      return board.has(adjacentKey)
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]]
+    return dirs.some(([dr, dc]) => {
+      const r = tile.row + dr
+      const c = tile.col + dc
+      return r >= 0 && r < 15 && c >= 0 && c < 15 && !!board[r][c]
     })
   })
+}
+
+const boardIsEmpty = (board: Board): boolean => {
+  for (let r = 0; r < 15; r++) {
+    for (let c = 0; c < 15; c++) {
+      if (board[r][c]) return false
+    }
+  }
+  return true
 }
 
 const coversCenter = (tiles: PlacedTile[]): boolean => {

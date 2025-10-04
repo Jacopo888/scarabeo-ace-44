@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { applyPlaceTile } from './actionsPlace'
 import type { GameState, Tile } from '@/types/game'
+import { createEmptyBoard } from '@/core/board'
 
 const makeState = (over: Partial<GameState> = {}): GameState => ({
-  board: new Map(),
+  boardMatrix: createEmptyBoard(),
   players: [
     { id: 'p1', name: 'P1', score: 0, rack: [], isBot: false },
     { id: 'p2', name: 'P2', score: 0, rack: [], isBot: true }
@@ -19,7 +20,9 @@ const tile = (letter: string, points = 1): Tile => ({ letter, points })
 
 describe('applyPlaceTile', () => {
   it('does nothing if square occupied', () => {
-    const st = makeState({ board: new Map([[`7,7`, { ...tile('A'), row:7, col:7 } as any]]) })
+    const matrix = createEmptyBoard()
+    matrix[7][7] = { letter: 'A', points: 1, row: 7, col: 7 }
+    const st = makeState({ boardMatrix: matrix })
     const res = applyPlaceTile(st, 7,7, tile('B'))
     expect(res.didPlace).toBe(false)
     expect(res.next).toBe(st)
