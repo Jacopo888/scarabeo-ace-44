@@ -15,6 +15,7 @@ from .runtime import ensure_lexicon_files, ensure_lexicon_ready as _ensure_lexic
 from .routes_best_move import router as best_move_router
 from .routes_health import router as health_router
 from .routes_debug import router as debug_router
+from .routes_lexicon import router as lexicon_router
 import re
 from typing import Dict, Any
 
@@ -61,6 +62,7 @@ app.add_middleware(RequestLoggerMiddleware)
 # Register routers
 app.include_router(health_router)
 app.include_router(best_move_router)
+app.include_router(lexicon_router)
 
 # Conditional debug router: mount only if DEBUG_ROUTES enabled or non-prod environment
 DEBUG_ROUTES_ENABLED = os.getenv("DEBUG_ROUTES", "").strip().lower() in {"1", "true", "yes", "on"}

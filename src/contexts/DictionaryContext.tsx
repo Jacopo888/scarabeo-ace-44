@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { quackleApi } from '@/config/quackle'
 
 interface DictionaryContextType {
   isLoaded: boolean;
@@ -32,13 +33,21 @@ export const DictionaryProvider: React.FC<DictionaryProviderProps> = ({ children
       setIsLoading(true);
       setError(null);
 
-      // Fetch the ENABLE word list
-      const response = await fetch('/enable.txt');
-      if (!response.ok) {
-        throw new Error(`Failed to load dictionary: ${response.status}`);
+      // Strategy: try to load the active engine lexicon word list first, then fall back to local ENABLE.
+      let text = ''
+      try {
+        const svc = await fetch(quackleApi('/lexicon/words'))
+        if (svc.ok) {
+          text = await svc.text()
+        }
+      } catch {}
+      if (!text) {
+        const response = await fetch('/enable.txt');
+        if (!response.ok) {
+          throw new Error(`Failed to load dictionary: ${response.status}`);
+        }
+        text = await response.text();
       }
-
-      const text = await response.text();
       const words = text
         .split('\n')
         .map(word => word.trim().toUpperCase())

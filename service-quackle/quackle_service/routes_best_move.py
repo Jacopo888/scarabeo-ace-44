@@ -79,9 +79,14 @@ async def best_move(req: Request):
 
         # Centralized normalization of tile coordinates (0-based, 15x15)
         def _normalize_tiles_0based(tiles: list[dict], empty_board: bool) -> list[dict]:
+            """Keep engine coordinates as-is; just coerce ints and drop out-of-bounds.
+
+            Quackle already returns 0-based coordinates within [0,14]. Any additional
+            shifting/centering risks corrupting the move. We only enforce typing and
+            bounds here.
+            """
             if not isinstance(tiles, list):
                 return []
-            # 1) force ints and drop malformed
             norm: list[dict] = []
             for t in tiles:
                 try:
@@ -89,58 +94,113 @@ async def best_move(req: Request):
                     c = int(t.get("col"))
                 except Exception:
                     continue
-                norm.append({**t, "row": r, "col": c})
-            if not norm:
-                return []
-            # 2) If span sfora, shifta indietro per rientrare (no wrap)
-            rows = [t["row"] for t in norm]
-            cols = [t["col"] for t in norm]
-            minr, maxr = min(rows), max(rows)
-            minc, maxc = min(cols), max(cols)
-            dr = 0
-            dc = 0
-            if maxr > 14: dr = max(0, maxr - 14)
-            if maxc > 14: dc = max(0, maxc - 14)
-            if minr < 0: dr = min(dr, minr)  # minr is negative → shift up by -minr later
-            if minc < 0: dc = min(dc, minc)
-            # Applica shift correttivo
-            tmp = []
-            for t in norm:
-                rr = t["row"] - (dr if dr > 0 else 0)
-                cc = t["col"] - (dc if dc > 0 else 0)
-                tmp.append({**t, "row": rr, "col": cc})
-            norm = tmp
-            # 3) Clamp finale e drop out-of-bounds
-            norm = [t for t in norm if 0 <= t["row"] < 15 and 0 <= t["col"] < 15]
-            if not norm:
-                return []
-            # 4) Optional: micro-centering della prima mossa (se copre il centro lungo l'asse)
-            if empty_board:
-                rows = [t["row"] for t in norm]
-                cols = [t["col"] for t in norm]
-                CENTER = 7
-                if len(set(rows)) == 1 and any(c == CENTER for c in cols):
-                    r0 = rows[0]
-                    shift = CENTER - r0
-                    if shift:
-                        cand = [{**t, "row": t["row"] + shift} for t in norm]
-                        if all(0 <= tt["row"] < 15 for tt in cand):
-                            norm = cand
-                elif len(set(cols)) == 1 and any(r == CENTER for r in rows):
-                    c0 = cols[0]
-                    shift = CENTER - c0
-                    if shift:
-                        cand = [{**t, "col": t["col"] + shift} for t in norm]
-                        if all(0 <= tt["col"] < 15 for tt in cand):
-                            norm = cand
+                if 0 <= r < 15 and 0 <= c < 15:
+                    norm.append({**t, "row": r, "col": c})
             return norm
 
         tiles_out = _normalize_tiles_0based(tiles_out, board_is_empty and result.get("move_type") == "play")
 
+        # Build words list (main + cross) based on the board we sent + returned tiles.
+        # Rationale: ensure UI receives authoritative words set w.r.t. the engine's view of the board,
+        # avoiding client-side discrepancies. Filter out 1-letter crosses and any word containing non A-Z.
+        def _compute_words(grid: List[str], tiles: List[dict]) -> List[str]:
+            try:
+                if not tiles:
+                    return []
+                # Build post-move grid (15x15) using returned tiles
+                G = [list(r) for r in (grid or [])]
+                for t in tiles:
+                    try:
+                        r = int(t.get("row")); c = int(t.get("col"))
+                        L = str(t.get("letter") or "").upper()[:1]
+                        if 0 <= r < 15 and 0 <= c < 15 and L and L != '.':
+                            G[r][c] = L
+                    except Exception:
+                        continue
+
+                rows = {int(t.get("row")) for t in tiles if isinstance(t, dict) and t.get("row") is not None}
+                cols = {int(t.get("col")) for t in tiles if isinstance(t, dict) and t.get("col") is not None}
+                alignedH = len(rows) == 1
+                alignedV = len(cols) == 1
+
+                def scan_line(r0: int, c0: int, dr: int, dc: int) -> str:
+                    r, c = r0, c0
+                    # back to start
+                    while 0 <= r - dr < 15 and 0 <= c - dc < 15 and G[r - dr][c - dc] != '.':
+                        r -= dr; c -= dc
+                    out: list[str] = []
+                    i, j = r, c
+                    while 0 <= i < 15 and 0 <= j < 15 and G[i][j] != '.':
+                        out.append(G[i][j])
+                        i += dr; j += dc
+                    return ''.join(out)
+
+                # helper: word contains only A-Z
+                import re as _re
+                def _is_clean(w: str) -> bool:
+                    return bool(w) and _re.fullmatch(r"[A-Z]+", w) is not None
+
+                words: list[str] = []
+                if tiles:
+                    t0 = tiles[0]
+                    r0 = int(t0.get("row")); c0 = int(t0.get("col"))
+                    if alignedH:
+                        cmin = min(int(t.get("col")) for t in tiles)
+                        main = scan_line(r0, cmin, 0, 1)
+                        if len(main) > 1 and _is_clean(main):
+                            words.append(main)
+                    elif alignedV:
+                        rmin = min(int(t.get("row")) for t in tiles)
+                        main = scan_line(rmin, c0, 1, 0)
+                        if len(main) > 1 and _is_clean(main):
+                            words.append(main)
+                    else:
+                        # single tile or scattered; pick the longer of the two lines
+                        hor = scan_line(r0, c0, 0, 1)
+                        ver = scan_line(r0, c0, 1, 0)
+                        candidate = hor if len(hor) >= len(ver) else ver
+                        if (len(candidate) > 1) and _is_clean(candidate):
+                            words.append(candidate)
+
+                # Cross words (length > 1)
+                for t in tiles:
+                    r = int(t.get("row")); c = int(t.get("col"))
+                    # vertical cross when alignedH, horizontal cross when alignedV; for single tile, scan both
+                    scan_vert = alignedH or (not alignedH and not alignedV)
+                    scan_hor = alignedV or (not alignedH and not alignedV)
+                    if scan_vert:
+                        v = scan_line(r, c, 1, 0)
+                        if len(v) > 1 and _is_clean(v):
+                            words.append(v)
+                    if scan_hor:
+                        h = scan_line(r, c, 0, 1)
+                        if len(h) > 1 and _is_clean(h):
+                            words.append(h)
+
+                # Unique preserve order
+                seen = set(); out = []
+                for w in words:
+                    if w not in seen:
+                        seen.add(w); out.append(w)
+                return out
+            except Exception:
+                return []
+
+        computed_words = _compute_words(board_out.get("grid", []), tiles_out)
+        # Prefer engine main word if present, but merge with computed crosses
+        engine_words = result.get("words", []) if isinstance(result, dict) else []
+        merged_words: list[str] = []
+        for w in (engine_words or []):
+            if isinstance(w, str) and w and w not in merged_words:
+                merged_words.append(w)
+        for w in (computed_words or []):
+            if isinstance(w, str) and w and w not in merged_words:
+                merged_words.append(w)
+
         out = {
             "tiles": tiles_out,
             "score": result.get("score", 0),
-            "words": result.get("words", []),
+            "words": merged_words,
             "move_type": result.get("move_type", "play" if result.get("tiles") else "pass"),
             "engine_fallback": False
         }
