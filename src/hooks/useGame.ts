@@ -223,10 +223,12 @@ export const useGame = () => {
       console.log('[useGame] Bot move received:', move)
       console.log('[useGame] Move details - tiles:', move?.tiles?.length, 'move_type:', move?.move_type, 'engine_fallback:', move?.engine_fallback)
       
-      // DEEP DEBUG: Log complete move details per indagine punteggi
+      // ULTRA-RAW DEBUG: Log EXACT response before any processing
       if (import.meta.env.DEV && move?.tiles) {
+        console.log('[useGame] � ULTRA-RAW RESPONSE - Tiles BEFORE sanitize:')
+        console.log(JSON.stringify(move.tiles, null, 2))
+        console.log('[useGame] 🚨 First tile RAW row value:', move.tiles[0]?.row, 'type:', typeof move.tiles[0]?.row)
         console.log('[useGame] 🔍 DEEP DEBUG - Score from Quackle:', move.score)
-        console.log('[useGame] 🔍 DEEP DEBUG - Tiles with coordinates:', JSON.stringify(move.tiles, null, 2))
         console.log('[useGame] 🔍 DEEP DEBUG - Words:', move.words)
       }
 
