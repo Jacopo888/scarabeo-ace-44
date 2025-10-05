@@ -945,6 +945,22 @@ int main(int argc, char** argv){
           response["move_type"] = "play";
           response["engine_fallback"] = false;
           response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedEndgameSolver ? "endgame" : (usedSimulator ? "simulating" : "static")}};
+          try {
+            // Attach raw_move for diagnostics (all 0-based)
+            json pos = json::array();
+            for (const auto &t : tiles) {
+              int r = t.value("row", -1);
+              int c = t.value("col", -1);
+              if (r >= 0 && c >= 0) pos.push_back(json::array({r, c}));
+            }
+            response["raw_move"] = json{
+              {"row", best.startrow},
+              {"col", best.startcol},
+              {"dir", best.horizontal ? "H" : "V"},
+              {"word", (words.is_array() && !words.empty()) ? words[0] : json("")},
+              {"positions", pos}
+            };
+          } catch (...) {}
           
           std::cout << response.dump() << std::endl;
         } else {
