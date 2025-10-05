@@ -47,5 +47,24 @@ for n in syn2 vcplace superleaves worths; do
 done
 ln -sf "/data/appdata/strategy/default/bogowin" "/usr/share/quackle/data/strategy/default/bogowin"
 
+echo "[BOOT] Detecting bridge binary ..."
+if [ -z "${QUACKLE_BRIDGE_BIN:-}" ]; then
+  if [ -x /app/bridge/engine_wrapper ]; then
+    export QUACKLE_BRIDGE_BIN=/app/bridge/engine_wrapper
+    echo "[BOOT] Using bridge at /app/bridge/engine_wrapper (preferred)"
+  elif [ -x /srv/bridge/engine_wrapper ]; then
+    export QUACKLE_BRIDGE_BIN=/srv/bridge/engine_wrapper
+    echo "[BOOT] Using legacy bridge at /srv/bridge/engine_wrapper"
+  else
+    echo "[BOOT][WARN] No bridge binary found in /app/bridge or /srv/bridge; QUACKLE_BRIDGE_BIN must be set externally" >&2
+  fi
+else
+  echo "[BOOT] QUACKLE_BRIDGE_BIN preset to $QUACKLE_BRIDGE_BIN"
+fi
+
+if [ -n "${QUACKLE_BRIDGE_BIN:-}" ] && [ ! -x "$QUACKLE_BRIDGE_BIN" ]; then
+  echo "[BOOT][ERROR] QUACKLE_BRIDGE_BIN=$QUACKLE_BRIDGE_BIN not executable" >&2
+fi
+
 exec uvicorn quackle_service.main:app --host 0.0.0.0 --port "$PORT"
 sleep 3600
