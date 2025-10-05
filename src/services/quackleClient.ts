@@ -1,6 +1,6 @@
 import type { PlacedTile } from '@/types/game';
 import { QUACKLE_SERVICE_URL, quackleApi } from '@/config/quackle';
-import { qlog, qerror } from '@/config/debug'
+import { qlog, qerror, isDebugQuackle } from '@/config/debug'
 import { fetchWithTimeout, classifyNetworkError, type NetworkErrorCode } from './http'
 
 export interface QuackleHealthResult {
@@ -78,8 +78,8 @@ export async function quackleBestMove(payload: any): Promise<QuackleMove> {
   }
   const data = await r.json();
   
-  // DEEP DEBUG: Log raw response from bridge
-  if (import.meta.env.DEV && data) {
+  // DEEP DEBUG: Log raw response from bridge (enabled when isDebugQuackle)
+  if (isDebugQuackle && data) {
     const ei = data?.engine_info
     const pathInfo = ei && typeof ei === 'object' ? `path=${ei.path} strict=${ei.hl_strict} k=${ei.kibitz_len}` : 'path=?'
     qlog('[quackleClient] 🔍 RAW BRIDGE RESPONSE:', {
@@ -91,11 +91,16 @@ export async function quackleBestMove(payload: any): Promise<QuackleMove> {
       engine_info: ei || null,
       summary: pathInfo,
     })
-    // COORDINATE TRACE: Log EXACT row values from API response
-    if (Array.isArray(data.tiles) && data.tiles.length > 0) {
+  }
+  // COORDINATE TRACE: Log EXACT row values from API response (always when debug enabled)
+  if (isDebugQuackle && Array.isArray(data?.tiles) && data.tiles.length > 0) {
+    try {
       console.log('[quackleClient] 🎯 COORDINATE TRACE - API Response tiles[0].row:', data.tiles[0].row, 'typeof:', typeof data.tiles[0].row)
       console.log('[quackleClient] 🎯 All tile rows from API:', data.tiles.map((t: any) => t.row))
-    }
+      if (data.raw_move && typeof data.raw_move === 'object') {
+        console.log('[quackleClient] 🎯 RAW_MOVE center trace:', { row: data.raw_move.row, col: data.raw_move.col, dir: data.raw_move.dir, positions: data.raw_move.positions })
+      }
+    } catch {}
     try {
       if (ei && typeof ei === 'object') {
         if (ei.used_simulator || ei.status === 'simulating') {

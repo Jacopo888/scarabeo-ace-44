@@ -1,4 +1,5 @@
 import type { PlacedTile } from '@/types/game'
+import { isDebugQuackle } from '@/config/debug'
 
 export const sanitizeQuackleTile = (tile: PlacedTile): PlacedTile | null => {
   if (!tile) return null
@@ -17,6 +18,11 @@ export const sanitizeQuackleTile = (tile: PlacedTile): PlacedTile | null => {
   // The UI also uses 0-based coordinates, so no offset is required here.
   const rowRaw = (tile as any).row
   const colRaw = (tile as any).col
+  if (isDebugQuackle) {
+    try {
+      console.log('[sanitizeQuackleTile] IN  row,col=', rowRaw, colRaw, 'letter=', tile.letter, 'isBlank=', tile.isBlank)
+    } catch {}
+  }
   const rowNum = Number(rowRaw)
   const colNum = Number(colRaw)
   if (!Number.isFinite(rowNum) || !Number.isFinite(colNum)) return null
@@ -33,7 +39,7 @@ export const sanitizeQuackleTile = (tile: PlacedTile): PlacedTile | null => {
   // Validate 0-based bounds
   if (row < 0 || row > 14 || col < 0 || col > 14) return null
 
-  return {
+  const out: PlacedTile = {
     ...tile,
     letter: upperLetter,
     isBlank,
@@ -41,4 +47,10 @@ export const sanitizeQuackleTile = (tile: PlacedTile): PlacedTile | null => {
     row,
     col
   }
+  if (isDebugQuackle) {
+    try {
+      console.log('[sanitizeQuackleTile] OUT row,col=', out.row, out.col)
+    } catch {}
+  }
+  return out
 }
