@@ -17,6 +17,11 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
 
   // Update board matrix (immutable clone)
   const nextMatrix = cloneBoard(prev.boardMatrix)
+  // COORDINATE TRACE: Log tiles BEFORE writing to matrix
+  if (isDebugQuackle && sanitizedTiles.length > 0) {
+    console.log('[applyBotMove] 🎯 TRACE - Input sanitizedTiles[0].row:', sanitizedTiles[0].row)
+    console.log('[applyBotMove] 🎯 All input rows:', sanitizedTiles.map(t => t.row))
+  }
   sanitizedTiles.forEach(tile => {
     if (tile.row >= 0 && tile.row < nextMatrix.length && tile.col >= 0 && tile.col < nextMatrix[0].length) {
       if (nextMatrix[tile.row][tile.col] !== null) {
@@ -30,6 +35,10 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
         row: tile.row,
         col: tile.col,
         isBlank: tile.isBlank || false
+      }
+      // COORDINATE TRACE: Log what we just wrote
+      if (isDebugQuackle) {
+        console.log(`[applyBotMove] 🎯 TRACE - Wrote to nextMatrix[${tile.row}][${tile.col}]:`, nextMatrix[tile.row][tile.col])
       }
     }
   })

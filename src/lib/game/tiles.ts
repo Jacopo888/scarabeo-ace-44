@@ -24,6 +24,11 @@ export const sanitizeQuackleTile = (tile: PlacedTile): PlacedTile | null => {
 
   const row = rowNum
   const col = colNum
+  
+  // COORDINATE TRACE: Log transformation in sanitize
+  if (import.meta.env.DEV) {
+    console.log('[sanitizeQuackleTile] 🎯 TRACE:', { letter: upperLetter, rowRaw, rowNum, row, 'row===rowNum': row === rowNum })
+  }
 
   // Validate 0-based bounds
   if (row < 0 || row > 14 || col < 0 || col > 14) return null

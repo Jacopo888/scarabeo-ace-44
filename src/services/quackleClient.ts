@@ -91,6 +91,11 @@ export async function quackleBestMove(payload: any): Promise<QuackleMove> {
       engine_info: ei || null,
       summary: pathInfo,
     })
+    // COORDINATE TRACE: Log EXACT row values from API response
+    if (Array.isArray(data.tiles) && data.tiles.length > 0) {
+      console.log('[quackleClient] 🎯 COORDINATE TRACE - API Response tiles[0].row:', data.tiles[0].row, 'typeof:', typeof data.tiles[0].row)
+      console.log('[quackleClient] 🎯 All tile rows from API:', data.tiles.map((t: any) => t.row))
+    }
     try {
       if (ei && typeof ei === 'object') {
         if (ei.used_simulator || ei.status === 'simulating') {
