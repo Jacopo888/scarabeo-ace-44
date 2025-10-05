@@ -8,7 +8,7 @@ Authors: Engineering Team
 Originally the game board was represented in multiple forms (Map<string, PlacedTile>, sparse records, transient adapters). This duplication increased cognitive load, risked divergence in validation/scoring, and complicated integration with Quackle. A migration plan (Steps 1–11) introduced a single canonical structure: a 15×15 matrix `(PlacedTile | null)[][]` stored in `GameState.boardMatrix`. All core algorithms (validation, word scanning, scoring, move application) were re-written as pure functions over this structure.
 
 ## Decision
-Adopt `boardMatrix` as the ONLY internal runtime representation of the board. Remove legacy wrappers (`wordFinder`, `newWordFinder` wrapper, Map-based validation helpers) and update all call sites. Persisted DB state (record of `"r,c" -> tile`) is converted immediately to `boardMatrix` on load; outbound payloads for Quackle are synthesized from `boardMatrix` (1-based coords). All scoring routes funnel through `scoreMove` / `calculateScore` referencing the unified multipliers in `boardConstants`.
+Adopt `boardMatrix` as the ONLY internal runtime representation of the board. Remove legacy wrappers (`wordFinder`, `newWordFinder` wrapper, Map-based validation helpers) and update all call sites. Persisted DB state (record of `"r,c" -> tile`) is converted immediately to `boardMatrix` on load; outbound payloads for Quackle are synthesized from `boardMatrix` (0-based coords). All scoring routes funnel through `scoreMove` / `calculateScore` referencing the unified multipliers in `boardConstants`.
 
 ## Rationale
 - Eliminates duplicated logic & drift between Map and matrix paths.

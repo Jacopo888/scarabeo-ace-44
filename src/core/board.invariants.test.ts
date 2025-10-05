@@ -54,14 +54,14 @@ describe('Board invariants', () => {
     // Re-score by treating words as new move of single segments (simulate idempotence: scoring same tiles again should yield zero since they are not a new move). Instead we verify the main formed word reconstruction by building Quackle board representation.
     const gs = makeGameStateFromBoard(board)
     const qboard = buildQuackleBoard(gs)
-    // Expect CAT word present across its coordinates (1-based keys)
+    // Expect CAT word present across its coordinates (0-based keys)
     expect(Object.values(qboard).length).toBe(3)
     expect(w1[0]).toBe('CAT')
     // Known from earlier test: CAT with center DW -> 10
     expect(s1).toBe(10)
   })
 
-  it('buildQuackleBoard filters invalid tiles and uses 1-based coords', () => {
+  it('buildQuackleBoard filters invalid tiles and uses 0-based coords', () => {
     const b = createEmptyBoard()
     // Place a valid tile and an invalid blank placeholder
     const valid = makeTile('A', 7, 7, 1)
@@ -70,7 +70,7 @@ describe('Board invariants', () => {
     b[5][5] = invalidBlank as any // should be filtered out
     const gs = makeGameStateFromBoard(b)
     const out = buildQuackleBoard(gs)
-    expect(out['8,8']).toEqual({ letter: 'A', isBlank: false })
+    expect(out['7,7']).toEqual({ letter: 'A', isBlank: false })
     // invalid blank should not appear
     const keys = Object.keys(out)
     expect(keys.length).toBe(1)

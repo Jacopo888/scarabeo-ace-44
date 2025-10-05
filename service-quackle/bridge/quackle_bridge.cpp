@@ -234,8 +234,7 @@ int main(int argc, char** argv){
         std::cout << std::endl;
         return 64;
       }
-      // Convert from 1-based to 0-based
-      --r; --c;
+      // Coordinates are already 0-based end-to-end
       if (r < 0 || r >= 15 || c < 0 || c >= 15) {
         debugLog("ERROR: Board coordinate out of bounds: (" + std::to_string(r) + "," + std::to_string(c) + ")");
         print_pass_error("invalid_board_coordinate", json{{"reason","out_of_bounds"}});
@@ -681,8 +680,7 @@ int main(int argc, char** argv){
         std::cout << std::endl;
         return 64;
       }
-      // Convert from 1-based coordinates to Quackle's 0-based board
-      --r; --c;
+      // Coordinates are already 0-based
       std::string letter = it->value("letter", "?");
       bool isBlank = it->value("isBlank", false);
       if (letter.empty()) {

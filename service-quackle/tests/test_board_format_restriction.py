@@ -2,8 +2,8 @@ import pytest
 from fastapi import HTTPException
 from quackle_service.normalization import normalize_board_for_bridge
 
-# Coord map valida minimale: singola lettera al centro (8,8 in 1-based => indice 7,7 zero-based)
-VALID_COORD_MAP = {"8,8": {"letter": "A", "isBlank": False}}
+# Coord map valida minimale: singola lettera al centro (0-based 7,7)
+VALID_COORD_MAP = {"7,7": {"letter": "A", "isBlank": False}}
 
 @pytest.mark.parametrize("board_input", [
     ["."*15 for _ in range(15)],  # plain grid list

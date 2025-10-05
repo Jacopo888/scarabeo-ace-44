@@ -3,7 +3,7 @@ import { buildQuackleBoard } from './useQuackle'
 import { createEmptyBoard } from '@/core/board'
 
 describe('buildQuackleBoard', () => {
-  it('converts to 1-based keys; bounds are validated server-side', () => {
+  it('emits 0-based keys; bounds are validated server-side', () => {
     const boardMatrix = createEmptyBoard()
     boardMatrix[0][0] = { row:0, col:0, letter:'A', points:1 }
     // Out-of-bounds tiles (16,0) / (0,16) non verranno rappresentati perché il board è 15x15 → simuliamo comunque un pass-through: li ignoriamo.
@@ -11,10 +11,10 @@ describe('buildQuackleBoard', () => {
     const gameState: any = { boardMatrix }
     const out = buildQuackleBoard(gameState)
     const keys = Object.keys(out)
-    // FE does not filter; it just converts to 1-based. Service will validate bounds.
-    expect(keys).toContain('1,1')
-    expect(keys).toContain('15,15')
-  // Avendo eliminato le coordinate out-of-bounds, rimangono 2 chiavi valide.
-  expect(keys.length).toBe(2)
+    // FE uses 0-based. Service will validate bounds.
+    expect(keys).toContain('0,0')
+    expect(keys).toContain('14,14')
+    // Avendo eliminato le coordinate out-of-bounds, rimangono 2 chiavi valide.
+    expect(keys.length).toBe(2)
   })
 })

@@ -50,7 +50,7 @@ def test_bridge_payload_snapshot(monkeypatch):
     # Validate captured payload against golden (board map equality + rack + optional difficulty)
     assert sent_payload.get("rack") == golden["rack"]
     assert isinstance(sent_payload.get("board"), dict)
-    # Board should contain center at 1-based 8,8 with letter 'A'
-    assert sent_payload["board"].get("8,8", {}).get("letter") == "A"
+    # Board should contain center at 0-based 7,7 with letter 'A'
+    assert sent_payload["board"].get("7,7", {}).get("letter") == "A"
     if golden.get("difficulty"):
         assert sent_payload.get("difficulty") == golden["difficulty"]

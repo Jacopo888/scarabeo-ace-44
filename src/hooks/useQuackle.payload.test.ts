@@ -17,7 +17,7 @@ function makeState(tiles: PlacedTile[] = []): GameState {
 }
 
 describe('Quackle payload builders', () => {
-  it('buildQuackleBoard produces 1-based coord keys and filters invalid blanks', () => {
+  it('buildQuackleBoard produces 0-based coord keys and filters invalid blanks', () => {
     const tiles: PlacedTile[] = [
       { row: 7, col: 7, letter: 'A', points: 1 }, // center
       { row: 0, col: 0, letter: 'B', points: 3 },
@@ -27,14 +27,14 @@ describe('Quackle payload builders', () => {
     ]
     const gs = makeState(tiles)
     const out = buildQuackleBoard(gs)
-    // Keys must be 1-based
-    expect(out['8,8']).toBeDefined() // 7,7 → 8,8
-    expect(out['1,1']).toBeDefined()
-    expect(out['2,3']).toBeDefined()
+    // Keys must be 0-based
+    expect(out['7,7']).toBeDefined() // center
+    expect(out['0,0']).toBeDefined()
+    expect(out['1,2']).toBeDefined()
     // Filtered invalid blank
-    expect(out['4,5']).toBeUndefined()
+    expect(out['3,4']).toBeUndefined()
     // Valid blank retains assigned letter uppercased
-    expect(out['6,6']).toEqual({ letter: 'E', isBlank: true })
+    expect(out['5,5']).toEqual({ letter: 'E', isBlank: true })
   })
 
   it('formatRackStringForQuackle encodes blanks as ? when unassigned and uppercases letters', () => {
@@ -62,4 +62,3 @@ describe('Local score recalculation parity (core)', () => {
     expect(score).toBeGreaterThanOrEqual(3) // at least sum of letters; exact depends on specials
   })
 })
-

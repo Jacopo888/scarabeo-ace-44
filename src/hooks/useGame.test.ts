@@ -24,7 +24,7 @@ import { createEmptyBoard } from '@/core/board'
 import { quackleBestMove } from '@/services/quackleClient'
 
 describe('Quackle serialization', () => {
-  it('serializes board with 1-based indices (center -> "8,8")', () => {
+  it('serializes board with 0-based indices (center -> "7,7")', () => {
     // Build a minimal GameState with one stabilized tile at 0-based (7,7)
     const boardMatrix = createEmptyBoard()
     boardMatrix[7][7] = { letter: 'a', points: 1, row: 7, col: 7, isBlank: false }
@@ -33,8 +33,8 @@ describe('Quackle serialization', () => {
       players: [], currentPlayerIndex: 0, tileBag: [], gameStatus: 'playing'
     }
     const out = buildQuackleBoard(gameState)
-    expect(Object.keys(out)).toContain('8,8')
-    expect(out['8,8'].letter).toBe('A')
+    expect(Object.keys(out)).toContain('7,7')
+    expect(out['7,7'].letter).toBe('A')
   })
 })
 

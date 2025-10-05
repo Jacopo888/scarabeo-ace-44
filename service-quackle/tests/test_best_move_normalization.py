@@ -55,7 +55,7 @@ def test_A_board_empty_coord_map(monkeypatch):
 def test_B_board_with_center_letter_coord_map(monkeypatch):
     client = make_client()
     def check(payload):
-        assert "8,8" in payload["board"] and payload["board"]["8,8"]["letter"] == "A"
+        assert "7,7" in payload["board"] and payload["board"]["7,7"]["letter"] == "A"
     patch_bridge(monkeypatch, check)
     grid = ["."*15 for _ in range(15)]
     row = list(grid[7]); row[7] = 'A'; grid[7] = ''.join(row)

@@ -6,8 +6,8 @@ import { quackleBestMove, QuackleMove } from '@/services/quackleClient'
 import { logQuackleMove } from '@/utils/debugLogger'
 import { isDebugQuackle } from '@/config/debug'
 
-// Build a Quackle board mapping using 1-based indices and stabilized tiles only
-// Output: { "r,c": { letter: string, isBlank: boolean } }
+// Build a Quackle board mapping using 0-based coordinates and stabilized tiles only
+// Output: { "r,c": { letter: string, isBlank: boolean } } (r,c in [0,14])
 export function buildQuackleBoard(gameState: GameState): Record<string, { letter: string; isBlank: boolean }> {
   const out: Record<string, { letter: string; isBlank: boolean }> = {}
   const board = gameState.boardMatrix

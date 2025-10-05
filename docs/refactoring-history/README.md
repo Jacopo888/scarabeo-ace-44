@@ -65,7 +65,7 @@ Questa cartella contiene la documentazione storica delle attività di refactorin
 
 ### Semplificazione
 - ✅ Eliminato codice legacy (directory `engine/`)
-- ✅ Ridotto formati di input supportati (solo coord map 1-based)
+- ✅ Ridotto formati di input supportati (solo coord map 0-based)
 - ✅ Rimosso parametro ridondante `bag_count`
 
 ### Sicurezza

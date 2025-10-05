@@ -19,4 +19,4 @@ This file hosts FastAPI endpoints and board/rack normalization logic. It's a key
 - Guardrails:
   - Keep tests in `service-quackle/tests/` green
   - Use golden fixtures in `fixtures/`
-  - Maintain 0-based coordinates in responses and 1-based in bridge payload
+  - Maintain 0-based coordinates end-to-end (requests and responses)

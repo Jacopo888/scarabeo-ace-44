@@ -34,7 +34,7 @@ def health():
         "lexdir": lexdir,
         "lexicon_check_skipped": skip,
         "bridge_ruleset": "en",
-        "board_schema": "coord_map_1based",
+        "board_schema": "coord_map_0based",
         "payload_sanitize": True,
         "dawg_exists": os.path.isfile(dawg),
         "gaddag_exists": os.path.isfile(gaddag),

@@ -19,14 +19,15 @@ def test_zero_one_string_roundtrip():
         row[c0] = 'X'
         grid[r0] = ''.join(row)
 
-        # Convert grid to 1-based coord map
+        # Convert grid to 0-based coord map
         coord_map = grid_to_coordmap(grid)
-        assert case['one'] in coord_map
-        assert coord_map[case['one']]['letter'] == 'X'
+        key = f"{r0},{c0}"
+        assert key in coord_map
+        assert coord_map[key]['letter'] == 'X'
 
     # Roundtrip via squares/grid utilities preserves the coordinate
-    squares = squares_from_coord_map({case['one']: {'letter': 'X', 'isBlank': False}}, 15, 15)
+    squares = squares_from_coord_map({f"{r0},{c0}": {'letter': 'X', 'isBlank': False}}, 15, 15)
     grid_rt = grid_from_squares(squares)
     # back to coord_map should include the same coordinate (letter non-blank)
     coord_map_rt = grid_to_coordmap(grid_rt)
-    assert case['one'] in coord_map_rt
+    assert f"{r0},{c0}" in coord_map_rt

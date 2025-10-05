@@ -15,23 +15,23 @@ def is_coord_map(d: Dict[str, Any]) -> bool:
 
 
 def squares_from_coord_map(coord_map: Dict[str, Any], rows: int, cols: int) -> List[List[Optional[str]]]:
+    """Strict 0-based coordinate map parser.
+
+    Accepts only keys in the form "r,c" where r and c are integers in [0, rows-1] and [0, cols-1].
+    No 1-based compatibility shim.
+    """
     squares: List[List[Optional[str]]] = [[None for _ in range(cols)] for _ in range(rows)]
     for k, v in coord_map.items():
         if not isinstance(k, str) or not re.fullmatch(r"\d+,\d+", k):
             raise ValueError("malformed_board")
         r_str, c_str = k.split(',')
         try:
-            r1 = int(r_str)
-            c1 = int(c_str)
+            r0 = int(r_str)
+            c0 = int(c_str)
         except Exception:
             raise ValueError("malformed_board")
-        r0 = r1 - 1
-        c0 = c1 - 1
         if not (0 <= r0 < rows and 0 <= c0 < cols):
-            if 0 <= r1 < rows and 0 <= c1 < cols:
-                r0, c0 = r1, c1
-            else:
-                raise ValueError("invalid_board_coordinate")
+            raise ValueError("invalid_board_coordinate")
         if isinstance(v, dict):
             letter = str(v.get("letter", "")).upper()
             is_blank = bool(v.get("isBlank") or v.get("is_blank") or False)
@@ -61,8 +61,8 @@ def coord_map_from_grid(grid: List[str]) -> Dict[str, Dict[str, Any]]:
     if not (isinstance(grid, list) and len(grid) == 15 and all(isinstance(r, str) and len(r) == 15 for r in grid)):
         raise ValueError("board.grid must be 15 strings of length 15")
     out: Dict[str, Dict[str, Any]] = {}
-    for r, row in enumerate(grid, start=1):
-        for c, ch in enumerate(row, start=1):
+    for r, row in enumerate(grid):
+        for c, ch in enumerate(row):
             if ch == '.':
                 continue
             ch_up = str(ch).upper()[:1]

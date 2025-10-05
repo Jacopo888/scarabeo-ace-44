@@ -140,9 +140,12 @@ def reconstruct_tiles_from_raw_move(raw_move: Dict[str, Any], words: Optional[An
     return tiles
 
 def normalize_board_for_bridge(board_input: Any) -> Dict[str, Any]:
-    """Accetta SOLO una coord map 1-based {"r,c": {letter,isBlank}}.
+    """Accetta SOLO una coord map 0-based {"r,c": {letter,isBlank}}.
 
-    Tutti i precedenti formati (lista grid, dict con grid, squares, placements) ora generano
+    Coordinate: 0-based, origine top-left; centro = (size//2, size//2).
+    Unica conversione ammessa: nessuna. I key "r,c" sono usati come forniti.
+
+    Tutti i formati legacy (lista grid, dict con grid, squares, placements) generano
     un HTTP 400 con detail = "unsupported_board_format" per ridurre complessità e ambiguità.
     """
     if not isinstance(board_input, dict) or not is_coord_map(board_input):

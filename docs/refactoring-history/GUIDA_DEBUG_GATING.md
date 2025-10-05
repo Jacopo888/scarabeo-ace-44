@@ -85,7 +85,7 @@ DEBUG_ROUTES=true
 ```json
 {
   "rack": "AEIRSTZ",
-  "board": { "8,8": {"letter": "A", "isBlank": false} },
+  "board": { "7,7": {"letter": "A", "isBlank": false} },
   "bag_count": 93,     ← RIMOSSO
   "bag_pool": ["A", "A", "E", ...]
 }
@@ -95,7 +95,7 @@ DEBUG_ROUTES=true
 ```json
 {
   "rack": "AEIRSTZ",
-  "board": { "8,8": {"letter": "A", "isBlank": false} },
+  "board": { "7,7": {"letter": "A", "isBlank": false} },
   "bag_pool": ["A", "A", "E", ...]
 }
 ```

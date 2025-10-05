@@ -20,18 +20,18 @@ def test_normalize_rack_flexible_accepts_various_inputs():
 
 def test_encoding_coord_map_roundtrip():
     rows, cols = 15, 15
-    cm = {"1,1": {"letter": "A", "isBlank": False}, "8,8": {"letter": "B", "isBlank": False}}
+    cm = {"0,0": {"letter": "A", "isBlank": False}, "7,7": {"letter": "B", "isBlank": False}}
     sq = squares_from_coord_map(cm, rows, cols)
     grid = grid_from_squares(sq)
     assert len(grid) == 15 and all(len(r) == 15 for r in grid)
     cm2 = coord_map_from_grid(grid)
-    assert cm2.get("1,1", {}).get("letter") == "A"
-    assert cm2.get("8,8", {}).get("letter") == "B"
+    assert cm2.get("0,0", {}).get("letter") == "A"
+    assert cm2.get("7,7", {}).get("letter") == "B"
 
 
 def test_is_coord_map_detection():
     assert is_coord_map({}) is True
-    assert is_coord_map({"1,1": {"letter": "A"}}) is True
+    assert is_coord_map({"0,0": {"letter": "A"}}) is True
     assert is_coord_map({"foo": 1}) is False
 
 
