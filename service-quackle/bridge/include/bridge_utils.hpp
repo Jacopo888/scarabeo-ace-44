@@ -45,6 +45,8 @@ inline int env_int(const char* name, int defVal) {
 
 // --- Debug logging ---
 inline void debugLog(const std::string& message) {
+  // Gate verbose logging behind env flag QUACKLE_DEBUG to reduce noise in production
+  if (!env_flag_on("QUACKLE_DEBUG")) return;
   std::ofstream debugFile("/tmp/quackle_debug.log", std::ios::app);
   if (debugFile.is_open()) {
     debugFile << "[DEBUG] " << message << std::endl;
@@ -53,6 +55,7 @@ inline void debugLog(const std::string& message) {
   std::cerr << "[DEBUG] " << message << std::endl;
 }
 inline void cursorDebugLog(const std::string& message) {
+  if (!env_flag_on("QUACKLE_DEBUG")) return;
   std::cerr << "[CURSOR_C++] " << message << std::endl;
   std::ofstream debugFile("/tmp/quackle_bridge_debug.log", std::ios::app);
   if (debugFile.is_open()) {

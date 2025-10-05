@@ -772,8 +772,31 @@ int main(int argc, char** argv){
   // High-Level path (nessun fallback al Generator)
     try {
       fprintf(stderr, "[DEBUG] Using HIGH-LEVEL API: GamePosition::kibitz + staticBestMove\n");
+      // Log del centro board parameters prima della generazione HL
+      if (QUACKLE_DATAMANAGER && QUACKLE_DATAMANAGER->boardParameters()) {
+        auto *bp = QUACKLE_DATAMANAGER->boardParameters();
+        fprintf(stderr, "[DEBUG][bridge] board center startRow=%d startCol=%d width=%d height=%d\n",
+                bp->startRow(), bp->startColumn(), bp->width(), bp->height());
+      } else {
+        fprintf(stderr, "[DEBUG][bridge] board parameters non disponibili prima di kibitz\n");
+      }
       pos.kibitz(kibitzLen);
       debugLog(std::string("High-level kibitz done. Moves found: ") + std::to_string(pos.moves().size()));
+      // Logga le prime 10 mosse (o meno) per ispezionare startrow/startcol
+      int logCount = std::min(10, (int)pos.moves().size());
+      for (int i = 0; i < logCount; ++i) {
+        const auto &mv = pos.moves()[i];
+        if (mv.action == Quackle::Move::Place) {
+          fprintf(stderr, "[DEBUG][bridge] HL move[%d] PLACE horiz=%d startrow=%d startcol=%d len=%u score=%d\n",
+                  i, (int)mv.horizontal, mv.startrow, mv.startcol, (unsigned)mv.tiles().length(), mv.score);
+        } else if (mv.action == Quackle::Move::Exchange) {
+          fprintf(stderr, "[DEBUG][bridge] HL move[%d] EXCHANGE tiles=%s\n", i, QUACKLE_ALPHABET_PARAMETERS->userVisible(mv.tiles()).c_str());
+        } else if (mv.action == Quackle::Move::Pass) {
+          fprintf(stderr, "[DEBUG][bridge] HL move[%d] PASS\n", i);
+        } else {
+          fprintf(stderr, "[DEBUG][bridge] HL move[%d] action=%d\n", i, (int)mv.action);
+        }
+      }
       // Selezione mossa in base alla difficoltà
       const Quackle::MoveList &hlMoves = pos.moves();
       auto pick_by_index = [&](int idx)->Quackle::Move{
