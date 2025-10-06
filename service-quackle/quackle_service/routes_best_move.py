@@ -91,12 +91,18 @@ async def best_move(req: Request):
         move_type = "play" if tiles_out else ("exchange" if declared == "exchange" else "pass")
         words_out = (result.get("words") if isinstance(result, dict) else []) if move_type == "play" else []
         score_out = result.get("score", 0) if move_type == "play" else 0
+        # Include raw engine metadata without transformation
+        raw_move = result.get("raw_move") or {}
         out = {
             "tiles": tiles_out,
             "score": score_out,
             "words": words_out or [],
             "move_type": move_type,
-            "engine_fallback": False
+            "engine_fallback": False,
+            "start_row": raw_move.get("row"),
+            "start_col": raw_move.get("col"),
+            "direction": raw_move.get("dir"),
+            "word": raw_move.get("word")
         }
         # Pass through engine telemetry if provided by the bridge
         try:

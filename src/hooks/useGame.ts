@@ -8,7 +8,6 @@ import { useDictionary } from '@/contexts/DictionaryContext'
 import type { GameMoveLite } from '@/types/localGame'
 import { Difficulty } from '@/components/DifficultyModal'
 import { toastOnce } from '@/lib/toastOnce'
-import { sanitizeQuackleTile } from '@/lib/game/tiles'
 // random shuffle handled by rack helpers
 import { isCurrentPlayerTurn as isCurrentTurn } from '@/lib/game/turns'
 import { getCurrentRack, reshuffleRack, withCurrentRack } from '@/lib/game/rack'
@@ -21,7 +20,7 @@ import { applyExchangeTiles, applyExchangeSelected, applyBotExchange } from '@/l
 import { applyEndTurn } from '@/lib/game/actionsEndTurn'
 import { applyPlaceTile } from '@/lib/game/actionsPlace'
 import { applyPickupTile } from '@/lib/game/actionsPickup'
-import { buildHistoryEntry, contiguousSummary } from '@/lib/game/quackleUtils'
+// Removed sanitizeQuackleTile and history builders: using raw engine data directly
 import { titleForConfirmError } from '@/lib/game/toast'
 import { shouldPassBotMove } from '@/lib/game/botPass'
 import { summarizeMoveInfo } from '@/lib/game/moveUtils'
@@ -258,37 +257,16 @@ export const useGame = () => {
         return
       }
 
-      let sanitizedTiles = move.tiles
-        .map(sanitizeQuackleTile)
-        .filter((tile): tile is PlacedTile => tile !== null)
-      // Evita di includere posizioni già occupate sulla board esistente (ancoraggi/croci)
-      if (sanitizedTiles.length > 0) {
-        // Iterate matrix to find occupied positions
-        const occupied = new Set<string>()
-        for (let r = 0; r < snapshot.boardMatrix.length; r++) {
-          for (let c = 0; c < snapshot.boardMatrix[r].length; c++) {
-            if (snapshot.boardMatrix[r][c] !== null) {
-              occupied.add(`${r},${c}`)
-            }
-          }
-        }
-        // Filter tiles that collide with existing tiles
-        if (occupied.size > 0) {
-          sanitizedTiles = sanitizedTiles.filter(t => !occupied.has(`${t.row},${t.col}`))
-        }
-      }
+      const playedTiles = move.tiles as PlacedTile[]
 
-      // Diagnostics for continuity and bounds
-      if (sanitizedTiles.length > 0) contiguousSummary(sanitizedTiles)
-
-      if (shouldPassBotMove(move, sanitizedTiles)) {
+      if (shouldPassBotMove(move, playedTiles)) {
         toast({ title: 'Quackle passed', description: 'No playable move this turn.' })
         passTurn()
         return
       }
 
       // Calcola sempre il punteggio lato client per coerenza con la board visualizzata
-      const finalScore = calculateScore({ tiles: sanitizedTiles, board: snapshot.boardMatrix, context: 'quackle' })
+  const finalScore = calculateScore({ tiles: playedTiles, board: snapshot.boardMatrix, context: 'quackle' })
 
       if (import.meta.env.DEV) {
         console.log('[useGame] 🎯 Using Quackle score:', finalScore)
@@ -298,13 +276,21 @@ export const useGame = () => {
   // Show all words formed (primary + cross words)
   const wordsList = (move.words && move.words.length > 0) ? move.words : []
   toast({ title: 'Quackle played!', description: `+${finalScore} with words: ${wordsList.join(', ')}` })
-    const applied = applyBotMove(snapshot, { sanitizedTiles, score: finalScore, words: move.words })
+  const applied = applyBotMove(snapshot, { sanitizedTiles: playedTiles, score: finalScore, words: move.words })
   setGameState(applied.next)
 
       // Record move (best-effort)
       try {
-        const moveInfo = buildHistoryEntry(current, sanitizedTiles, finalScore)
-        setMoveHistory(prev => [...prev, { ...moveInfo, move_index: prev.length + 1 }])
+        const moveInfo = {
+          word: (move as any).word,
+          score_earned: typeof finalScore !== 'undefined' ? finalScore : move.score,
+          rack_before: current.rack,
+          player_id: current.id,
+          row: (move as any).start_row ?? (move as any).row ?? (move as any).startRow,
+          col: (move as any).start_col ?? (move as any).col ?? (move as any).startCol,
+          dir: (move as any).direction ?? (move as any).dir
+        }
+        setMoveHistory(prev => [...prev, { ...(moveInfo as any), move_index: prev.length + 1 }])
       } catch {}
     } catch (error) {
       console.error('[useGame] Bot move error:', error)
