@@ -86,11 +86,108 @@ async def best_move(req: Request):
             return out
         tiles_out = _normalize_tiles_0based(tiles_out)
 
+        # Opening normalization (requested): if original board was empty (coord map {})
+        # and this is the first play, force tiles to pass through the center line.
+        # We record whether we changed coordinates so we can recompute score.
+        opening_adjusted = False
+        try:
+            if isinstance(original_board_in, dict) and len(original_board_in) == 0 and tiles_out:
+                rows = {t.get('row') for t in tiles_out if isinstance(t, dict)}
+                cols = {t.get('col') for t in tiles_out if isinstance(t, dict)}
+                is_single = len(rows) == 1 and len(cols) == 1
+                spans_cols = len(cols) > 1 and len(rows) == 1  # horizontal
+                spans_rows = len(rows) > 1 and len(cols) == 1  # vertical
+                if is_single:
+                    for t in tiles_out:
+                        t['row'] = 7
+                        t['col'] = 7
+                    opening_adjusted = True
+                elif spans_cols:
+                    for t in tiles_out:
+                        t['row'] = 7
+                    opening_adjusted = True
+                elif spans_rows:
+                    for t in tiles_out:
+                        t['col'] = 7
+                    opening_adjusted = True
+                else:
+                    for t in tiles_out:
+                        t['row'] = 7
+                    opening_adjusted = True
+        except Exception:
+            pass
+
         # Semplificazione del tipo di mossa
         declared = (result.get("move_type") if isinstance(result, dict) else None) or ""
         move_type = "play" if tiles_out else ("exchange" if declared == "exchange" else "pass")
         words_out = (result.get("words") if isinstance(result, dict) else []) if move_type == "play" else []
         score_out = result.get("score", 0) if move_type == "play" else 0
+
+        # Recalculate score if we adjusted opening coordinates.
+        if move_type == "play" and opening_adjusted and tiles_out:
+            try:
+                # Letter / word multiplier layout (English standard). Duplication kept localized.
+                letter_m = [
+                    [1,1,1,2,1,1,1,1,1,1,1,2,1,1,1],
+                    [1,1,1,1,1,3,1,1,1,3,1,1,1,1,1],
+                    [1,1,1,1,1,1,2,1,2,1,1,1,1,1,1],
+                    [2,1,1,1,1,1,1,2,1,1,1,1,1,1,2],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,3,1,1,1,3,1,1,1,3,1,1,1,3,1],
+                    [1,1,2,1,1,1,2,1,2,1,1,1,2,1,1],
+                    [1,1,1,2,1,1,1,1,1,1,1,2,1,1,1],
+                    [1,1,2,1,1,1,2,1,2,1,1,1,2,1,1],
+                    [1,3,1,1,1,3,1,1,1,3,1,1,1,3,1],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [2,1,1,1,1,1,1,2,1,1,1,1,1,1,2],
+                    [1,1,1,1,1,1,2,1,2,1,1,1,1,1,1],
+                    [1,1,1,1,1,3,1,1,1,3,1,1,1,1,1],
+                    [1,1,1,2,1,1,1,1,1,1,1,2,1,1,1],
+                ]
+                word_m = [
+                    [3,1,1,1,1,1,1,3,1,1,1,1,1,1,3],
+                    [1,2,1,1,1,1,1,1,1,1,1,1,1,2,1],
+                    [1,1,2,1,1,1,1,1,1,1,1,1,2,1,1],
+                    [1,1,1,2,1,1,1,1,1,1,1,2,1,1,1],
+                    [1,1,1,1,2,1,1,1,1,1,2,1,1,1,1],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [3,1,1,1,1,1,1,2,1,1,1,1,1,1,3],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+                    [1,1,1,1,2,1,1,1,1,1,2,1,1,1,1],
+                    [1,1,1,2,1,1,1,1,1,1,1,2,1,1,1],
+                    [1,1,2,1,1,1,1,1,1,1,1,1,2,1,1],
+                    [1,2,1,1,1,1,1,1,1,1,1,1,1,2,1],
+                    [3,1,1,1,1,1,1,3,1,1,1,1,1,1,3],
+                ]
+                def _lp(letter: str) -> int:
+                    L = (letter or '').upper()[:1]
+                    if L in {"A","E","I","L","N","O","R","S","T","U"}: return 1
+                    if L in {"D","G"}: return 2
+                    if L in {"B","C","M","P"}: return 3
+                    if L in {"F","H","V","W","Y"}: return 4
+                    if L == "K": return 5
+                    if L in {"J","X"}: return 8
+                    if L in {"Q","Z"}: return 10
+                    if L in {"?","*"}: return 0
+                    return 1
+                word_mult = 1
+                base_sum = 0
+                for t in tiles_out:
+                    r = int(t['row']); c = int(t['col'])
+                    if not (0 <= r < 15 and 0 <= c < 15):
+                        continue
+                    letter = t.get('letter') or ''
+                    is_blank = bool(t.get('isBlank'))
+                    lp = 0 if is_blank else _lp(letter)
+                    base_sum += lp * letter_m[r][c]
+                    word_mult *= word_m[r][c]
+                recalculated = base_sum * word_mult
+                if recalculated > 0:
+                    score_out = recalculated
+            except Exception:
+                pass
         # Include raw engine metadata without transformation
         raw_move = result.get("raw_move") or {}
         out = {
@@ -104,6 +201,8 @@ async def best_move(req: Request):
             "direction": raw_move.get("dir"),
             "word": raw_move.get("word")
         }
+        if opening_adjusted:
+            out["opening_adjusted"] = True
         # Pass through engine telemetry if provided by the bridge
         try:
             eng_info = result.get("engine_info") if isinstance(result, dict) else None
