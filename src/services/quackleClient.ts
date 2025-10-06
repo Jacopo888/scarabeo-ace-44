@@ -16,6 +16,11 @@ export interface QuackleMove {
   score: number;
   words: string[];
   move_type: string;
+  // Raw engine metadata (added for direct pass-through, may be undefined if engine omits)
+  start_row?: number;
+  start_col?: number;
+  direction?: string;
+  word?: string;
   exchange_count?: number;
   engine_fallback?: boolean;
   engine_info?: {
@@ -77,10 +82,11 @@ export async function quackleBestMove(payload: any): Promise<QuackleMove> {
     throw new Error(`best-move failed: ${r.status} ${txt.slice(0,180)}`);
   }
   const data = await r.json();
+  // Hoist engine_info reference for later debug logging
+  const ei: any = (data && typeof data === 'object') ? (data.engine_info as any) : null
   
   // DEEP DEBUG: Log raw response from bridge (enabled when isDebugQuackle)
   if (isDebugQuackle && data) {
-    const ei = data?.engine_info
     const pathInfo = ei && typeof ei === 'object' ? `path=${ei.path} strict=${ei.hl_strict} k=${ei.kibitz_len}` : 'path=?'
     qlog('[quackleClient] 🔍 RAW BRIDGE RESPONSE:', {
       score: data.score,
