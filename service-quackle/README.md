@@ -1,8 +1,15 @@
-# service-quackle
+# service-quackle (DEPRECATO)
 
-FastAPI microservice that bridges the Quackle engine.
+FASTAPI microservice originario – ORA DEPRECATO. Il nuovo servizio minimale vive in `service-quackle-min/` ed è il target per tutti i nuovi deploy.
 
-## Runtime overview
+Stato deprecazione:
+- Nuove feature: NON aggiungere qui.
+- Bugfix critici: consentiti solo se bloccano il cutover.
+- Rimozione pianificata dopo completamento checklist in `service-quackle-min/CUTOVER.md` (fase "Decommission Legacy").
+
+Di seguito la documentazione storica (solo riferimento finché il cutover non è definitivo):
+
+## Runtime overview (legacy)
 - Endpoint base: `/` (FastAPI)
 - Key endpoints:
   - `GET /health` – status, engine readiness, lexicon sizes, strategy inventory
