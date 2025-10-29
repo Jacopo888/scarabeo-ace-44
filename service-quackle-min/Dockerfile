@@ -32,7 +32,8 @@ ENV PYTHONUNBUFFERED=1 \
     QUACKLE_LEXICON=enable1.15 \
     QUACKLE_LEXDIR=/data/lexica \
     QUACKLE_STRATEGY_DIR=/data/strategy \
-    QUACKLE_ENGINE_BIN=/usr/local/bin/quackle_json_wrapper
+    QUACKLE_ENGINE_BIN=/usr/local/bin/quackle_json_wrapper \
+    CORS_ORIGINS=
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -48,12 +49,19 @@ COPY TODO.md ./
 # Copia binario dal builder
 COPY --from=builder /build/quackle_json_wrapper /usr/local/bin/quackle_json_wrapper
 
-# Directory dati
-RUN mkdir -p /data/lexica /data/strategy
+# Directory dati e strategie: includiamo le strategie di Quackle nello strato runtime
+RUN mkdir -p /usr/share/quackle/data/strategy
+COPY --from=builder /build/quackle/data/strategy /usr/share/quackle/data/strategy
+RUN mkdir -p /data/lexica /data/strategy && \
+    cp -r /usr/share/quackle/data/strategy/* /data/strategy/
 COPY scripts/bootstrap_lexicon.sh /usr/local/bin/bootstrap_lexicon.sh
 RUN chmod +x /usr/local/bin/bootstrap_lexicon.sh
 
-# Entrypoint: bootstrap lessico poi avvia uvicorn
+# Entrypoint: script con logging + exec uvicorn (aiuta il debug su Heroku "realloc(): invalid pointer")
+ENV PYTHONFAULTHANDLER=1
+COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD curl -fsS http://localhost:8000/health || exit 1
-ENTRYPOINT ["/bin/sh","-c","/usr/local/bin/bootstrap_lexicon.sh && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

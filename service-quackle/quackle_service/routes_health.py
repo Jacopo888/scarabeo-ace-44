@@ -23,7 +23,7 @@ def health():
             return os.path.getsize(p)
         except Exception:
             return 0
-    engine_ready = (os.path.exists(BRIDGE_BIN) and os.access(BRIDGE_BIN, os.X_OK) and (ok or skip))
+    engine_ready = (os.path.exists(BRIDGE_BIN) and os.access(BRIDGE_BIN, os.X_OK) and (ok or skip) and strat_debug.get("all_ok", False))
     payload = {
         "status": "ok",
         "engine": "quackle-bridge",

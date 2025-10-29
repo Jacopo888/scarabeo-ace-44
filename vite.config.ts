@@ -15,9 +15,11 @@ export default defineConfig(({ mode }) => ({
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/quackle': {
-        target: 'https://service-quackle-6773ae98281f.herokuapp.com',
+        // Allow overriding the proxy target via env (see .env.example: VITE_QUACKLE_PROXY_TARGET).
+        // Default to local service for development convenience.
+        target: process.env.VITE_QUACKLE_PROXY_TARGET || 'http://localhost:8080',
         changeOrigin: true,
-        secure: true,
+        secure: false,
         rewrite: (path) => path.replace(/^\/quackle/, ''),
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {

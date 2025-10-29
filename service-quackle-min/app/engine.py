@@ -26,10 +26,13 @@ def best_move(rack: str, board: dict) -> dict:
     except FileNotFoundError:
         raise HTTPException(status_code=500, detail="engine_error")
     if proc.returncode != 0:
-        # In dev possiamo includere parte dello stderr per debug rapido
-        if os.getenv("ENV", "").lower() in {"dev","development"}:
+        # Log server-side uno snippet di stderr per diagnosi
+        try:
             stderr_snip = proc.stderr.decode(errors="replace")[:400]
-            raise HTTPException(status_code=500, detail=f"engine_error:{stderr_snip}")
+        except Exception:
+            stderr_snip = "<stderr decode failed>"
+        # Evita di esporre al client dettagli sensibili
+        print(f"[engine] wrapper failed rc={proc.returncode} stderr='{stderr_snip}'")
         raise HTTPException(status_code=500, detail="engine_error")
     try:
         data = json.loads(proc.stdout.decode("utf-8", errors="replace"))

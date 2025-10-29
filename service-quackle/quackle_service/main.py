@@ -11,7 +11,7 @@ from .config import (
     APPDATA,
     ENV_MODE,
 )
-from .runtime import ensure_lexicon_files, ensure_lexicon_ready as _ensure_lexicon_ready
+from .runtime import ensure_lexicon_files, ensure_lexicon_ready as _ensure_lexicon_ready, ensure_strategy_files
 from .routes_best_move import router as best_move_router
 from .routes_health import router as health_router
 from .routes_debug import router as debug_router
@@ -33,6 +33,16 @@ async def lifespan(app: FastAPI):
     print(f"[startup] Lexicon ensure: ok={st['ok']} dawg={st['dawg_path']}({st['dawg_size']}) gaddag={st['gaddag_path']}({st['gaddag_size']})")
     if st["errors"]:
         print(f"[startup] Lexicon errors: {st['errors']}")
+
+    # 2b) Ensure strategy files are present in APPDATA (syn2, vcplace, superleaves, worths, bogowin)
+    try:
+        sf = ensure_strategy_files()
+        ok = sf.get("ok", False)
+        print(f"[startup] Strategy ensure: ok={ok} src={sf.get('src')} dest={sf.get('dest')}")
+        if sf.get("errors"):
+            print(f"[startup] Strategy errors: {sf.get('errors')}")
+    except Exception as e:
+        print(f"[startup] Strategy ensure raised: {e}")
 
 
     # 3) Block until completion of download/verification (done above synchronously)

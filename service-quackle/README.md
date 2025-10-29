@@ -66,7 +66,10 @@ GADDAG_URL=https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexic
   - In alternativa, puoi montare un volume su `/data/lexica`.
 
 ## Strategy files
-- I file di strategia sono derivati e non versionati nel repo; vengono sincronizzati da `/usr/share/quackle/data/strategy` verso `/data/appdata/strategy` all'avvio (se mancanti).
+- I file di strategia sono derivati e non versionati nel repo; all'avvio il servizio copia i file richiesti (`default_english/{syn2,vcplace,superleaves,worths}`, `default/bogowin}`) nella directory APPDATA (`/data/appdata/strategy`) se mancanti.
+- Sorgente di default: `/usr/share/quackle/data/strategy` (presente in immagine Docker).
+- Override sorgente: imposta `QUACKLE_STRATEGY_SRC=/percorso/locale/strategy` (utile in ambienti come Heroku dove i dati non sono baked-in). Il servizio logga lo stato in `[startup] Strategy ensure: ...`.
+- Lo stato dei file è visibile in `GET /health` (`strategy_ready`, `strategy_files`). Da ora `engine_ready` è `true` solo se il binario è eseguibile, i lessici sono presenti (o lo skip è attivo) e le strategie sono presenti.
 
 ## Sviluppo locale (rapido)
 - Requisiti: Python 3.x, `pip install -r requirements.txt` (se servi FastAPI direttamente), oppure Docker.
@@ -89,4 +92,3 @@ GADDAG_URL=https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexic
 
 ## Storico (Railway)
 Le note su Railway sono mantenute a scopo storico. La produzione attuale usa Heroku (`https://service-quackle-6773ae98281f.herokuapp.com`).
-
