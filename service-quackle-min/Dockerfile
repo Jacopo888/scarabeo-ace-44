@@ -31,7 +31,7 @@ FROM python:3.12-slim AS runtime
 ENV PYTHONUNBUFFERED=1 \
     QUACKLE_LEXICON=enable1.15 \
     QUACKLE_LEXDIR=/data/lexica \
-    QUACKLE_STRATEGY_DIR=/data/strategy \
+    QUACKLE_STRATEGY_DIR=/data/appdata/strategy \
     QUACKLE_ENGINE_BIN=/usr/local/bin/quackle_json_wrapper \
     CORS_ORIGINS=
 
@@ -49,23 +49,22 @@ COPY TODO.md ./
 # Copia binario dal builder
 COPY --from=builder /build/quackle_json_wrapper /usr/local/bin/quackle_json_wrapper
 
-# Directory dati e strategie: includiamo le strategie di Quackle nello strato runtime
-RUN mkdir -p /usr/share/quackle/data/strategy
-COPY --from=builder /build/quackle/data/strategy /usr/share/quackle/data/strategy
-RUN mkdir -p /data/lexica /data/strategy && \
-    cp -r /usr/share/quackle/data/strategy/* /data/strategy/
+# Strategia: bake nello slug
+RUN mkdir -p /data/appdata/strategy
+COPY ./data/appdata/strategy /data/appdata/strategy
+RUN chmod -R a+r /data/appdata/strategy
+
+# Lessici: cartella scrivibile a runtime
+RUN mkdir -p /data/lexica
 COPY scripts/bootstrap_lexicon.sh /usr/local/bin/bootstrap_lexicon.sh
 RUN chmod +x /usr/local/bin/bootstrap_lexicon.sh
 
-# Appdata strategies baked into image for subfolder builds
-RUN mkdir -p /app/data/appdata/strategy
-# Use repo-provided strategies when building from service-quackle-min context
-COPY data/appdata/strategy /app/data/appdata/strategy
-RUN chmod -R a+r /app/data/appdata/strategy
-
-# Point runtime to appdata paths expected by BE
-ENV QUACKLE_APPDATA_DIR=/app/data/appdata \
-    QUACKLE_STRATEGY_DIR=/app/data/appdata/strategy
+# Percorsi target nello slug
+# (copia già effettuata sopra in /data/appdata/strategy; qui solo ENV coerenti)
+ENV QUACKLE_APPDATA_DIR=/data/appdata \
+    QUACKLE_STRATEGY_DIR=/data/appdata/strategy \
+    QUACKLE_LEXDIR=/data/lexica \
+    QUACKLE_LEXICON=enable1.15
 
 # Entrypoint: script con logging + exec uvicorn (aiuta il debug su Heroku "realloc(): invalid pointer")
 ENV PYTHONFAULTHANDLER=1
