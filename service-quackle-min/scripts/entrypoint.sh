@@ -1,6 +1,11 @@
 #!/bin/sh
 set -euxo pipefail
 
+# If a command is provided (e.g., heroku run bash -lc '...'), execute it directly
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
+
 # Log ambiente essenziale
 echo "[ENTRY] Python $(python -V 2>&1 || true)" >&2
 if command -v uvicorn >/dev/null 2>&1; then

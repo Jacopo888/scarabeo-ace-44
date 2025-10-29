@@ -143,3 +143,39 @@ def _ensure_strategy_on_startup() -> dict:
     }
 
 _STRATEGY_BOOT = _ensure_strategy_on_startup()
+
+@app.get("/debug/strategy")
+def debug_strategy():
+    """Endpoint diagnostico: verifica presenza strategie al volo e restituisce dettagli.
+
+    Non espone percorsi sensibili oltre alle directory già note via env.
+    """
+    # Esegue un check fresco sui file richiesti
+    dest = Path(os.getenv("QUACKLE_STRATEGY_DIR", "/data/appdata/strategy")).resolve()
+    required = [
+        "default_english/syn2",
+        "default_english/vcplace",
+        "default_english/superleaves",
+        "default_english/worths",
+        "default/bogowin",
+    ]
+    files = []
+    missing = []
+    for rel in required:
+        p = dest / rel
+        ok = p.exists() and p.is_file() and p.stat().st_size > 0
+        files.append({
+            "path": str(p),
+            "exists": p.exists(),
+            "size": (p.stat().st_size if p.exists() and p.is_file() else 0),
+            "ok": ok,
+        })
+        if not ok:
+            missing.append(rel)
+    return {
+        "env_dir": str(dest),
+        "startup": _STRATEGY_BOOT,
+        "check_ready": len(missing) == 0,
+        "missing": missing,
+        "files": files,
+    }

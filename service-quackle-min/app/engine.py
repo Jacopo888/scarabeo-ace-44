@@ -22,11 +22,13 @@ def best_move(rack: str, board: dict) -> dict:
             timeout=TIMEOUT_MS / 1000.0,
         )
     except subprocess.TimeoutExpired:
+        print("[engine] timeout while waiting for wrapper")
         raise HTTPException(status_code=504, detail="timeout")
     except FileNotFoundError:
+        print(f"[engine] engine binary not found at {ENGINE_BIN}")
         raise HTTPException(status_code=500, detail="engine_error")
     if proc.returncode != 0:
-        # Log server-side uno snippet di stderr per diagnosi
+        # Log server-side: rc e snippet stderr per diagnosi
         try:
             stderr_snip = proc.stderr.decode(errors="replace")[:400]
         except Exception:
@@ -37,9 +39,20 @@ def best_move(rack: str, board: dict) -> dict:
     try:
         data = json.loads(proc.stdout.decode("utf-8", errors="replace"))
     except Exception:
+        # stdout non decodificabile → log snippet raw per capire
+        raw_out = proc.stdout[:200] if proc and proc.stdout is not None else b""
+        try:
+            raw_snip = raw_out.decode(errors="replace")
+        except Exception:
+            raw_snip = "<stdout decode failed>"
+        print(f"[engine] invalid json from wrapper rc={proc.returncode} stdout_snip='{raw_snip}'")
         raise HTTPException(status_code=500, detail="engine_error")
     if not isinstance(data, dict):
+        print(f"[engine] wrapper returned non-dict payload rc={proc.returncode}")
         raise HTTPException(status_code=500, detail="engine_error")
     if data.get("status") != "ok":
+        # Log l'errore strutturato se presente
+        err = data.get("error") or "unknown"
+        print(f"[engine] wrapper status!=ok rc={proc.returncode} error='{err}'")
         raise HTTPException(status_code=500, detail="engine_error")
     return data
