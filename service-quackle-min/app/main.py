@@ -111,11 +111,36 @@ def lexicon_words(q: str | None = None, limit: int = 100):
 def _ensure_strategy_on_startup() -> dict:
     """Make strategy files available even on ephemeral FS.
 
-    - Destination: QUACKLE_STRATEGY_DIR or /data/appdata/strategy
-    - Source: QUACKLE_STRATEGY_SRC or /usr/share/quackle/data/strategy
+    Destination: QUACKLE_STRATEGY_DIR or /data/appdata/strategy
+    Source priority:
+      1) QUACKLE_STRATEGY_SRC (if set)
+      2) /usr/share/quackle/data/strategy (baked in Docker image)
+      3) repo-local fallbacks (useful in local dev without Docker):
+         - service-quackle-min/appdata/strategy
+         - service-quackle/appdata/strategy
     """
     dest = Path(os.getenv("QUACKLE_STRATEGY_DIR", "/data/appdata/strategy")).resolve()
-    src = Path(os.getenv("QUACKLE_STRATEGY_SRC", "/usr/share/quackle/data/strategy")).resolve()
+
+    # Build candidate sources in priority order
+    candidates: list[Path] = []
+    env_src = os.getenv("QUACKLE_STRATEGY_SRC")
+    if env_src:
+        candidates.append(Path(env_src).resolve())
+    candidates.append(Path("/usr/share/quackle/data/strategy").resolve())
+
+    # Repo-local fallbacks (when running from monorepo root)
+    try:
+        here = Path(__file__).resolve()
+        # .../service-quackle-min/app/main.py -> repo root assumed at parents[1]
+        service_min_root = here.parents[1]
+        candidates.append((service_min_root / "appdata/strategy").resolve())
+        # Legacy service strategy dir reused as source
+        legacy_root = service_min_root.parent / "service-quackle" / "appdata/strategy"
+        candidates.append(legacy_root.resolve())
+    except Exception:
+        pass
+
+    # Required files set
     required = {
         "default_english/syn2",
         "default_english/vcplace",
@@ -123,12 +148,26 @@ def _ensure_strategy_on_startup() -> dict:
         "default_english/worths",
         "default/bogowin",
     }
-    copied = []
-    errors = []
+
+    # Choose first candidate that contains all required files
+    src: Path | None = None
+    for cand in candidates:
+        try:
+            if all((cand / r).exists() and (cand / r).is_file() for r in required):
+                src = cand
+                break
+        except Exception:
+            continue
+    if src is None and candidates:
+        # Pick the first candidate anyway to report meaningful errors
+        src = candidates[0]
+
+    copied: list[str] = []
+    errors: list[str] = []
     try:
         dest.mkdir(parents=True, exist_ok=True)
         for rel in required:
-            s = src / rel
+            s = (src / rel) if src else Path("/__missing_src__")
             d = dest / rel
             try:
                 d.parent.mkdir(parents=True, exist_ok=True)
@@ -142,6 +181,7 @@ def _ensure_strategy_on_startup() -> dict:
                 errors.append(f"copy_failed:{rel}:{e}")
     except Exception as e:
         errors.append(f"mkdir_failed:{e}")
+
     # Validate presence
     def ok(p: Path) -> bool:
         try:
@@ -149,6 +189,13 @@ def _ensure_strategy_on_startup() -> dict:
         except Exception:
             return False
     ready = all(ok(dest / rel) for rel in required)
-    return {"dest": str(dest), "src": str(src), "copied": copied, "ready": ready, "errors": errors}
+    return {
+        "dest": str(dest),
+        "src": str(src) if src else None,
+        "candidates": [str(c) for c in candidates],
+        "copied": copied,
+        "ready": ready,
+        "errors": errors,
+    }
 
 _STRATEGY_BOOT = _ensure_strategy_on_startup()

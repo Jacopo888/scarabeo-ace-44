@@ -57,6 +57,16 @@ RUN mkdir -p /data/lexica /data/strategy && \
 COPY scripts/bootstrap_lexicon.sh /usr/local/bin/bootstrap_lexicon.sh
 RUN chmod +x /usr/local/bin/bootstrap_lexicon.sh
 
+# Appdata strategies baked into image for subfolder builds
+RUN mkdir -p /app/data/appdata/strategy
+# Use repo-provided strategies when building from service-quackle-min context
+COPY data/appdata/strategy /app/data/appdata/strategy
+RUN chmod -R a+r /app/data/appdata/strategy
+
+# Point runtime to appdata paths expected by BE
+ENV QUACKLE_APPDATA_DIR=/app/data/appdata \
+    QUACKLE_STRATEGY_DIR=/app/data/appdata/strategy
+
 # Entrypoint: script con logging + exec uvicorn (aiuta il debug su Heroku "realloc(): invalid pointer")
 ENV PYTHONFAULTHANDLER=1
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
