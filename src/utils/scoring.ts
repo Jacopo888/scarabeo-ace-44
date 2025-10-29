@@ -79,6 +79,13 @@ export function calculateScore(options: ScoreOptions): number {
   return score
 }
 
+// Convenience helper to retrieve both score and words using the same core implementation
+export function calculateScoreAndWords(options: ScoreOptions): { score: number; words: string[] } {
+  const { tiles, board } = options
+  if (!tiles || tiles.length === 0) return { score: 0, words: [] }
+  return scoreMoveCore(board, tiles)
+}
+
 function calculateSingleTileScore(tile: PlacedTile): number {
   const mul = getMultipliersAt(tile.row, tile.col)
   const base = Number(tile.points) || 0

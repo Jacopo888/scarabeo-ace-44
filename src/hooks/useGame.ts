@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { GameState, Player, Tile, PlacedTile } from '@/types/game'
-import { calculateScore } from '@/utils/scoring'
+import { calculateScore, calculateScoreAndWords } from '@/utils/scoring'
 import { useToast } from '@/hooks/use-toast'
 import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
@@ -265,8 +265,8 @@ export const useGame = () => {
         return
       }
 
-      // Calcola sempre il punteggio lato client per coerenza con la board visualizzata
-  const finalScore = calculateScore({ tiles: playedTiles, board: snapshot.boardMatrix, context: 'quackle' })
+    // Calcola sempre punteggio e parole lato client per coerenza con la board visualizzata
+    const { score: finalScore, words: formedWords } = calculateScoreAndWords({ tiles: playedTiles, board: snapshot.boardMatrix, context: 'quackle' })
 
       if (import.meta.env.DEV) {
         console.log('[useGame] 🎯 Using Quackle score:', finalScore)
@@ -274,9 +274,9 @@ export const useGame = () => {
 
     // Apply bot move to game state (delegated)
   // Show all words formed (primary + cross words)
-  const wordsList = (move.words && move.words.length > 0) ? move.words : []
-  toast({ title: 'Quackle played!', description: `+${finalScore} with words: ${wordsList.join(', ')}` })
-  const applied = applyBotMove(snapshot, { sanitizedTiles: playedTiles, score: finalScore, words: move.words })
+    const wordsList = (Array.isArray((move as any).words) && (move as any).words.length > 0) ? (move as any).words : formedWords
+    toast({ title: 'Quackle played!', description: `+${finalScore} with words: ${wordsList.join(', ')}` })
+    const applied = applyBotMove(snapshot, { sanitizedTiles: playedTiles, score: finalScore, words: wordsList })
   setGameState(applied.next)
 
       // Record move (best-effort)

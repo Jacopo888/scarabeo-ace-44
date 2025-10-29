@@ -54,7 +54,28 @@ int main(){ std::ios::sync_with_stdio(false); InputPayload payload; std::string 
 		PlayerList players; players.push_back(Player(MARK_UV("P1"), Player::HumanPlayerType, 0)); Game game; game.setPlayers(players); game.addPosition(); game.currentPosition().setBoard(board); game.currentPosition().ensureBoardIsPreparedForAnalysis(); LetterString rackLetters; for(char ch: rack){ if(ch=='?') rackLetters+=QUACKLE_BLANK_MARK; else { UVString uvs; uvs.push_back(ch); LetterString enc=QUACKLE_ALPHABET_PARAMETERS->encode(uvs); if(enc.length()) rackLetters+=enc[0]; } } game.currentPosition().setCurrentPlayerRack(Rack(rackLetters));
 		Generator gen(game.currentPosition()); gen.kibitz(50); const MoveList &list = gen.kibitzList(); if(list.empty()){ std::cout<<"{\"status\":\"ok\",\"move_type\":\"pass\",\"strategy_ok\":true}"<<std::endl; return 0; }
 		const Move *bestPtr=nullptr; double bestEq=-1e18; for(const auto &mv: list){ double mvEq=(mv.equity==0.0? (double)mv.score : mv.equity); if(!bestPtr||mvEq>bestEq){ bestPtr=&mv; bestEq=mvEq; } } const Move &best=*bestPtr; double eq=bestEq;
-		std::ostringstream tilesJson; tilesJson<<'['; bool firstOut=true; int i=0; for(const auto &it: best.tiles()){ int row=best.startrow + (best.horizontal?0:i); int col=best.startcol + (best.horizontal?i:0); bool isNew = (boardBefore.letter(row,col)==QUACKLE_NULL_MARK); if(isNew){ Letter internal=it; bool isBlank=QUACKLE_ALPHABET_PARAMETERS->isBlankLetter(internal); Letter plain=QUACKLE_ALPHABET_PARAMETERS->clearBlankness(internal); UVString vis=QUACKLE_ALPHABET_PARAMETERS->userVisible(plain); char outChar=vis.empty()?'?':(char)vis[0]; if(!firstOut) tilesJson<<','; firstOut=false; tilesJson<<'{"row":'<<row<<",\"col\":"<<col<<",\"letter\":\""<<outChar<<"\",\"isBlank\":"<<(isBlank?"true":"false")<<'}'; } ++i; } tilesJson<<']';
+	// Build new tiles array using usedTiles() (which includes play-thru marks)
+	// Coordinates are 0-based and we emit only NEW tiles (skip play-thru '.')
+	std::ostringstream tilesJson; tilesJson<<"["; bool firstOut=true; LetterString used = best.usedTiles();
+	for(int idx=0; idx<(int)used.length(); ++idx){
+		int row = best.startrow + (best.horizontal ? 0 : idx);
+		int col = best.startcol + (best.horizontal ? idx : 0);
+		Letter internal = used[idx];
+		if (Move::isAlreadyOnBoard(internal)) continue; // skip tiles already present
+		bool isBlank = QUACKLE_ALPHABET_PARAMETERS->isBlankLetter(internal);
+		Letter plain = QUACKLE_ALPHABET_PARAMETERS->clearBlankness(internal);
+		int points = isBlank ? 0 : QUACKLE_ALPHABET_PARAMETERS->score(plain);
+		UVString vis = QUACKLE_ALPHABET_PARAMETERS->userVisible(plain);
+		char outChar = vis.empty()? '?' : (char)vis[0];
+		if(!firstOut) tilesJson<<","; firstOut=false;
+		tilesJson<<"{\"row\":"<<row
+		         <<",\"col\":"<<col
+		         <<",\"letter\":\""<<outChar<<"\""
+		         <<",\"isBlank\":"<<(isBlank?"true":"false")
+		         <<",\"points\":"<<points
+		         <<"}";
+	}
+	tilesJson<<"]";
 		UVString wordUV=QUACKLE_ALPHABET_PARAMETERS->userVisible(best.wordTilesWithNoPlayThru()); std::string word; word.reserve(wordUV.size()); for(auto ch: wordUV) word.push_back((char)ch); std::string dir=best.horizontal?"H":"V"; std::cout<<"{\"status\":\"ok\",\"move_type\":\"play\",\"score\":"<<best.score<<",\"equity\":"<<eq<<",\"start_row\":"<<best.startrow<<",\"start_col\":"<<best.startcol<<",\"direction\":\""<<dir<<"\",\"word\":\""<<word<<"\",\"tiles\":"<<tilesJson.str()<<",\"strategy_ok\":true}"<<std::endl; return 0;
 	} catch(const std::exception &e){ print_error(std::string("exception:")+e.what()); return 2; } catch(...){ print_error("unknown_exception"); return 3; }
 }
