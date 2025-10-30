@@ -25,10 +25,19 @@ def lexicon_words():
     for p in candidates:
         try:
             if os.path.isfile(p) and os.path.getsize(p) > 0:
-                with open(p, "rb") as f:
-                    data = f.read()
-                return Response(content=data, media_type="text/plain")
+                # Read as text with universal newlines so any of \r, \n, or \r\n
+                # are normalized to \n. This prevents client-side "single line"
+                # issues when a lexicon uses legacy Mac line endings (\r).
+                with open(p, "r", encoding="utf-8", newline=None) as f:
+                    text = f.read()
+                # Ensure final EOL and strip potential BOM
+                if text.startswith("\ufeff"):
+                    text = text.lstrip("\ufeff")
+                if not text.endswith("\n"):
+                    text = text + "\n"
+                return Response(content=text.encode("utf-8"), media_type="text/plain; charset=utf-8")
         except Exception:
+            # Try next candidate path on any error
             continue
     return Response(status_code=404)
 

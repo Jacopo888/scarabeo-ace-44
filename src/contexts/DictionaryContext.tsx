@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { quackleApi } from '@/config/quackle'
+import { normalizeNewlines } from '@/utils/text'
 
 interface DictionaryContextType {
   isLoaded: boolean;
@@ -48,7 +49,9 @@ export const DictionaryProvider: React.FC<DictionaryProviderProps> = ({ children
         }
         text = await response.text();
       }
-      const words = text
+      // Normalize potential BOM and all newline variants (\r, \n, \r\n)
+      const normalized = normalizeNewlines(text)
+      const words = normalized
         .split('\n')
         .map(word => word.trim().toUpperCase())
         .filter(word => word.length > 0);
