@@ -16,7 +16,7 @@ export const DictionaryLoader: React.FC = () => {
       <Alert variant="destructive" className="mb-4">
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          Dictionary loading failed: {error}. Using fallback dictionary.
+          Dictionary loading failed: {error}.
         </AlertDescription>
       </Alert>
     );

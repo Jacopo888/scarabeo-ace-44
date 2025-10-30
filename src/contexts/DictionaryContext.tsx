@@ -34,74 +34,34 @@ export const DictionaryProvider: React.FC<DictionaryProviderProps> = ({ children
       setIsLoading(true);
       setError(null);
 
-      // Strategy: try to load the active engine lexicon word list first, then fall back to local ENABLE.
+      // 1) Try service-provided word list; 2) fall back to bundled ENABLE.
       let text = ''
       try {
         const svc = await fetch(quackleApi('/lexicon/words'))
-        if (svc.ok) {
-          text = await svc.text()
-        }
+        if (svc.ok) text = await svc.text()
       } catch {}
       if (!text) {
-        const response = await fetch('/enable.txt');
-        if (!response.ok) {
-          throw new Error(`Failed to load dictionary: ${response.status}`);
-        }
-        text = await response.text();
+        const resp = await fetch('/enable.txt')
+        if (!resp.ok) throw new Error(`Failed to load dictionary: ${resp.status}`)
+        text = await resp.text()
       }
-      // Normalize potential BOM and all newline variants (\r, \n, \r\n)
-      const normalized = normalizeNewlines(text)
-      const words = normalized
+
+      // Normalize line endings and build the set in one shot.
+      const words = normalizeNewlines(text)
         .split('\n')
-        .map(word => word.trim().toUpperCase())
-        .filter(word => word.length > 0);
+        .map(w => w.trim().toUpperCase())
+        .filter(w => w.length > 0)
 
-      // Create the Set in chunks to avoid blocking the main thread
-      const wordsSet = new Set<string>();
-      const chunkSize = 500; // Smaller chunks
-      
-      for (let i = 0; i < words.length; i += chunkSize) {
-        const chunk = words.slice(i, i + chunkSize);
-        chunk.forEach(word => wordsSet.add(word));
-        
-        // Yield control more frequently to allow UI updates
-        if (i % chunkSize === 0) {
-          await new Promise(resolve => setTimeout(resolve, 0));
-        }
-      }
-
-      setWordsSet(wordsSet);
-      setIsLoaded(true);
+      setWordsSet(new Set(words))
+      setIsLoaded(true)
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setError(errorMessage);
-      
-      // Fallback to basic word set if loading fails
-      setWordsSet(createFallbackDictionary());
-      setIsLoaded(true);
+      const msg = err instanceof Error ? err.message : 'Unknown error occurred'
+      setError(msg)
+      setWordsSet(new Set())
+      setIsLoaded(true)
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
-
-  const createFallbackDictionary = (): Set<string> => {
-    // Basic fallback dictionary with essential words
-    return new Set([
-      // 2-letter words
-      'AA', 'AB', 'AD', 'AE', 'AG', 'AH', 'AI', 'AL', 'AM', 'AN', 'AR', 'AS', 'AT', 'AW', 'AX', 'AY',
-      'BA', 'BE', 'BI', 'BO', 'BY', 'DA', 'DE', 'DO', 'EF', 'EH', 'EL', 'EM', 'EN', 'ER', 'ES', 'ET',
-      'EX', 'FA', 'FE', 'GO', 'HA', 'HE', 'HI', 'HM', 'HO', 'ID', 'IF', 'IN', 'IS', 'IT', 'JO', 'KA',
-      'KI', 'LA', 'LI', 'LO', 'MA', 'ME', 'MI', 'MM', 'MO', 'MU', 'MY', 'NA', 'NE', 'NO', 'NU', 'OD',
-      'OE', 'OF', 'OH', 'OI', 'OK', 'OM', 'ON', 'OP', 'OR', 'OS', 'OW', 'OX', 'OY', 'PA', 'PE', 'PI',
-      'QI', 'RE', 'SH', 'SI', 'SO', 'TA', 'TI', 'TO', 'UH', 'UM', 'UN', 'UP', 'US', 'UT', 'WE', 'WO',
-      'XI', 'XU', 'YA', 'YE', 'YO', 'ZA',
-      
-      // Common words for basic gameplay
-      'THE', 'AND', 'YOU', 'ARE', 'FOR', 'CAN', 'GET', 'HAS', 'HAD', 'HIS', 'HER', 'SHE', 'HIM', 'ONE',
-      'TWO', 'WHO', 'OIL', 'SIT', 'SET', 'BUT', 'NOT', 'ALL', 'WAY', 'MAY', 'SAY', 'USE', 'MAN', 'NEW',
-      'NOW', 'OLD', 'SEE', 'TWO', 'HOW', 'ITS', 'OUR', 'OUT', 'DAY', 'GET', 'HAS', 'HIM', 'HIS', 'HOW',
-      'ITS', 'MAY', 'NEW', 'NOW', 'OLD', 'OUR', 'OUT', 'SAY', 'SHE', 'TWO', 'USE', 'WAS', 'WAY', 'WHO'
-    ]);
   };
 
   const isValidWord = (word: string): boolean => {
