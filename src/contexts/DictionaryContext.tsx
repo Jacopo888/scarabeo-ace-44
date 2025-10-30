@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { quackleApi } from '@/config/quackle'
+import { qlog } from '@/config/debug'
 import { normalizeNewlines } from '@/utils/text'
 
 interface DictionaryContextType {
@@ -29,30 +30,40 @@ export const DictionaryProvider: React.FC<DictionaryProviderProps> = ({ children
     loadDictionary();
   }, []);
 
+  const parseWords = (text: string): string[] =>
+    normalizeNewlines(text)
+      .split('\n')
+      .map(w => w.trim().toUpperCase())
+      .filter(w => w.length > 0)
+
   const loadDictionary = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // 1) Try service-provided word list; 2) fall back to bundled ENABLE.
+      // 1) Try service-provided word list; 2) fall back to bundled ENABLE or the larger one.
       let text = ''
       try {
-        const svc = await fetch(quackleApi('/lexicon/words'))
+        const svc = await fetch(quackleApi('/lexicon/words'), { cache: 'no-store' as RequestCache })
         if (svc.ok) text = await svc.text()
       } catch {}
-      if (!text) {
-        const resp = await fetch('/enable.txt')
+      let words = parseWords(text)
+      qlog('[Dictionary] service words:', words.length)
+
+      // If service result is suspiciously tiny, prefer the local ENABLE file.
+      if (words.length < 100) {
+        const resp = await fetch('/enable.txt', { cache: 'no-store' as RequestCache })
         if (!resp.ok) throw new Error(`Failed to load dictionary: ${resp.status}`)
-        text = await resp.text()
+        const localText = await resp.text()
+        const localWords = parseWords(localText)
+        if (localWords.length > words.length) {
+          qlog('[Dictionary] falling back to local ENABLE.txt:', localWords.length)
+          words = localWords
+        }
       }
 
-      // Normalize line endings and build the set in one shot.
-      const words = normalizeNewlines(text)
-        .split('\n')
-        .map(w => w.trim().toUpperCase())
-        .filter(w => w.length > 0)
-
       setWordsSet(new Set(words))
+      qlog('[Dictionary] final words set size:', words.length)
       setIsLoaded(true)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error occurred'
