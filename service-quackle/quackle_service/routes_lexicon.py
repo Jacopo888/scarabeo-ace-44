@@ -35,9 +35,9 @@ def lexicon_words():
                     text = text.lstrip("\ufeff")
                 if not text.endswith("\n"):
                     text = text + "\n"
-                return Response(content=text.encode("utf-8"), media_type="text/plain; charset=utf-8")
+                # Return as plain text string; FastAPI will encode using the charset
+                return Response(content=text, media_type="text/plain; charset=utf-8")
         except Exception:
             # Try next candidate path on any error
             continue
     return Response(status_code=404)
-
