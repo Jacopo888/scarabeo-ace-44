@@ -1,5 +1,10 @@
 build:
   docker:
     web: Dockerfile-frontend
+  config:
+    VITE_QUACKLE_SERVICE_URL: https://service-quackle-6773ae98281f.herokuapp.com
+    VITE_SUPABASE_URL: https://qjpvhhijujqblazdlfeg.supabase.co
+    VITE_SUPABASE_PUBLISHABLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJIUzI1NiIsInJlZiI6InFqcHZoaGlqdWpxYmxhemRsZmVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM3MjU2MzYsImV4cCI6MjA2OTMwMTYzNn0.VkFsp0h4LSscjbwYXAvSOsRCg30ozOc3QBsK5-pzk2A
+    VITE_BOARD_SCHEMA: coord_map_1based
 run:
   web: sh -c 'envsubst '\''$PORT'\'' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g "daemon off;"'

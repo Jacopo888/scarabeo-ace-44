@@ -1,4 +1,12 @@
 FROM node:20-bookworm-slim AS build
+ARG VITE_QUACKLE_SERVICE_URL
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_PUBLISHABLE_KEY
+ARG VITE_BOARD_SCHEMA=coord_map_1based
+ENV VITE_QUACKLE_SERVICE_URL=$VITE_QUACKLE_SERVICE_URL \
+    VITE_SUPABASE_URL=$VITE_SUPABASE_URL \
+    VITE_SUPABASE_PUBLISHABLE_KEY=$VITE_SUPABASE_PUBLISHABLE_KEY \
+    VITE_BOARD_SCHEMA=$VITE_BOARD_SCHEMA
 ENV npm_config_fetch_retry_maxtimeout=120000 \
     npm_config_fetch_retries=5 \
     npm_config_fetch_retry_mintimeout=2000
@@ -6,8 +14,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --no-audit --no-fund
 COPY . .
-RUN test -f .env.production && cat .env.production || true
-RUN npm run build
+RUN npm run build:prod
 
 FROM nginx:alpine
 # Install envsubst for templating Nginx config at runtime
