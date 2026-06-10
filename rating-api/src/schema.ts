@@ -1,13 +1,20 @@
-import { pgTable, serial, text, integer, timestamp, jsonb, index, primaryKey, uuid } from 'drizzle-orm/pg-core';
+import { pgTable, serial, text, integer, timestamp, jsonb, index, primaryKey, uuid, uniqueIndex } from 'drizzle-orm/pg-core';
 import { desc } from 'drizzle-orm';
 
-export const players = pgTable('players', {
-  id: serial('id').primaryKey(),
-  username: text('username').notNull().unique(),
-  password: text('password').notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  rating: integer('rating').default(1000).notNull(),
-});
+export const players = pgTable(
+  'players',
+  {
+    id: serial('id').primaryKey(),
+    externalId: text('external_id'),
+    username: text('username').notNull().unique(),
+    password: text('password').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    rating: integer('rating').default(1000).notNull(),
+  },
+  (table) => ({
+    externalIdIdx: uniqueIndex('players_external_id_unique_idx').on(table.externalId),
+  }),
+);
 
 export const games = pgTable('games', {
   id: serial('id').primaryKey(),

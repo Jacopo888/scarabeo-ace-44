@@ -15,16 +15,19 @@ const quackleHealthMock = vi.mocked(quackleHealth)
 const healthyResult: QuackleHealthResult = {
   ok: true,
   status: 200,
-  body: '{}',
-  base: 'https://service.example.test'
+  body: '{"engine_ready":true}',
+  base: 'https://service.example.test',
+  data: { engine_ready: true },
+  engineReady: true
 }
 
 const unhealthyResult: QuackleHealthResult = {
   ok: false,
-  status: 503,
-  body: 'service unavailable',
+  status: 200,
+  body: '{"engine_ready":false}',
   base: 'https://service.example.test',
-  error: 'UNKNOWN_ERROR'
+  data: { engine_ready: false },
+  engineReady: false
 }
 
 describe('useQuackleHealth', () => {
@@ -39,6 +42,18 @@ describe('useQuackleHealth', () => {
 
     expect(result.current.result).toEqual(healthyResult)
     expect(typeof result.current.lastCheckedAt).toBe('number')
+  })
+
+  it('emits unhealthy status when HTTP is ok but engine is not ready', async () => {
+    quackleHealthMock.mockResolvedValueOnce(unhealthyResult)
+
+    const { result } = renderHook(() => useQuackleHealth(1000))
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('unhealthy')
+    })
+
+    expect(result.current.result?.engineReady).toBe(false)
   })
 
   it.skip('transitions from unhealthy to healthy on subsequent polls', async () => {

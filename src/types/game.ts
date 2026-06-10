@@ -30,13 +30,14 @@ export interface GameState {
   passCounts?: number[]
 }
 
-// Standard Scrabble tile distribution
+// Tilesword currently uses English Scrabble-compatible tile counts.
+// Keep this aligned with RULESET / ENGLISH_TILE_COUNTS in src/config/ruleset.ts.
 // Important: create a UNIQUE object for each tile instance to avoid reference sharing.
 const makeTiles = (letter: string, points: number, count: number, isBlank = false): Tile[] =>
   Array.from({ length: count }, () => ({ letter, points, isBlank }))
 
 export const TILE_DISTRIBUTION: Tile[] = [
-  // A-Z with English Scrabble distribution
+  // A-Z with English word-tile distribution
   ...makeTiles('A', 1, 9),
   ...makeTiles('B', 3, 2),
   ...makeTiles('C', 3, 2),

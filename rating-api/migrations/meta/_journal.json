@@ -36,6 +36,20 @@
       "when": 1755949500177,
       "tag": "0004_polite_the_hunter",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1755949600000,
+      "tag": "0005_daily_challenge",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781089200000,
+      "tag": "0006_player_external_id",
+      "breakpoints": true
     }
   ]
 }

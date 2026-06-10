@@ -82,6 +82,29 @@ Nel path $QUACKLE_LEXDIR devono esistere:
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 
+## Sorgente Quackle canonico
+
+Il container compila il wrapper C++ da `https://github.com/Jacopo888/quacklejacopo.git`.
+Per rendere i deploy riproducibili, il Dockerfile non usa una branch mobile:
+
+- `QUACKLE_REPO_REF=d280e6760f06b52dd8b8baf18c9bf152492c230d`
+- `QUACKLE_REPO_FETCH_REF=master`
+
+Quel commit corrisponde a `origin/master` della repo `quacklejacopo` e contiene
+`CMakeLists.txt` e `json_wrapper_main.cpp`, necessari per il build del wrapper.
+La branch `CommandLineRunner` resta la branch di default della repo remota, ma
+non e il sorgente canonico del deploy Heroku di questo servizio.
+
+Se si vuole testare un altro commit/branch, impostare entrambi gli argomenti di
+build quando serve:
+
+```bash
+docker build \
+  --build-arg QUACKLE_REPO_REF=<commit-o-branch> \
+  --build-arg QUACKLE_REPO_FETCH_REF=<branch-che-contiene-il-commit> \
+  -t service-quackle-min ./service-quackle-min
+```
+
 ## Note Wrapper
 Input JSON:
 {

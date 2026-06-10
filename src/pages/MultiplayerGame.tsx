@@ -112,9 +112,14 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
     )
   }
 
-  const canSubmitMove = isMyTurn && pendingTiles.length > 0
-  const gameStatus = game.status === 'waiting' ? 'Waiting for second player' :
-                    isMyTurn ? "It's your turn" : "Opponent's turn"
+  const isActiveGame = game.status === 'active'
+  const canPlayTurn = isActiveGame && isMyTurn
+  const canSubmitMove = canPlayTurn && pendingTiles.length > 0
+  const gameStatus =
+    game.status === 'waiting' ? 'Waiting for second player' :
+    game.status === 'completed' ? (game.winner_id === user.id ? 'You won' : game.winner_id ? 'Opponent won' : 'Game completed') :
+    game.status === 'abandoned' ? 'Game abandoned' :
+    canPlayTurn ? "It's your turn" : "Opponent's turn"
 
   return (
     <div className="min-h-screen bg-background">
@@ -139,7 +144,7 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
             <Card>
               <CardContent className="p-6">
                 <BoardPanel
-                  isMyTurn={isMyTurn}
+                  isMyTurn={canPlayTurn}
                   selectedTile={selectedTile as any}
                   onUseSelectedTile={clearSelectedTile}
                   boardMap={gameState.boardMatrix as any}
@@ -163,12 +168,12 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
             </Card>
 
             {/* Current Player Rack and Actions */}
-            {game.status === 'active' && (
+            {isActiveGame && (
               <Card className="mt-6">
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <span>Your tiles</span>
-                    {isMyTurn && (
+                    {canPlayTurn && (
                       <span className="text-sm font-normal text-muted-foreground">
                         It's your turn - play!
                       </span>
@@ -180,7 +185,7 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
                     currentRack={currentRack as any}
                     selectedTileIndex={selectedTileIndex}
                     onTileSelect={handleTileSelect}
-                    isMyTurn={isMyTurn}
+                    isMyTurn={canPlayTurn}
                     canSubmitMove={canSubmitMove}
                     pendingCount={pendingTiles.length}
                     submitMove={submitMove}
@@ -211,12 +216,12 @@ function MultiplayerGameContent({ gameId }: { gameId: string }) {
 
             <GameInfoCard
               gameStatus={gameStatus}
-              turn_deadline={game.turn_deadline}
+              turn_deadline={isActiveGame ? game.turn_deadline : undefined}
               turn_duration={game.turn_duration}
               opponentName={opponent?.name}
             />
 
-            <ActionsCard isActive={game.status === 'active'} onSurrender={surrenderGame} />
+            <ActionsCard isActive={isActiveGame} onSurrender={surrenderGame} />
             {/* Extra results removed */}
           </div>
         </div>

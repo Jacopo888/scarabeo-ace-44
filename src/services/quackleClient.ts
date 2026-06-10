@@ -8,6 +8,14 @@ export interface QuackleHealthResult {
   status: number
   body: string
   base: string
+  data?: {
+    engine_ready?: boolean
+    lexicon?: string
+    strategy_ready?: boolean
+    binary_present?: boolean
+    [key: string]: unknown
+  }
+  engineReady?: boolean
   error?: NetworkErrorCode
 }
 
@@ -47,10 +55,19 @@ export async function quackleHealth(): Promise<QuackleHealthResult> {
     
     const r = await fetchWithTimeout(quackleApi('/health'), { method: 'GET' }, 5000);
     const body = await r.text().catch(() => '');
+    const data = (() => {
+      try {
+        const parsed = JSON.parse(body)
+        return parsed && typeof parsed === 'object' ? parsed : undefined
+      } catch {
+        return undefined
+      }
+    })()
+    const engineReady = data?.engine_ready === true
     
     qlog('[Quackle Debug] Health response:', { ok: r.ok, status: r.status, body: body.slice(0, 100) });
     
-    return { ok: r.ok, status: r.status, body, base: QUACKLE_SERVICE_URL };
+    return { ok: r.ok && engineReady, status: r.status, body, base: QUACKLE_SERVICE_URL, data, engineReady };
   } catch (error: any) {
     const errorMsg = String(error?.message || error);
     qerror('[Quackle Debug] Health check failed:', errorMsg);
@@ -64,6 +81,7 @@ export async function quackleHealth(): Promise<QuackleHealthResult> {
       status: 0, 
       body: '', 
       base: QUACKLE_SERVICE_URL, 
+      engineReady: false,
       error: code
     };
   }

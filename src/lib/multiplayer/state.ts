@@ -33,8 +33,15 @@ const normalizeRack = (rack: Tile[] = []): Tile[] =>
     }
   })
 
+export const gameRecordStatusToGameStatus = (status: GameRecord['status']): GameState['gameStatus'] => {
+  if (status === 'waiting') return 'waiting'
+  if (status === 'active') return 'playing'
+  return 'finished'
+}
+
 export const buildGameState = (gameData: GameRecord, userId: string): { state: GameState; isMyTurn: boolean } => {
   const boardMatrix = recordToBoardMatrix(gameData.board_state || {})
+  const gameStatus = gameRecordStatusToGameStatus(gameData.status)
   const state: GameState = {
     players: [
       {
@@ -53,7 +60,7 @@ export const buildGameState = (gameData: GameRecord, userId: string): { state: G
     currentPlayerIndex: gameData.current_player_id === gameData.player1_id ? 0 : 1,
     boardMatrix,
     tileBag: gameData.tile_bag,
-    gameStatus: 'playing',
+    gameStatus,
   }
-  return { state, isMyTurn: gameData.current_player_id === userId }
+  return { state, isMyTurn: gameData.status === 'active' && gameData.current_player_id === userId }
 }

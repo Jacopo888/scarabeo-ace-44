@@ -6,6 +6,8 @@ on:
 
 env:
   HEROKU_APP: tilesword
+  FRONTEND_URL: https://tilesword-0d2009186065.herokuapp.com
+  QUACKLE_SERVICE_URL: https://service-quackle-6773ae98281f.herokuapp.com
 
 jobs:
   build-and-deploy:
@@ -19,13 +21,13 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci --no-audit --no-fund
-      - run: npm run build
+      - run: npm run build:prod
 
-      # Guardrail: il bundle DEVE contenere lo schema 1-based altrimenti fallisci
-      - name: Verify bundle has coord_map_1based
+      # Guardrail: il bundle production deve puntare al servizio Quackle live.
+      - name: Verify bundle targets Quackle service
         run: |
           JS=$(ls dist/assets/index-*.js | head -n1)
-          grep -q 'coord_map_1based' "$JS"
+          grep -q "$QUACKLE_SERVICE_URL" "$JS"
 
       # Build immagine Nginx statica che copia /dist
       - run: docker build -t registry.heroku.com/${{ env.HEROKU_APP }}/web -f Dockerfile-frontend-static .
@@ -49,7 +51,8 @@ jobs:
       # Smoke test
       - name: Smoke FE
         run: |
-          curl -sSfI https://tilesword-0d2009186065.herokuapp.com/ | grep -q "200 OK"
+          curl -sSfI "$FRONTEND_URL/" >/dev/null
       - name: Smoke BE
         run: |
-          curl -sSf https://service-quackle-6773ae98281f.herokuapp.com/health | jq -e '.status=="ok" and .board_schema=="coord_map_1based"'
+          curl -sSf "$QUACKLE_SERVICE_URL/health" |
+            jq -e '.engine_ready == true and .strategy_ready == true and .binary_present == true and .lexicon == "enable1.15"'

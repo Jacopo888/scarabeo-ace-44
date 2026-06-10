@@ -5,6 +5,7 @@ import { MatchmakingEntry, GameRecord } from '@/types/multiplayer'
 import { TILE_DISTRIBUTION, Tile } from '@/types/game'
 import { shuffleArray, drawTiles } from '@/lib/multiplayer/tiles'
 import { createInitialDeal } from '@/lib/matchmaking/init'
+import { gameParticipantFilters, isGameForUser } from '@/lib/multiplayer/realtime'
 import { useToast } from '@/hooks/use-toast'
 
 // Using shared tile utils from multiplayer lib and a pure helper for initial deals
@@ -26,23 +27,35 @@ export const useMatchmaking = () => {
   // Set up real-time subscription for matchmaking
   useEffect(() => {
     if (!user) return
+    const [player1Filter, player2Filter] = gameParticipantFilters(user.id)
+    const handleGameInsert = (payload: { new: GameRecord }) => {
+      const game = payload.new
+      if (isGameForUser(game, user.id)) {
+        handleGameFound(game)
+      }
+    }
 
     const channel = supabase
-      .channel('matchmaking-updates')
+      .channel(`matchmaking-updates-${user.id}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'games',
-          filter: `player1_id=eq.${user.id},player2_id=eq.${user.id}`
+          filter: player1Filter
         },
-        (payload) => {
-          const game = payload.new as GameRecord
-          if (game.player1_id === user.id || game.player2_id === user.id) {
-            handleGameFound(game)
-          }
-        }
+        handleGameInsert
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'games',
+          filter: player2Filter
+        },
+        handleGameInsert
       )
       .subscribe()
 

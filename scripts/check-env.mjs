@@ -18,17 +18,24 @@ function hydrateEnvFromFile(filename, key) {
   }
 }
 
-const TARGET_ENV_KEY = 'VITE_QUACKLE_SERVICE_URL';
-hydrateEnvFromFile('.env.production', TARGET_ENV_KEY);
-hydrateEnvFromFile('.env', TARGET_ENV_KEY);
+const REQUIRED_PROD_ENV_KEYS = [
+  'VITE_QUACKLE_SERVICE_URL',
+  'VITE_SUPABASE_URL',
+  'VITE_SUPABASE_PUBLISHABLE_KEY',
+];
 
-// Esci con codice ≠ 0 se manca la env in build prod
+for (const key of REQUIRED_PROD_ENV_KEYS) {
+  hydrateEnvFromFile('.env.production', key);
+  hydrateEnvFromFile('.env', key);
+}
+
+// Fail production builds when required Vite env is missing.
 const isProd = process.env.NODE_ENV === 'production' || process.argv.includes('--prod');
-const v = process.env[TARGET_ENV_KEY] || '';
-if (isProd && !v) {
-  console.error('[BUILD GUARD] VITE_QUACKLE_SERVICE_URL mancante per build production.');
+const missing = REQUIRED_PROD_ENV_KEYS.filter((key) => !(process.env[key] || '').trim());
+if (isProd && missing.length > 0) {
+  console.error(`[BUILD GUARD] Missing required production env: ${missing.join(', ')}`);
   process.exit(1);
 } else {
-  console.log('[BUILD GUARD] OK. VITE_QUACKLE_SERVICE_URL =', v || '(dev fallback)');
+  console.log('[BUILD GUARD] OK. Required production env present:', REQUIRED_PROD_ENV_KEYS.join(', '));
   process.exit(0);
 }

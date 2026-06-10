@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/integrations/supabase/client'
 import { GameRecord } from '@/types/multiplayer'
+import { gameParticipantFilters } from '@/lib/multiplayer/realtime'
 
 type UseActiveGamesResult = {
   activeGames: GameRecord[]
@@ -42,6 +43,11 @@ export function useActiveGames(userId?: string | null, onError?: (msg: string) =
 
   useEffect(() => {
     if (!userId) return
+    const [player1Filter, player2Filter] = gameParticipantFilters(userId)
+    const handleGameChange = () => {
+      fetchActiveGames()
+    }
+
     const channel = supabase
       .channel(`dashboard-games-${userId}`)
       .on(
@@ -50,11 +56,19 @@ export function useActiveGames(userId?: string | null, onError?: (msg: string) =
           event: '*',
           schema: 'public',
           table: 'games',
-          filter: `player1_id=eq.${userId},player2_id=eq.${userId}`
+          filter: player1Filter
         },
-        () => {
-          fetchActiveGames()
-        }
+        handleGameChange
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'games',
+          filter: player2Filter
+        },
+        handleGameChange
       )
       .subscribe()
 

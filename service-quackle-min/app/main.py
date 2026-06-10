@@ -65,6 +65,31 @@ def health():
 
 MAX_BODY_LEN = 32_000  # safeguard semplice
 
+MOVE_TOP_LEVEL_FIELDS = (
+    "score",
+    "equity",
+    "tiles",
+    "words",
+    "start_row",
+    "start_col",
+    "direction",
+    "word",
+    "engine_info",
+    "strategy_ok",
+    "exchange_letters",
+    "exchange_count",
+    "exchange_blind",
+)
+
+
+def _best_move_response(data: dict) -> dict:
+    move_type = data.get("move_type") or "play"
+    out = {"move_type": move_type, "raw": data}
+    for key in MOVE_TOP_LEVEL_FIELDS:
+        if key in data:
+            out[key] = data.get(key)
+    return out
+
 @app.post("/best-move")
 async def post_best_move(req: Request):
     if req.headers.get("content-length"):
@@ -88,16 +113,7 @@ async def post_best_move(req: Request):
     if not lexicon_ready():
         raise HTTPException(status_code=500, detail="lexicon_not_ready")
     data = best_move(rack, board)
-    # Pass-through semplificato -> normalizziamo solo la chiave raw
-    move_type = data.get("move_type") or "play"
-    out = {"move_type": move_type, "raw": data}
-    if move_type == "play":
-        out["score"] = data.get("score")
-        out["tiles"] = data.get("tiles")
-    elif move_type == "exchange":
-        if "exchange_letters" in data:
-            out["exchange_letters"] = data.get("exchange_letters")
-    return out
+    return _best_move_response(data)
 
 @app.get("/")
 def root():

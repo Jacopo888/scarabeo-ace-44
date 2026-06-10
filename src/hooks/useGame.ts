@@ -20,7 +20,7 @@ import { applyExchangeTiles, applyExchangeSelected, applyBotExchange } from '@/l
 import { applyEndTurn } from '@/lib/game/actionsEndTurn'
 import { applyPlaceTile } from '@/lib/game/actionsPlace'
 import { applyPickupTile } from '@/lib/game/actionsPickup'
-// Removed sanitizeQuackleTile and history builders: using raw engine data directly
+import { sanitizeQuackleTile } from '@/lib/game/tiles'
 import { titleForConfirmError } from '@/lib/game/toast'
 import { shouldPassBotMove } from '@/lib/game/botPass'
 import { summarizeMoveInfo } from '@/lib/game/moveUtils'
@@ -257,7 +257,16 @@ export const useGame = () => {
         return
       }
 
-      const playedTiles = move.tiles as PlacedTile[]
+      const playedTiles = move.tiles
+        .map(sanitizeQuackleTile)
+        .filter((tile): tile is PlacedTile => tile !== null)
+
+      if (import.meta.env.DEV && playedTiles.length !== move.tiles.length) {
+        console.warn('[useGame] Dropped invalid Quackle tiles:', {
+          received: move.tiles.length,
+          accepted: playedTiles.length
+        })
+      }
 
       if (shouldPassBotMove(move, playedTiles)) {
         toast({ title: 'Quackle passed', description: 'No playable move this turn.' })

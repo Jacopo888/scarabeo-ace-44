@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import type { PlacedTile, Tile } from '@/types/game'
 import { TILE_DISTRIBUTION } from '@/types/game'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
+import { TILE_LETTERS } from '@/config/ruleset'
 
 interface TileCounterProps {
   tileBag?: any[]
@@ -58,11 +59,8 @@ export const TileCounter: FC<TileCounterProps> = ({ tileBag, boardMap, myRack, o
 
   const unseenBy = useMemo(() => {
     // Unseen letters from my perspective: total - board - my rack
-    const letters = [
-      'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','?'
-    ]
     const d: Record<string, number> = {}
-    for (const k of letters) {
+    for (const k of TILE_LETTERS) {
       const v = (baseDist[k] || 0) - (boardCounts[k] || 0) - (myCounts[k] || 0)
       d[k] = v > 0 ? v : 0
     }
@@ -91,7 +89,7 @@ export const TileCounter: FC<TileCounterProps> = ({ tileBag, boardMap, myRack, o
           <div className="text-xs text-muted-foreground">Includes opponent rack</div>
           {unseenBy && (
             <div className="grid grid-cols-6 gap-1">
-              {['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','?']
+              {TILE_LETTERS
                 .filter(k => (unseenBy[k] ?? 0) > 0)
                 .map(k => (
                   <div key={k} className="flex items-center justify-between px-2 py-1 rounded bg-secondary text-xs">

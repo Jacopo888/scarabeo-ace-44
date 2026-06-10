@@ -16,9 +16,9 @@ export async function reportGameResult(game: GameRecord, winnerId?: string | nul
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        player1Id: Number(game.player1_id),
-        player2Id: Number(game.player2_id),
-        winnerId: winnerId ? Number(winnerId) : null,
+        player1Id: game.player1_id,
+        player2Id: game.player2_id,
+        winnerId: winnerId ?? null,
         mode
       })
     })

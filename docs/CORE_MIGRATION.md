@@ -31,7 +31,7 @@ Questa nota documenta la semplificazione della board e del piazzamento mosse ver
 - `applyConfirmMove` usa deps core (`makeCoreConfirmDeps`) per validazione e parole; punteggio via `calculateScore`.
 
 ## Integrazione Quackle (Step 6)
-- Payload board: `buildQuackleBoard()` produce mappa 1‑based `"r,c" → {letter,isBlank}`.
+- Payload board: `buildQuackleBoard()` produce mappa 0-based `"r,c" -> {letter,isBlank}`.
 - Rack: `formatRackStringForQuackle()` (stringa) o `formatRackForQuackle()`.
 - Punteggio mosse Quackle: ricalcolato localmente con `calculateScore()` per coerenza con i moltiplicatori.
 

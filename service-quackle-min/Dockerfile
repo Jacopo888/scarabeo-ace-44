@@ -7,11 +7,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake ca-certificates git && rm -rf /var/lib/apt/lists/*
 WORKDIR /build
 ARG QUACKLE_REPO_URL=https://github.com/Jacopo888/quacklejacopo.git
-ARG QUACKLE_REPO_REF=master
+ARG QUACKLE_REPO_REF=d280e6760f06b52dd8b8baf18c9bf152492c230d
+ARG QUACKLE_REPO_FETCH_REF=master
 RUN set -eux; \
-    echo "[builder] Clono $QUACKLE_REPO_URL (ref=$QUACKLE_REPO_REF)"; \
-    git clone --depth=1 --branch "$QUACKLE_REPO_REF" "$QUACKLE_REPO_URL" quackle || (echo "[builder][warn] clone shallow fallito, provo full clone" && git clone "$QUACKLE_REPO_URL" quackle); \
+    echo "[builder] Clono $QUACKLE_REPO_URL (ref=$QUACKLE_REPO_REF, fetch_ref=$QUACKLE_REPO_FETCH_REF)"; \
+    git init quackle; \
     cd quackle; \
+    git remote add origin "$QUACKLE_REPO_URL"; \
+    if git fetch --depth=1 origin "$QUACKLE_REPO_REF"; then \
+        git checkout --detach FETCH_HEAD; \
+    else \
+        echo "[builder][warn] fetch diretto del ref fallito; scarico $QUACKLE_REPO_FETCH_REF e checkout del ref richiesto"; \
+        git fetch --depth=1 origin "$QUACKLE_REPO_FETCH_REF"; \
+        git checkout --detach "$QUACKLE_REPO_REF"; \
+    fi; \
+    echo "[builder] Quackle checkout $(git rev-parse HEAD)"; \
     echo "[builder] Sovrascrivo json_wrapper_main.cpp con versione custom se presente nello stage build context"; \
     if [ -f /build/json_wrapper_main.cpp ]; then cp /build/json_wrapper_main.cpp ./json_wrapper_main.cpp; fi; \
     test -f CMakeLists.txt; \

@@ -1,5 +1,18 @@
 # Scarabeo-Ace-44
 
+## Product ruleset
+
+The live product is **Tilesword**. The current gameplay is English
+word-tile/Scrabble-compatible:
+
+- tile bag and points use the English distribution in `src/types/game.ts`
+- frontend dictionary and Quackle use ENABLE / `enable1.15`
+- board size is 15x15 with the standard premium-square layout
+
+This is not yet an Italian Scarabeo ruleset. Migrating to Italian Scarabeo would
+require a coordinated change to tile distribution, scores, frontend dictionary,
+Quackle lexicon files, strategy data, tests, and product copy.
+
 ## How can I edit this code?
 
 There are several ways of editing this application locally.
@@ -58,22 +71,26 @@ This project is built with:
 
 ## Environment variables
 
-The Supabase client relies on two environment variables:
+The Supabase client relies on two Vite environment variables:
 
-- `SUPABASE_URL` – URL of your Supabase instance
-- `SUPABASE_PUBLISHABLE_KEY` – the project's public API key
+- `VITE_SUPABASE_URL` - URL of your Supabase instance
+- `VITE_SUPABASE_PUBLISHABLE_KEY` - the project's public anon key
 
 Both variables must be available via Vite's `import.meta.env` system (for
 example by placing them in a `.env` file). The application will throw an error
 at startup if either one is missing.
 
 An `.env.example` file is included in the repository. Copy it to `.env` and
-add your Supabase credentials:
+add your Supabase frontend config:
 
 ```sh
 cp .env.example .env
-# then edit .env and provide values for SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY
+# then edit .env and provide values for VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY
 ```
+
+Use `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Local `.env*`
+files are ignored by Git; keep deploy values in Heroku config vars or local
+untracked env files.
 
 ## Quackle Service – Runtime Setup (Zero‑Tolerance)
 

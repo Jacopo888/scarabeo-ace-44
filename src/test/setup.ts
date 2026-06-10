@@ -1,4 +1,9 @@
 import '@testing-library/jest-dom/vitest'
+import { vi } from 'vitest'
+
+vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co')
+vi.stubEnv('VITE_SUPABASE_PUBLISHABLE_KEY', 'test-anon-key')
+
 // Vitest global setup for jsdom quirks
 // Polyfill window.matchMedia used by UI libs (e.g., sonner, shadcn)
 if (typeof window !== 'undefined' && !window.matchMedia) {

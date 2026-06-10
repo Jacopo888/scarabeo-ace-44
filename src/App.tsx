@@ -65,6 +65,7 @@ const AppContent = () => {
     if (health.status !== 'unhealthy' || !health.result) return null;
 
     let msg = "Quackle AI non raggiungibile";
+    if (health.result.engineReady === false) return `${msg} - motore non pronto`;
     if (health.result.error === 'CORS_ERROR') msg += " – controlla CORS_ORIGINS e l’URL del servizio";
     else if (health.result.error === 'TIMEOUT_ERROR') msg += " – timeout: verifica che il servizio sia up";
     else if (health.result.status) msg += ` – HTTP ${health.result.status}`;

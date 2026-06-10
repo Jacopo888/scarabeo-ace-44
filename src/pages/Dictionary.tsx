@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Search, BookOpen } from 'lucide-react';
+import { RULESET } from '@/config/ruleset';
 
 const Dictionary: React.FC = () => {
   const { isLoaded, wordCount, isValidWord } = useDictionary();
@@ -53,7 +54,7 @@ const Dictionary: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold">Dictionary</h1>
           <p className="text-muted-foreground">
-            ENABLE word list with {wordCount.toLocaleString()} words
+            {RULESET.wordListName} {RULESET.dictionaryLanguage} word list with {wordCount.toLocaleString()} words
           </p>
         </div>
       </div>
@@ -87,7 +88,7 @@ const Dictionary: React.FC = () => {
               
               {isValidWord(searchTerm) && (
                 <div className="text-sm text-muted-foreground">
-                  ✓ This word is accepted in standard word-tile gameplay
+                  This word is accepted by the current {RULESET.label}
                 </div>
               )}
             </div>
@@ -110,17 +111,17 @@ const Dictionary: React.FC = () => {
               <div className="text-sm text-muted-foreground">Word Lengths</div>
             </div>
             <div className="text-center p-4 bg-muted rounded-lg">
-              <div className="text-2xl font-bold text-primary">ENABLE</div>
+              <div className="text-2xl font-bold text-primary">{RULESET.wordListName}</div>
               <div className="text-sm text-muted-foreground">Word List</div>
             </div>
           </div>
           
           <div className="space-y-2">
-            <h3 className="font-semibold">About ENABLE Word List</h3>
+            <h3 className="font-semibold">About {RULESET.wordListName} Word List</h3>
             <p className="text-sm text-muted-foreground">
-              The Enhanced North American Benchmark LExicon (ENABLE) is a comprehensive word list 
-              containing over 173,000 words. It includes all words from 2 to 15 letters that are 
-              considered valid for word‑tile games.
+              The Enhanced North American Benchmark LExicon (ENABLE) is the English word list used by
+              Tilesword and the Quackle engine in this deployment. It contains over 173,000 words,
+              including words from 2 to 15 letters.
             </p>
           </div>
         </CardContent>

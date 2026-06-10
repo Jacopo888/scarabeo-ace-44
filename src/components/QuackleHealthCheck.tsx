@@ -3,7 +3,7 @@ import { AlertTriangle } from 'lucide-react'
 import { useQuackleHealth } from '@/hooks/useQuackleHealth'
 
 export const QuackleHealthCheck = () => {
-  const status = useQuackleHealth(30000)
+  const { status } = useQuackleHealth(30000)
 
   if (status === 'unhealthy') {
     return (

@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Local environment files. Keep only checked-in templates.
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -26,6 +31,9 @@ dist-ssr
 # Python venv and caches
 service-quackle/.venv/
 service-quackle/**/__pycache__/
+service-quackle-min/**/__pycache__/
+**/__pycache__/
+*.py[cod]
 .env.compose
 
 # General caches and temps
