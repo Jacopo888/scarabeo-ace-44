@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { GameState, Player, Tile, PlacedTile } from '@/types/game'
 import { calculateScore, calculateScoreAndWords } from '@/utils/scoring'
+import { canPlace } from '@/core/board'
 import { useToast } from '@/hooks/use-toast'
 import { useQuackleContext } from '@/contexts/QuackleContext'
 import { useDictionary } from '@/contexts/DictionaryContext'
@@ -20,7 +21,7 @@ import { applyExchangeTiles, applyExchangeSelected, applyBotExchange } from '@/l
 import { applyEndTurn } from '@/lib/game/actionsEndTurn'
 import { applyPlaceTile } from '@/lib/game/actionsPlace'
 import { applyPickupTile } from '@/lib/game/actionsPickup'
-import { sanitizeQuackleTile } from '@/lib/game/tiles'
+import { prepareQuacklePlacementTiles } from '@/lib/game/tiles'
 import { titleForConfirmError } from '@/lib/game/toast'
 import { shouldPassBotMove } from '@/lib/game/botPass'
 import { summarizeMoveInfo } from '@/lib/game/moveUtils'
@@ -257,19 +258,43 @@ export const useGame = () => {
         return
       }
 
-      const playedTiles = move.tiles
-        .map(sanitizeQuackleTile)
-        .filter((tile): tile is PlacedTile => tile !== null)
+      const preparedTiles = prepareQuacklePlacementTiles(move.tiles, snapshot.boardMatrix)
+      const playedTiles = preparedTiles.tiles
 
-      if (import.meta.env.DEV && playedTiles.length !== move.tiles.length) {
-        console.warn('[useGame] Dropped invalid Quackle tiles:', {
+      if (import.meta.env.DEV) {
+        console.log('[useGame] Prepared Quackle tiles:', {
           received: move.tiles.length,
-          accepted: playedTiles.length
+          acceptedNewTiles: playedTiles.length,
+          anchors: preparedTiles.anchors.length,
+          droppedInvalid: preparedTiles.droppedInvalid,
+          droppedDuplicate: preparedTiles.droppedDuplicate,
+          conflicts: preparedTiles.conflicts
         })
+      }
+
+      if (preparedTiles.conflicts.length > 0) {
+        toast({
+          title: 'Quackle move rejected',
+          description: 'The engine returned tiles that conflict with the current board.',
+          variant: 'destructive'
+        })
+        passTurn()
+        return
       }
 
       if (shouldPassBotMove(move, playedTiles)) {
         toast({ title: 'Quackle passed', description: 'No playable move this turn.' })
+        passTurn()
+        return
+      }
+
+      const placement = canPlace(snapshot.boardMatrix, playedTiles)
+      if (!placement.ok) {
+        toast({
+          title: 'Quackle move rejected',
+          description: `Invalid placement: ${placement.reason || 'invalid_move'}`,
+          variant: 'destructive'
+        })
         passTurn()
         return
       }
@@ -283,7 +308,7 @@ export const useGame = () => {
 
     // Apply bot move to game state (delegated)
   // Show all words formed (primary + cross words)
-    const wordsList = (Array.isArray((move as any).words) && (move as any).words.length > 0) ? (move as any).words : formedWords
+    const wordsList = formedWords
     toast({ title: 'Quackle played!', description: `+${finalScore} with words: ${wordsList.join(', ')}` })
     const applied = applyBotMove(snapshot, { sanitizedTiles: playedTiles, score: finalScore, words: wordsList })
   setGameState(applied.next)

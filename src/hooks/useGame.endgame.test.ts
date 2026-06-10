@@ -33,10 +33,10 @@ vi.mock('@/contexts/QuackleContext', () => {
       setDifficulty: vi.fn(),
       isThinking: false,
       makeMove: vi.fn(async (_gameState: any, rack: any[]) => {
-        // Return a horizontal placement across row 6 starting at col 0 (0-based)
+        // Return a horizontal opening placement that covers the center square (7,7).
         const tiles = rack.map((t, idx) => ({
-          row: 6,
-          col: idx,
+          row: 7,
+          col: 4 + idx,
           letter: (t.letter || 'A').toString().toUpperCase(), 
           points: t.points || 1, 
           isBlank: !!t.isBlank 

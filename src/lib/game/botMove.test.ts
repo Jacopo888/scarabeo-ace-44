@@ -34,5 +34,7 @@ describe('applyBotMove', () => {
     expect(next.boardMatrix).toBeTruthy()
   expect(next.boardMatrix[7][7]?.letter).toBe('A')
   expect(next.boardMatrix[7][8]?.letter).toBe('I')
+    expect(next.players[0].rack).toEqual([{ letter:'B', points:3 }])
+    expect(next.lastMove).toEqual([{ row:7, col:8, letter:'I', points:1, isBlank:false }])
   })
 })

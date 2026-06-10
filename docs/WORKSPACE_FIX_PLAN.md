@@ -292,3 +292,26 @@ Verifiche eseguite:
 - `npm run lint`
 - `npm test`
 - `npm run build:prod`
+
+## HOTFIX-2026-06-10 - Coordinate Quackle su parole con lettere gia in board
+
+Stato: completato
+
+Problema: quando Quackle propone una parola che attraversa lettere gia presenti sul tabellone, il wrapper C++ usava `Move::usedTiles()` per calcolare le coordinate. `usedTiles()` contiene solo le tessere del rack e non conserva i marker delle lettere gia in board; dopo la prima ancora, le coordinate venivano quindi sfasate. Il frontend poteva ricevere tessere sopra caselle occupate, parole "fantasma" e punteggi associati a parole non realmente formate.
+
+Fix applicato:
+- In `service-quackle-min/json_wrapper_main.cpp`, la lista `tiles` viene costruita da `Move::tiles()`, che conserva i marker play-through.
+- Le lettere gia in board non vengono emesse come nuove tessere, ma contribuiscono alla parola completa restituita in `word`.
+- In `src/lib/game/tiles.ts`, `prepareQuacklePlacementTiles` separa tessere nuove, ancore gia presenti e conflitti.
+- In `src/hooks/useGame.ts`, le mosse Quackle vengono validate con `canPlace`, i conflitti vengono respinti e il punteggio/parole vengono ricalcolati lato client sulla board reale.
+- In `src/lib/game/botMove.ts`, rack e `lastMove` usano solo le tessere effettivamente piazzate, non eventuali ancore o overlap.
+
+Verifiche eseguite:
+- Riprodotto il bug con `ZAIRES` in riga 7 e rack `ABCDEFG`: prima Quackle restituiva una tessera sopra `7,4`; dopo il fix restituisce `FACADE` con nuove tessere solo su `6,4`, `8,4`, `9,4`, `10,4`, `11,4`.
+- Test container locale `service-quackle-local:playthrough-fix` su `/best-move`.
+- Test live su `https://service-quackle-6773ae98281f.herokuapp.com/best-move` dopo deploy Heroku `service-quackle` v116.
+- `npm test`
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build:prod`
+- `python -m pytest service-quackle-min\tests -q`

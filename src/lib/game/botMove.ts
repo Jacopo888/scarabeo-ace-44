@@ -17,6 +17,7 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
 
   // Update board matrix (immutable clone)
   const nextMatrix = cloneBoard(prev.boardMatrix)
+  const placedTiles: PlacedTile[] = []
   // COORDINATE TRACE: Log tiles BEFORE writing to matrix
   if (isDebugQuackle && sanitizedTiles.length > 0) {
     console.log('[applyBotMove] 🎯 TRACE - Input sanitizedTiles[0].row:', sanitizedTiles[0].row)
@@ -36,6 +37,7 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
         col: tile.col,
         isBlank: tile.isBlank || false
       }
+      placedTiles.push(tile)
       // COORDINATE TRACE: Log what we just wrote
       if (isDebugQuackle) {
         console.log(`[applyBotMove] 🎯 TRACE - Wrote to nextMatrix[${tile.row}][${tile.col}]:`, nextMatrix[tile.row][tile.col])
@@ -48,8 +50,8 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
   // eslint-disable-next-line no-console
   if (isDebugQuackle) console.log('[applyBotMove] Rack before:', newRack.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
   // eslint-disable-next-line no-console
-  if (isDebugQuackle) console.log('[applyBotMove] Using tiles:', sanitizedTiles.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
-  sanitizedTiles.forEach(usedTile => {
+  if (isDebugQuackle) console.log('[applyBotMove] Using tiles:', placedTiles.map(t => ({ L: t.letter, P: t.points, B: !!t.isBlank })))
+  placedTiles.forEach(usedTile => {
     const idx = newRack.findIndex(t => {
       if (usedTile.isBlank && t.isBlank) return true
       return (t.letter || '').toUpperCase() === usedTile.letter && t.points === usedTile.points
@@ -99,7 +101,7 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
         tileBag: remaining,
         gameStatus: 'finished',
         passCounts: newPassCounts,
-        lastMove: sanitizedTiles
+        lastMove: placedTiles
       }
     }
   }
@@ -118,7 +120,7 @@ export function applyBotMove(prev: GameState, payload: BotMovePayload): { next: 
       tileBag: remaining,
       currentPlayerIndex: (prev.currentPlayerIndex + 1) % prev.players.length,
       passCounts: newPassCounts,
-      lastMove: sanitizedTiles
+      lastMove: placedTiles
     }
   }
 }

@@ -111,14 +111,22 @@ int main(){ std::ios::sync_with_stdio(false); InputPayload payload; std::string 
 		PlayerList players; players.push_back(Player(MARK_UV("P1"), Player::HumanPlayerType, 0)); Game game; game.setPlayers(players); game.addPosition(); game.currentPosition().setBoard(board); game.currentPosition().ensureBoardIsPreparedForAnalysis(); LetterString rackLetters; for(char ch: rack){ if(ch=='?') rackLetters+=QUACKLE_BLANK_MARK; else { UVString uvs; uvs.push_back(ch); LetterString enc=QUACKLE_ALPHABET_PARAMETERS->encode(uvs); if(enc.length()) rackLetters+=enc[0]; } } game.currentPosition().setCurrentPlayerRack(Rack(rackLetters));
 		Generator gen(game.currentPosition()); gen.kibitz(50); const MoveList &list = gen.kibitzList(); if(list.empty()){ std::cout<<"{\"status\":\"ok\",\"move_type\":\"pass\",\"strategy_ok\":true}"<<std::endl; return 0; }
 		const Move *bestPtr=nullptr; double bestEq=-1e18; for(const auto &mv: list){ double mvEq=(mv.equity==0.0? (double)mv.score : mv.equity); if(!bestPtr||mvEq>bestEq){ bestPtr=&mv; bestEq=mvEq; } } const Move &best=*bestPtr; double eq=bestEq;
-	// Build new tiles array using usedTiles() (which includes play-thru marks)
-	// Coordinates are 0-based and we emit only NEW tiles (skip play-thru '.')
-	std::ostringstream tilesJson; tilesJson<<"["; bool firstOut=true; LetterString used = best.usedTiles();
-	for(int idx=0; idx<(int)used.length(); ++idx){
+	// Build new tiles array using tiles(), which preserves play-thru markers.
+	// usedTiles() contains only rack tiles; using it for coordinates shifts every tile after an anchor.
+	// Coordinates are 0-based and we emit only NEW tiles (skip play-thru '.').
+	std::ostringstream tilesJson; tilesJson<<"["; bool firstOut=true; LetterString moveTiles = best.tiles();
+	LetterString fullWordTiles;
+	for(int idx=0; idx<(int)moveTiles.length(); ++idx){
 		int row = best.startrow + (best.horizontal ? 0 : idx);
 		int col = best.startcol + (best.horizontal ? idx : 0);
-		Letter internal = used[idx];
-		if (Move::isAlreadyOnBoard(internal)) continue; // skip tiles already present
+		Letter internal = moveTiles[idx];
+		if (Move::isAlreadyOnBoard(internal)) {
+			Letter boardLetter = boardBefore.letter(row, col);
+			if (boardLetter != QUACKLE_NULL_MARK)
+				fullWordTiles += QUACKLE_ALPHABET_PARAMETERS->clearBlankness(boardLetter);
+			continue; // skip tiles already present
+		}
+		fullWordTiles += QUACKLE_ALPHABET_PARAMETERS->clearBlankness(internal);
 		bool isBlank = QUACKLE_ALPHABET_PARAMETERS->isBlankLetter(internal);
 		Letter plain = QUACKLE_ALPHABET_PARAMETERS->clearBlankness(internal);
 		int points = isBlank ? 0 : QUACKLE_ALPHABET_PARAMETERS->score(plain);
@@ -133,7 +141,7 @@ int main(){ std::ios::sync_with_stdio(false); InputPayload payload; std::string 
 		         <<"}";
 	}
 	tilesJson<<"]";
-	UVString wordUV=QUACKLE_ALPHABET_PARAMETERS->userVisible(best.wordTilesWithNoPlayThru()); std::string word; word.reserve(wordUV.size()); for(auto ch: wordUV) word.push_back((char)ch); std::string dir=best.horizontal?"H":"V";
+	UVString wordUV=QUACKLE_ALPHABET_PARAMETERS->userVisible(fullWordTiles); std::string word; word.reserve(wordUV.size()); for(auto ch: wordUV) word.push_back((char)ch); std::string dir=best.horizontal?"H":"V";
 	int bw = QUACKLE_BOARD_PARAMETERS ? QUACKLE_BOARD_PARAMETERS->width() : 15;
 	int bh = QUACKLE_BOARD_PARAMETERS ? QUACKLE_BOARD_PARAMETERS->height() : 15;
 	int bsR = QUACKLE_BOARD_PARAMETERS ? QUACKLE_BOARD_PARAMETERS->startRow() : 7;
