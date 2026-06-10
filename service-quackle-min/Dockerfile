@@ -67,7 +67,7 @@ RUN chmod -R a+r /data/appdata/strategy
 # Lessici: cartella scrivibile a runtime
 RUN mkdir -p /data/lexica
 COPY scripts/bootstrap_lexicon.sh /usr/local/bin/bootstrap_lexicon.sh
-RUN chmod +x /usr/local/bin/bootstrap_lexicon.sh
+RUN sed -i 's/\r$//' /usr/local/bin/bootstrap_lexicon.sh && chmod +x /usr/local/bin/bootstrap_lexicon.sh
 
 # Percorsi target nello slug
 # (copia già effettuata sopra in /data/appdata/strategy; qui solo ENV coerenti)
@@ -79,7 +79,7 @@ ENV QUACKLE_APPDATA_DIR=/data/appdata \
 # Entrypoint: script con logging + exec uvicorn (aiuta il debug su Heroku "realloc(): invalid pointer")
 ENV PYTHONFAULTHANDLER=1
 COPY scripts/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh && chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD curl -fsS http://localhost:8000/health || exit 1

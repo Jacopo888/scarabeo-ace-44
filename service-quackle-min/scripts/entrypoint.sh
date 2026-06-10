@@ -1,5 +1,5 @@
 #!/bin/sh
-set -euxo pipefail
+set -eux
 
 # If a command is provided (e.g., heroku run bash -lc '...'), execute it directly
 if [ "$#" -gt 0 ]; then
