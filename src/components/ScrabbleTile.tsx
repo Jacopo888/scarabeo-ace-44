@@ -41,7 +41,7 @@ export const ScrabbleTile = ({
       transition={{ type: 'spring', stiffness: 400, damping: 25 }}
       className={cn(
         // Responsive dimensions: match board cell sizes
-        isOnBoard ? "w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-10 lg:h-10" : "w-12 h-12",
+        isOnBoard ? "w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 lg:w-9 lg:h-9" : "w-12 h-12",
         "relative bg-tile rounded-md flex items-center justify-center select-none",
         // Different transition behavior for on-board vs off-board tiles
         isOnBoard ? "transition-colors" : "transition-all",
@@ -65,7 +65,7 @@ export const ScrabbleTile = ({
           "text-tile-text font-bold leading-none pointer-events-none",
           // Larger letter to nearly fill tile
           isOnBoard
-            ? "text-[14px] xs:text-[16px] sm:text-[18px] md:text-lg"
+            ? "text-[14px] xs:text-[16px] sm:text-[18px] md:text-lg lg:text-lg"
             : "text-3xl"
         )}
       >

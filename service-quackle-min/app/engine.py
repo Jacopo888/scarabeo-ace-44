@@ -5,13 +5,14 @@ from fastapi import HTTPException
 from .config import ENGINE_BIN, TIMEOUT_MS, LEXICON
 import os
 
-def best_move(rack: str, board: dict) -> dict:
+def best_move(rack: str, board: dict, top_n: int = 1) -> dict:
     payload = {
         "op": "best_move",
         "rack": rack,
         "board": board,
         "lexicon": LEXICON,
-        "strategies": True
+        "strategies": True,
+        "top_n": top_n,
     }
     try:
         proc = subprocess.run(

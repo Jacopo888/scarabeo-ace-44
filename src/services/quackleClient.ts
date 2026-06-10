@@ -19,10 +19,10 @@ export interface QuackleHealthResult {
   error?: NetworkErrorCode
 }
 
-export interface QuackleMove {
-  tiles: PlacedTile[];
+export interface QuackleMoveCandidate {
+  tiles?: PlacedTile[];
   score: number;
-  words: string[];
+  words?: string[];
   move_type: string;
   // Raw engine metadata (added for direct pass-through, may be undefined if engine omits)
   start_row?: number;
@@ -44,6 +44,12 @@ export interface QuackleMove {
   error?: string;
   exchange_letters?: string[] // e.g., ['A','E','?'] '?' indicates blank
   exchange_blind?: boolean
+  rank?: number
+}
+
+export interface QuackleMove extends QuackleMoveCandidate {
+  raw?: unknown
+  moves?: QuackleMoveCandidate[]
 }
 
 // fetchWithTimeout now provided by ./http
@@ -143,6 +149,19 @@ export async function quackleBestMove(payload: any): Promise<QuackleMove> {
     throw new Error(errMsg);
   }
   return data;
+}
+
+export async function quackleTopMoves(payload: any, topN: number): Promise<QuackleMoveCandidate[]> {
+  const move = await quackleBestMove({
+    ...payload,
+    top_n: Math.max(1, Math.min(10, Math.trunc(Number(topN) || 1)))
+  })
+
+  if (Array.isArray(move.moves) && move.moves.length > 0) {
+    return move.moves
+  }
+
+  return [move]
 }
 
 export async function quackleCors(): Promise<{ allow_origins: string[]; status: number }> {

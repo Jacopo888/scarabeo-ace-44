@@ -159,6 +159,7 @@ const GameContent = () => {
                 tiles={rackToShow}
                 selectedTiles={!isBotTurn && selectedTileIndex !== null ? [selectedTileIndex] : []}
                 onTileSelect={!isBotTurn ? handleTileSelect : undefined}
+                onShuffle={!isBotTurn ? reshuffleTiles : undefined}
               />
               <div className="flex items-center justify-between">
                 <ActionBar

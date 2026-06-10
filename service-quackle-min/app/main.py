@@ -79,6 +79,7 @@ MOVE_TOP_LEVEL_FIELDS = (
     "exchange_letters",
     "exchange_count",
     "exchange_blind",
+    "moves",
 )
 
 
@@ -110,9 +111,15 @@ async def post_best_move(req: Request):
         raise HTTPException(status_code=400, detail="invalid_input")
     rack = normalize_rack(body.get("rack"))
     board = validate_board_coord_map(body.get("board") or {})
+    try:
+        top_n = int(body.get("top_n", 1))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="invalid_input")
+    if top_n < 1 or top_n > 10:
+        raise HTTPException(status_code=400, detail="invalid_input")
     if not lexicon_ready():
         raise HTTPException(status_code=500, detail="lexicon_not_ready")
-    data = best_move(rack, board)
+    data = best_move(rack, board, top_n=top_n)
     return _best_move_response(data)
 
 @app.get("/")

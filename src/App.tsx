@@ -15,6 +15,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Dictionary from "./pages/Dictionary";
 import Lobby from "./pages/Lobby";
+import Sandbox from "./pages/Sandbox";
 import NotFound from "./pages/NotFound";
 import QuackleDebug from "./pages/QuackleDebug";
 import { QuackleProvider } from "./contexts/QuackleContext";
@@ -46,6 +47,7 @@ const AppRoutes = () => {
           <Route path="/auth" element={<Auth />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dictionary" element={<Dictionary />} />
+          <Route path="/sandbox" element={<Sandbox />} />
           <Route path="/lobby" element={<Lobby />} />
           {/** Puzzle/Daily routes removed */}
             <Route path="/__debug/quackle" element={<QuackleDebug />} />

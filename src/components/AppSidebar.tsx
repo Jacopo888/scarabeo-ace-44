@@ -1,4 +1,4 @@
-import { Home, Users, BookOpen } from "lucide-react"
+import { BookOpen, FlaskConical, Home, Users } from "lucide-react"
 import { useLocation } from "react-router-dom"
 import { motion } from "framer-motion"
 
@@ -17,6 +17,7 @@ const items = [
   { title: "Home", url: "/", icon: Home },
   { title: "Dashboard", url: "/dashboard", icon: Users },
   { title: "Dictionary", url: "/dictionary", icon: BookOpen },
+  { title: "Sandbox", url: "/sandbox", icon: FlaskConical },
 ]
 
 export function AppSidebar() {
