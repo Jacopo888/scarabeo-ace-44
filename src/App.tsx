@@ -24,6 +24,7 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { NotificationSystem } from "./components/NotificationSystem";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useQuackleHealth } from "./hooks/useQuackleHealth";
+import { AutoCollapseGameSidebar } from "./components/sidebar/AutoCollapseGameSidebar";
 
 const queryClient = new QueryClient();
 
@@ -85,6 +86,7 @@ const AppContent = () => {
   }, [health.status, quackleError]);
   return (
     <SidebarProvider>
+      <AutoCollapseGameSidebar />
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
         <div className="flex-1 flex flex-col">
