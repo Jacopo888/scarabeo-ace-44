@@ -49,6 +49,14 @@ async def best_move(req: Request):
         diff_raw = (body.get("difficulty") if isinstance(body, dict) else None) or None
         if isinstance(diff_raw, str) and diff_raw.strip().lower() in {"easy", "medium", "hard"}:
             payload["difficulty"] = diff_raw.strip().lower()
+
+        try:
+            top_n = int(body.get("top_n", 1))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="invalid_input")
+        if top_n < 1 or top_n > 10:
+            raise HTTPException(status_code=400, detail="invalid_input")
+        payload["top_n"] = top_n
         
         # Optional: pass-through bag_pool (list of single-letter strings, '?' for blanks)
         # bag_count is now derived internally from bag_pool length when needed
@@ -56,6 +64,7 @@ async def best_move(req: Request):
             bp = body.get("bag_pool") if isinstance(body, dict) else None
             if isinstance(bp, list) and all(isinstance(x, str) and len(x) >= 1 for x in bp):
                 payload["bag_pool"] = [str(x)[:1] for x in bp]
+                payload["bag_count"] = len(payload["bag_pool"])
         except Exception:
             pass
 
@@ -193,6 +202,7 @@ async def best_move(req: Request):
         out = {
             "tiles": tiles_out,
             "score": score_out,
+            "equity": result.get("equity", score_out) if isinstance(result, dict) else score_out,
             "words": words_out or [],
             "move_type": move_type,
             "engine_fallback": False,
@@ -208,6 +218,20 @@ async def best_move(req: Request):
             eng_info = result.get("engine_info") if isinstance(result, dict) else None
             if isinstance(eng_info, dict):
                 out["engine_info"] = eng_info
+        except Exception:
+            pass
+        try:
+            moves_in = result.get("moves") if isinstance(result, dict) else None
+            if isinstance(moves_in, list):
+                moves_out = []
+                for move in moves_in:
+                    if not isinstance(move, dict):
+                        continue
+                    normalized = dict(move)
+                    if isinstance(normalized.get("tiles"), list):
+                        normalized["tiles"] = _normalize_tiles_0based(normalized.get("tiles") or [])
+                    moves_out.append(normalized)
+                out["moves"] = moves_out
         except Exception:
             pass
         # Passa info exchange se presenti

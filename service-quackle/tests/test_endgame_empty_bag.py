@@ -18,10 +18,6 @@ def have_gaddag():
     return p.exists() and p.stat().st_size > 0
 
 
-def empty_grid():
-    return ["." * 15 for _ in range(15)]
-
-
 def _fresh_client_with_prod_env():
     # Ensure we do NOT skip lexicon check and we pick up env vars
     os.environ['ENV'] = 'prod'
@@ -40,11 +36,7 @@ def test_endgame_empty_bag_finishing_play_possible():
     client = _fresh_client_with_prod_env()
     body = {
         "rack": "A",  # single tile, valid word on its own in English
-        "board": {
-            "rows": 15,
-            "cols": 15,
-            "grid": empty_grid(),
-        },
+        "board": {},
         "difficulty": "hard",
         # Endgame: empty bag (bag_count derived from bag_pool length)
         "bag_pool": [],
@@ -71,11 +63,7 @@ def test_endgame_empty_bag_no_play_then_pass():
     client = _fresh_client_with_prod_env()
     body = {
         "rack": "Q",  # single tile, not a valid standalone word
-        "board": {
-            "rows": 15,
-            "cols": 15,
-            "grid": empty_grid(),
-        },
+        "board": {},
         "difficulty": "hard",
         # Endgame: empty bag (bag_count derived from bag_pool length)
         "bag_pool": [],

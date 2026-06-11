@@ -140,16 +140,21 @@ def ensure_strategy_files() -> Dict[str, Any]:
         "dest": str(dest_base),
         "files": {},
         "errors": [],
+        "warnings": [],
     }
 
     if not src_base.exists():
         result["errors"].append("strategy_src_missing")
         return result
 
+    copy_error: Optional[str] = None
     try:
-        shutil.copytree(src_base, dest_base, dirs_exist_ok=True)
+        dest_base.parent.mkdir(parents=True, exist_ok=True)
+        same_tree = dest_base.exists() and src_base.resolve() == dest_base.resolve()
+        if not same_tree:
+            shutil.copytree(src_base, dest_base, dirs_exist_ok=True)
     except Exception as e:
-        result["errors"].append(f"copy_failed:{e}")
+        copy_error = str(e)
 
     missing: List[str] = []
     for subset, names in required.items():
@@ -165,6 +170,10 @@ def ensure_strategy_files() -> Dict[str, Any]:
 
     if missing:
         result["errors"].append("missing:" + ",".join(missing))
+        if copy_error:
+            result["errors"].append(f"copy_failed:{copy_error}")
+    elif copy_error:
+        result["warnings"].append(f"copy_skipped_after_ready:{copy_error}")
 
-    result["ok"] = not result["errors"]
+    result["ok"] = not missing
     return result

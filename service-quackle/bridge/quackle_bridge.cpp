@@ -12,6 +12,7 @@
 #include <csignal>
 #include <sys/stat.h>
 #include <set>
+#include <algorithm>
 #include "include/bridge_utils.hpp"
 #include "include/validation_utils.hpp"
 #include "include/response_utils.hpp"
@@ -54,6 +55,98 @@ static int kibitzLenFor(const std::string& d){ if(d=="easy")return 5; if(d=="har
 
 // strategy file helpers now provided by bridge_utils.hpp
 
+struct ScopedStdoutCapture {
+  std::streambuf *original{nullptr};
+  std::ostringstream captured;
+  bool active{false};
+
+  void start() {
+    if (!active) {
+      original = std::cout.rdbuf(captured.rdbuf());
+      active = true;
+    }
+  }
+
+  std::string restore() {
+    if (active) {
+      std::cout.rdbuf(original);
+      active = false;
+    }
+    return captured.str();
+  }
+
+  ~ScopedStdoutCapture() {
+    if (active) {
+      std::cout.rdbuf(original);
+    }
+  }
+};
+
+static void log_captured_stdout(const std::string &captured)
+{
+  if (captured.empty()) return;
+  std::string head = captured.substr(0, 2000);
+  std::fprintf(stderr, "[DEBUG] Captured %zu bytes from Quackle stdout; first bytes:\n%s%s\n",
+               captured.size(),
+               head.c_str(),
+               captured.size() > head.size() ? "\n[DEBUG] ...stdout truncated..." : "");
+}
+
+// Force the board expected by the web app and by the JSON API: classic 15x15,
+// zero-based center at (7,7), with standard Scrabble multipliers.
+static void configure_standard_board()
+{
+  Quackle::BoardParameters *bp = QUACKLE_BOARD_PARAMETERS;
+  if (!bp) return;
+
+  bp->setWidth(15);
+  bp->setHeight(15);
+  bp->setStartRow(7);
+  bp->setStartColumn(7);
+
+  const int letter_m[15][15] = {
+    {1,1,1,2,1,1,1,1,1,1,1,2,1,1,1},
+    {1,1,1,1,1,3,1,1,1,3,1,1,1,1,1},
+    {1,1,1,1,1,1,2,1,2,1,1,1,1,1,1},
+    {2,1,1,1,1,1,1,2,1,1,1,1,1,1,2},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,3,1,1,1,3,1,1,1,3,1,1,1,3,1},
+    {1,1,2,1,1,1,2,1,2,1,1,1,2,1,1},
+    {1,1,1,2,1,1,1,1,1,1,1,2,1,1,1},
+    {1,1,2,1,1,1,2,1,2,1,1,1,2,1,1},
+    {1,3,1,1,1,3,1,1,1,3,1,1,1,3,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {2,1,1,1,1,1,1,2,1,1,1,1,1,1,2},
+    {1,1,1,1,1,1,2,1,2,1,1,1,1,1,1},
+    {1,1,1,1,1,3,1,1,1,3,1,1,1,1,1},
+    {1,1,1,2,1,1,1,1,1,1,1,2,1,1,1},
+  };
+  const int word_m[15][15] = {
+    {3,1,1,1,1,1,1,3,1,1,1,1,1,1,3},
+    {1,2,1,1,1,1,1,1,1,1,1,1,1,2,1},
+    {1,1,2,1,1,1,1,1,1,1,1,1,2,1,1},
+    {1,1,1,2,1,1,1,1,1,1,1,2,1,1,1},
+    {1,1,1,1,2,1,1,1,1,1,2,1,1,1,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {3,1,1,1,1,1,1,2,1,1,1,1,1,1,3},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+    {1,1,1,1,2,1,1,1,1,1,2,1,1,1,1},
+    {1,1,1,2,1,1,1,1,1,1,1,2,1,1,1},
+    {1,1,2,1,1,1,1,1,1,1,1,1,2,1,1},
+    {1,2,1,1,1,1,1,1,1,1,1,1,1,2,1},
+    {3,1,1,1,1,1,1,3,1,1,1,1,1,1,3},
+  };
+
+  for (int r = 0; r < 15; ++r) {
+    for (int c = 0; c < 15; ++c) {
+      bp->setLetterMultiplier(r, c, static_cast<Quackle::BoardParameters::LetterMultiplier>(letter_m[r][c]));
+      bp->setWordMultiplier(r, c, static_cast<Quackle::BoardParameters::WordMultiplier>(word_m[r][c]));
+    }
+  }
+}
+
 int main(int argc, char** argv){
   std::signal(SIGSEGV, segv_handler);
   cursorDebugLog("Bridge avviato.");
@@ -90,6 +183,7 @@ int main(int argc, char** argv){
       if (!QUACKLE_DATAMANAGER->boardParameters()) {
         QUACKLE_DATAMANAGER->setBoardParameters(new Quackle::EnglishBoard());
       }
+      configure_standard_board();
       if (!QUACKLE_DATAMANAGER->strategyParameters()) {
         QUACKLE_DATAMANAGER->setStrategyParameters(new Quackle::StrategyParameters());
       }
@@ -205,8 +299,16 @@ int main(int argc, char** argv){
     const json jboard = req.value("board", json::object());
     std::set<std::pair<int,int>> originalBoardSquares;
   const json jrack  = req.value("rack",  json::array());
-  const int bagCountHint = req.value("bag_count", -1);
-  const json jbagPool = req.value("bag_pool", json::array());
+  const bool hasBagPoolHint = req.contains("bag_pool") && req["bag_pool"].is_array();
+  const json jbagPool = hasBagPoolHint ? req["bag_pool"] : json::array();
+  const int bagCountHint = req.value("bag_count", hasBagPoolHint ? static_cast<int>(jbagPool.size()) : -1);
+  int topN = 1;
+  try {
+    if (req.contains("top_n")) topN = req["top_n"].get<int>();
+  } catch (...) {
+    topN = 1;
+  }
+  topN = std::max(1, std::min(10, topN));
     const std::string ruleset = req.value("ruleset", std::string("en"));
   const std::string diff = req.value("difficulty", std::string("medium"));
   const int kibitzLen = kibitzLenFor(diff);
@@ -359,6 +461,7 @@ int main(int argc, char** argv){
       debugLog("Creating English board parameters");
       QUACKLE_DATAMANAGER->setBoardParameters(new Quackle::EnglishBoard());
     }
+    configure_standard_board();
     if (!QUACKLE_DATAMANAGER->strategyParameters()) {
       debugLog("Creating default strategy parameters");
       QUACKLE_DATAMANAGER->setStrategyParameters(new Quackle::StrategyParameters());
@@ -623,18 +726,25 @@ int main(int argc, char** argv){
     players.push_back(playerB);
     
     // Create game position with players
+    configure_standard_board();
     Quackle::GamePosition pos(players);
+    pos.incrementTurn();
+    pos.setCurrentPlayer(0);
+    pos.setPlayerOnTurn(0);
+    pos.setCurrentPlayerRack(Quackle::Rack(""), false);
+    pos.setOppRack(Quackle::Rack(""), false);
     
     // Initialize board properly 
     Quackle::Board &board = pos.underlyingBoardReference();
     board.prepareEmptyBoard();
     debugLog("Board prepared");
     
-    // Set up bag from bag_pool if provided, else default bag
+    // Set up bag from bag_pool if provided, else default bag.
+    // An explicitly empty bag_pool is meaningful: it enables exact endgame search.
     Quackle::Bag bag;
     try {
-      if (jbagPool.is_array() && !jbagPool.empty()) {
-  Quackle::LetterString ls;
+      if (hasBagPoolHint) {
+        Quackle::LetterString ls;
         for (const auto &e : jbagPool) {
           if (!e.is_string()) continue;
           std::string s = e.get<std::string>();
@@ -660,7 +770,8 @@ int main(int argc, char** argv){
     
     // Set current player and rack (force recalculation of internals)
     pos.setCurrentPlayer(0);
-    pos.setCurrentPlayerRack(rr, true);
+    pos.setPlayerOnTurn(0);
+    pos.setCurrentPlayerRack(rr, !hasBagPoolHint);
     debugLog("Current player rack set");
     
     // Verify the position is valid
@@ -753,6 +864,9 @@ int main(int argc, char** argv){
       }
     }
 
+    ScopedStdoutCapture engineStdout;
+    engineStdout.start();
+
     debugLog("Starting move generation...");
     // Generate best move: prefer High-Level GamePosition::kibitz, then fallback to Generator if needed
     debugLog("Generating best move (HL first, then GEN fallback)...");
@@ -761,6 +875,7 @@ int main(int argc, char** argv){
     try { pos.ensureBoardIsPreparedForAnalysis(); } catch (...) {}
 
   Quackle::Move best;
+  Quackle::MoveList rankedMoves;
   bool foundValidMove = false;
   // Strict HL: sempre vero nelle tre modalità richieste (accetta Pass/Exchange così come sono)
   const bool strictHL = true;
@@ -818,6 +933,7 @@ int main(int argc, char** argv){
       // Consideriamo valido qualsiasi azione proposta dall'HL (Place/Exchange/Pass)
       foundValidMove = true;
       hlSucceeded = true;
+      rankedMoves = hlMoves;
       fprintf(stderr, "[DEBUG] HL result: action=%d score=%d\n", (int)best.action, best.score);
     } catch (const std::exception &e) {
       debugLog(std::string("Exception during high-level kibitz: ") + e.what());
@@ -845,10 +961,8 @@ int main(int argc, char** argv){
         int simTop   = env_int("QUACKLE_SIM_TOP", 5);
         int simDepth = env_int("QUACKLE_SIM_DEPTH", 2);
         int simIters = env_int("QUACKLE_SIM_ITERS", 40);
-        int simThreads = env_int("QUACKLE_SIM_THREADS", 2);
         if (simTop > 0 && simDepth >= 0 && simIters > 0) {
           Quackle::Simulator sim;
-          if (simThreads >= 0) sim.setThreadCount((size_t)simThreads);
           sim.setPosition(pos);
           // Includi le top-N mosse dalla lista HL
           Quackle::MoveList topMoves;
@@ -856,7 +970,7 @@ int main(int argc, char** argv){
           int m = std::min(simTop, n);
           for (int i = 0; i < m; ++i) topMoves.push_back(pos.moves()[i]);
           if (m > 0) {
-            fprintf(stderr, "[DEBUG] Running MONTE CARLO simulator: bag=%d top=%d depth=%d iters=%d threads=%d\n", bagSize, simTop, simDepth, simIters, simThreads);
+            fprintf(stderr, "[DEBUG] Running MONTE CARLO simulator: bag=%d top=%d depth=%d iters=%d\n", bagSize, simTop, simDepth, simIters);
             sim.setIncludedMoves(topMoves);
             sim.setIgnoreOppos(false);
             sim.simulate(simDepth, simIters);
@@ -864,6 +978,7 @@ int main(int argc, char** argv){
               Quackle::MoveList sm = sim.moves(/*prune=*/true, /*byWin=*/false);
               if (!sm.empty()) {
                 best = sm.front();
+                rankedMoves = sm;
                 usedSimulator = true;
                 foundValidMove = true;
                 enginePath = "hl"; // resta HL, ma con selezione via sim
@@ -885,8 +1000,18 @@ int main(int argc, char** argv){
       if (diff == "hard" && bagSize <= endgameThreshold && !usedSimulator) {
         Quackle::Endgame eg;
         eg.setPosition(pos);
-        Quackle::Move egm = eg.solve(/*nestedness=*/0);
-        best = egm;
+        if (topN > 1) {
+          rankedMoves = eg.moves(static_cast<unsigned int>(topN));
+          if (!rankedMoves.empty()) {
+            best = rankedMoves.front();
+          } else {
+            best = eg.solve(/*nestedness=*/0);
+          }
+        } else {
+          best = eg.solve(/*nestedness=*/0);
+          rankedMoves.clear();
+          rankedMoves.push_back(best);
+        }
         usedEndgameSolver = true;
         enginePath = "endgame";
         foundValidMove = true;
@@ -913,95 +1038,126 @@ int main(int argc, char** argv){
     debugLog("Best move type: " + std::string(foundValidMove ? "play" : "pass"));
     
     try {
-  // Convert the move to JSON
-  json tiles = json::array();
-  json words = json::array();
-        
-        // Check move type
-        if (best.action == Quackle::Move::Pass) {
-            debugLog("Move is a pass");
-            json response;
-            response["tiles"] = json::array();
-            response["score"] = 0;
-            response["words"] = json::array();
-            response["move_type"] = "pass";
-            response["engine_fallback"] = false;
-            response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedSimulator ? "simulating" : (usedEndgameSolver ? "endgame" : "static")}};
-            std::cout << response.dump() << std::endl;
-        } else if (best.action == Quackle::Move::Exchange || best.action == Quackle::Move::BlindExchange) {
-          debugLog("Processing exchange move...");
-          json response;
-          // For exchange, there are no board tiles to place
+      json engineInfo = json{
+        {"hl_strict", strictHL},
+        {"path", enginePath},
+        {"kibitz_len", kibitzLen},
+        {"search_width", kibitzLen},
+        {"used_endgame_solver", usedEndgameSolver},
+        {"used_simulator", usedSimulator},
+        {"strategy_set", "default_english"},
+        {"status", usedSimulator ? "simulating" : (usedEndgameSolver ? "endgame" : "static")},
+        {"bag_count", (bagCountHint >= 0) ? bagCountHint : (int)pos.bag().size()}
+      };
+
+      auto serializeMoveJson = [&](Quackle::Move move, int rank, bool topLevel) -> json {
+        try {
+          if (move.action == Quackle::Move::Place && move.score == 0) {
+            pos.scoreMove(move);
+          }
+        } catch (...) {
+          // Keep engine-provided score on scoring errors.
+        }
+
+        json response;
+        if (rank > 0) response["rank"] = rank;
+
+        if (move.action == Quackle::Move::Pass) {
           response["tiles"] = json::array();
-          response["score"] = best.score;
+          response["score"] = 0;
+          response["equity"] = move.equity == 0.0 ? 0.0 : move.equity;
+          response["words"] = json::array();
+          response["move_type"] = "pass";
+        } else if (move.action == Quackle::Move::Exchange || move.action == Quackle::Move::BlindExchange) {
+          response["tiles"] = json::array();
+          response["score"] = move.score;
+          response["equity"] = move.equity == 0.0 ? (double)move.score : move.equity;
           response["words"] = json::array();
           response["move_type"] = "exchange";
-          // Provide count and letters (if non-blind)
           try {
-            auto t = best.tiles();
-            int exc = (int)t.length();
-            response["exchange_count"] = exc;
-            bool isBlind = (best.action == Quackle::Move::BlindExchange);
+            auto t = move.tiles();
+            response["exchange_count"] = (int)t.length();
+            bool isBlind = (move.action == Quackle::Move::BlindExchange);
             response["exchange_blind"] = isBlind;
             if (!isBlind) {
-              // Convert to user-visible string, then split into single-letter strings
               auto uv = alphabetParams->userVisible(t);
               json letters = json::array();
               for (size_t i = 0; i < uv.size(); ++i) {
-                // push each character as a string
                 letters.push_back(std::string(1, (char)uv[i]));
               }
               response["exchange_letters"] = letters;
             }
           } catch (...) {}
-          response["engine_fallback"] = false;
-          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedEndgameSolver ? "endgame" : (usedSimulator ? "simulating" : "static")}};
-          std::cout << response.dump() << std::endl;
-        } else if (best.action == Quackle::Move::Place && !best.tiles().empty()) {
-          debugLog("Processing place move...");
-          serialize_place_move(best, alphabetParams, originalBoardSquares, tiles, words);
-          
-          json response;
+        } else if (move.action == Quackle::Move::Place && !move.tiles().empty()) {
+          json tiles = json::array();
+          json words = json::array();
+          serialize_place_move(move, alphabetParams, originalBoardSquares, tiles, words);
           response["tiles"] = tiles;
-          response["score"] = best.score;
+          response["score"] = move.score;
+          response["equity"] = move.equity == 0.0 ? (double)move.score : move.equity;
           response["words"] = words;
           response["move_type"] = "play";
-          response["engine_fallback"] = false;
-          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedEndgameSolver ? "endgame" : (usedSimulator ? "simulating" : "static")}};
-          try {
-            // Attach raw_move for diagnostics (all 0-based)
-            json pos = json::array();
-            for (const auto &t : tiles) {
-              int r = t.value("row", -1);
-              int c = t.value("col", -1);
-              if (r >= 0 && c >= 0) pos.push_back(json::array({r, c}));
-            }
-            response["raw_move"] = json{
-              {"row", best.startrow},
-              {"col", best.startcol},
-              {"dir", best.horizontal ? "H" : "V"},
-              {"word", (words.is_array() && !words.empty()) ? words[0] : json("")},
-              {"positions", pos}
-            };
-          } catch (...) {}
-          
-          std::cout << response.dump() << std::endl;
+          response["start_row"] = move.startrow;
+          response["start_col"] = move.startcol;
+          response["direction"] = move.horizontal ? "H" : "V";
+          response["word"] = (words.is_array() && !words.empty()) ? words[0] : json("");
+          if (topLevel) {
+            try {
+              json positions = json::array();
+              for (const auto &t : tiles) {
+                int r = t.value("row", -1);
+                int c = t.value("col", -1);
+                if (r >= 0 && c >= 0) positions.push_back(json::array({r, c}));
+              }
+              response["raw_move"] = json{
+                {"row", move.startrow},
+                {"col", move.startcol},
+                {"dir", move.horizontal ? "H" : "V"},
+                {"word", response["word"]},
+                {"positions", positions}
+              };
+            } catch (...) {}
+          }
         } else {
-          debugLog("Move is neither place with tiles nor recognized special; returning as pass-equivalent");
-          json response;
           response["tiles"] = json::array();
           response["score"] = 0;
+          response["equity"] = 0.0;
           response["words"] = json::array();
           response["move_type"] = "pass";
-          response["engine_fallback"] = false;
-          response["engine_info"] = json{{"hl_strict", strictHL}, {"path", enginePath}, {"kibitz_len", kibitzLen}, {"search_width", kibitzLen}, {"used_endgame_solver", usedEndgameSolver}, {"used_simulator", usedSimulator}, {"strategy_set", "default_english"}, {"status", usedEndgameSolver ? "endgame" : (usedSimulator ? "simulating" : "static")}};
-          std::cout << response.dump() << std::endl;
         }
-        
+
+        if (topLevel) {
+          response["engine_fallback"] = false;
+          response["engine_info"] = engineInfo;
+        }
+        return response;
+      };
+
+      if (rankedMoves.empty() && foundValidMove) {
+        rankedMoves.push_back(best);
+      }
+
+      json response = serializeMoveJson(best, 0, true);
+      json moves = json::array();
+      int emitted = 0;
+      for (const auto &candidate : rankedMoves) {
+        if (emitted >= topN) break;
+        moves.push_back(serializeMoveJson(candidate, emitted + 1, false));
+        emitted++;
+      }
+      if (moves.empty() && foundValidMove) {
+        moves.push_back(serializeMoveJson(best, 1, false));
+      }
+      response["moves"] = moves;
+
+      log_captured_stdout(engineStdout.restore());
+      std::cout << response.dump() << std::endl;
     } catch (const std::exception& e) {
+      log_captured_stdout(engineStdout.restore());
       debugLog("Exception during move generation: " + std::string(e.what()));
       std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":")" << e.what() << R"("})" << std::endl;
     } catch (...) {
+      log_captured_stdout(engineStdout.restore());
       debugLog("Unknown exception during move generation");
       std::cout << R"({"tiles":[],"score":0,"words":[],"move_type":"pass","engine_fallback":true,"error":"unknown exception"})" << std::endl;
     }

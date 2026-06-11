@@ -1,7 +1,7 @@
 # BASE Python + toolchain
 FROM python:3.13-slim
 ARG BUILD_FORCE="v104-debug-4"
-ARG QUACKLE_REPO_URL="https://github.com/Jacopo888/quackle.git"
+ARG QUACKLE_REPO_URL="https://github.com/Jacopo888/quacklejacopo.git"
 ARG QUACKLE_REPO_BRANCH="master"
 ENV BUILD_FORCE=${BUILD_FORCE}
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -119,7 +119,8 @@ ENV LEXICON_NAME="enable1.15"
 
 # Entrypoint
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY scripts /scripts
+RUN sed -i 's/\r$//' /entrypoint.sh /scripts/*.sh && chmod +x /entrypoint.sh /scripts/*.sh
 
 # Porta esposta e healthcheck
 EXPOSE 8080

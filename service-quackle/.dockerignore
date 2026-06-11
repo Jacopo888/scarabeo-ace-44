@@ -12,6 +12,7 @@ dist/
 !Dockerfile
 !requirements.txt
 !entrypoint.sh
+!scripts/**
 !bridge/**
 !quackle_service/**
 

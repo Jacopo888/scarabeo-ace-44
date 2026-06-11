@@ -27,6 +27,20 @@ def call_bridge(payload: Dict[str, Any]) -> Dict[str, Any]:
         diff = (payload.get("difficulty") or "").strip().lower()
         if diff in {"easy", "medium", "hard"}:
             bridge_payload["difficulty"] = diff
+        if "top_n" in payload:
+            try:
+                bridge_payload["top_n"] = max(1, min(10, int(payload.get("top_n") or 1)))
+            except (TypeError, ValueError):
+                bridge_payload["top_n"] = 1
+        if isinstance(payload.get("bag_pool"), list):
+            bag_pool = [str(x)[:1] for x in payload.get("bag_pool", []) if isinstance(x, str) and len(x) >= 1]
+            bridge_payload["bag_pool"] = bag_pool
+            bridge_payload["bag_count"] = len(bag_pool)
+        elif "bag_count" in payload:
+            try:
+                bridge_payload["bag_count"] = max(0, int(payload.get("bag_count") or 0))
+            except (TypeError, ValueError):
+                pass
         bridge_payload = sanitize_none(bridge_payload)
         wrapper_payload = {"op": "compute", **bridge_payload}
         stdin_str = json.dumps(wrapper_payload, separators=(",", ":"))

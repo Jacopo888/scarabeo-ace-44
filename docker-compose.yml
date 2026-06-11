@@ -45,7 +45,7 @@ services:
       dockerfile: Dockerfile
       args:
         # Usa il fork di Jacopo per default (sovrascrivibile via env)
-        QUACKLE_REPO_URL: ${QUACKLE_REPO_URL:-https://github.com/Jacopo888/quackle.git}
+        QUACKLE_REPO_URL: ${QUACKLE_REPO_URL:-https://github.com/Jacopo888/quacklejacopo.git}
         QUACKLE_REPO_BRANCH: ${QUACKLE_REPO_BRANCH:-master}
     ports:
       - "8080:8080"

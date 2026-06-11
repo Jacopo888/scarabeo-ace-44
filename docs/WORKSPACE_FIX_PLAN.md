@@ -315,3 +315,32 @@ Verifiche eseguite:
 - `npm run lint`
 - `npm run build:prod`
 - `python -m pytest service-quackle-min\tests -q`
+
+## MIGRATION-2026-06-11 - Bridge forte `service-quackle`
+
+Stato: completato e deployato
+
+Problema: la produzione stava usando il wrapper minimale (`quackle_json_wrapper`) invece del bridge forte. Questo impediva di usare correttamente la pipeline piu potente di Quackle: kibitz ampio, simulatore Monte Carlo in late game, solver endgame con bag vuoto e risposta top N per sandbox/analisi.
+
+Fix applicato:
+- `service-quackle` ora clona e compila `Jacopo888/quacklejacopo` nel Dockerfile del bridge forte.
+- Il bridge C++ forza board standard 15x15 con centro 0-based `(7,7)`, evitando crash e coordinate non coerenti.
+- La `GamePosition` viene inizializzata con turno valido prima di chiamare `kibitz`.
+- `bag_pool` esplicito, incluso `[]`, viene passato fino al bridge: bag vuoto attiva il solver endgame.
+- `top_n` viene validato nel range `1..10` e restituito come lista `moves`.
+- In modalita hard con bag piccolo viene usato il simulatore Monte Carlo; con bag vuoto viene usato `Quackle::Endgame`.
+- Lo stdout rumoroso interno di Quackle viene catturato durante simulatore/endgame, cosi l'API restituisce JSON pulito.
+- Lo startup strategy non segnala piu falsi `copy_failed` quando source e destination sono la stessa directory via symlink.
+- Deploy Heroku eseguito come container `web` dell'app `service-quackle`.
+
+Verifiche eseguite:
+- `python -m pytest service-quackle\tests -q` -> 53 passed, 3 skipped.
+- Build Docker locale `service-quackle-strong:local`.
+- Health locale: `engine=quackle-bridge`, `bridge_path=/srv/bridge/engine_wrapper`, `engine_ready=true`, `strategy_ready=true`.
+- Endpoint locale `/best-move`: hard + `bag_pool=[]` usa `used_endgame_solver=true`.
+- Endpoint locale `/best-move`: `top_n=4` restituisce 4 mosse.
+- Endpoint locale `/best-move`: hard + bag piccolo usa `used_simulator=true`.
+- Deploy Heroku container registry su `service-quackle`.
+- Health live `https://service-quackle-6773ae98281f.herokuapp.com/health`: `engine=quackle-bridge`, `bridge_path=/srv/bridge/engine_wrapper`, `engine_ready=true`, `strategy_ready=true`.
+- Endpoint live `/best-move`: hard + `bag_pool=[]` usa endgame, `top_n` restituisce lista `moves`, hard + bag piccolo usa simulatore.
+- Smoke HTTP del sito `https://tilesword-0d2009186065.herokuapp.com/`: status 200.
