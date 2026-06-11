@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Brush, Eraser, Loader2, Play, RotateCcw, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -35,6 +35,10 @@ function sanitizeRackInput(value: string): string {
 function sanitizeLetterInput(value: string): string {
   const letters = value.toUpperCase().replace(/[^A-Z]/g, '')
   return letters.slice(-1) || 'A'
+}
+
+function clampBoardIndex(value: number): number {
+  return Math.max(0, Math.min(BOARD_SIZE - 1, value))
 }
 
 function boardToPayload(board: (PlacedTile | null)[][]) {
@@ -76,6 +80,8 @@ export default function Sandbox() {
   const [moves, setMoves] = useState<QuackleMoveCandidate[]>([])
   const [selectedMoveIndex, setSelectedMoveIndex] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [selectedCell, setSelectedCell] = useState<{ row: number; col: number } | null>({ row: 7, col: 7 })
+  const boardEditorRef = useRef<HTMLDivElement>(null)
 
   const selectedMove = moves[selectedMoveIndex] || null
   const selectedMoveTiles = useMemo(() => {
@@ -84,30 +90,114 @@ export default function Sandbox() {
     return map
   }, [selectedMove])
 
-  const placeOrErase = (row: number, col: number) => {
+  const clearMovePreview = useCallback(() => {
+    setMoves([])
+    setSelectedMoveIndex(0)
+  }, [])
+
+  const writeTile = useCallback((row: number, col: number, letter: string) => {
     setBoard(current => {
       const next = cloneBoard(current)
-      if (tool === 'erase') {
-        next[row][col] = null
-        return next
-      }
       next[row][col] = {
         row,
         col,
-        letter: paintLetter,
-        points: paintBlank ? 0 : LETTER_POINTS[paintLetter] ?? 1,
+        letter,
+        points: paintBlank ? 0 : LETTER_POINTS[letter] ?? 1,
         isBlank: paintBlank,
       }
       return next
     })
-    setMoves([])
-    setSelectedMoveIndex(0)
+    clearMovePreview()
+  }, [clearMovePreview, paintBlank])
+
+  const eraseTile = useCallback((row: number, col: number) => {
+    setBoard(current => {
+      const next = cloneBoard(current)
+      next[row][col] = null
+      return next
+    })
+    clearMovePreview()
+  }, [clearMovePreview])
+
+  const selectCell = useCallback((row: number, col: number) => {
+    setSelectedCell({ row: clampBoardIndex(row), col: clampBoardIndex(col) })
+    boardEditorRef.current?.focus()
+  }, [])
+
+  const placeOrErase = (row: number, col: number) => {
+    selectCell(row, col)
+    if (tool === 'erase') eraseTile(row, col)
+    else writeTile(row, col, paintLetter)
+  }
+
+  const moveSelectedCell = useCallback((rowDelta: number, colDelta: number) => {
+    setSelectedCell(current => {
+      const base = current || { row: 7, col: 7 }
+      return {
+        row: clampBoardIndex(base.row + rowDelta),
+        col: clampBoardIndex(base.col + colDelta),
+      }
+    })
+  }, [])
+
+  const handleBoardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const key = event.key
+    if (key === 'ArrowUp') {
+      event.preventDefault()
+      moveSelectedCell(-1, 0)
+      return
+    }
+    if (key === 'ArrowDown') {
+      event.preventDefault()
+      moveSelectedCell(1, 0)
+      return
+    }
+    if (key === 'ArrowLeft') {
+      event.preventDefault()
+      moveSelectedCell(0, -1)
+      return
+    }
+    if (key === 'ArrowRight') {
+      event.preventDefault()
+      moveSelectedCell(0, 1)
+      return
+    }
+
+    const targetCell = selectedCell || { row: 7, col: 7 }
+    if (/^[a-z]$/i.test(key)) {
+      event.preventDefault()
+      const letter = key.toUpperCase()
+      setPaintLetter(letter)
+      setTool('paint')
+      setSelectedCell(targetCell)
+      writeTile(targetCell.row, targetCell.col, letter)
+      return
+    }
+
+    if (key === 'Backspace' || key === 'Delete') {
+      event.preventDefault()
+      setSelectedCell(targetCell)
+      eraseTile(targetCell.row, targetCell.col)
+      return
+    }
+
+    if (key === 'Enter') {
+      event.preventDefault()
+      setTool('paint')
+      setSelectedCell(targetCell)
+      writeTile(targetCell.row, targetCell.col, paintLetter)
+      return
+    }
+
+    if (key === 'Escape') {
+      event.preventDefault()
+      setSelectedCell(null)
+    }
   }
 
   const clearBoard = () => {
     setBoard(createEmptySandboxBoard())
-    setMoves([])
-    setSelectedMoveIndex(0)
+    clearMovePreview()
   }
 
   const askQuackle = async () => {
@@ -173,7 +263,14 @@ export default function Sandbox() {
           </div>
 
           <div className="overflow-auto rounded-lg bg-board p-2 shadow-lg">
-            <div className="grid w-fit grid-cols-15 gap-[0.5px] rounded bg-board-border p-1">
+            <div
+              ref={boardEditorRef}
+              tabIndex={0}
+              role="grid"
+              aria-label="Sandbox board"
+              className="grid w-fit grid-cols-15 gap-[0.5px] rounded bg-board-border p-1 outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+              onKeyDown={handleBoardKeyDown}
+            >
               {board.map((row, rowIndex) =>
                 row.map((tile, colIndex) => {
                   const key = `${rowIndex},${colIndex}`
@@ -181,6 +278,7 @@ export default function Sandbox() {
                   const candidate = selectedMoveTiles.get(key)
                   const displayTile = tile || candidate
                   const isCandidateOnly = !!candidate && !tile
+                  const isSelected = selectedCell?.row === rowIndex && selectedCell?.col === colIndex
 
                   return (
                     <button
@@ -190,8 +288,10 @@ export default function Sandbox() {
                         'relative flex h-8 w-8 items-center justify-center rounded border border-board-border text-[9px] font-bold sm:h-9 sm:w-9',
                         getSquareColor(specialType || ''),
                         isCandidateOnly && 'ring-2 ring-emerald-400 ring-offset-1 ring-offset-background',
-                        tile && 'bg-tile text-tile-text shadow-sm'
+                        tile && 'bg-tile text-tile-text shadow-sm',
+                        isSelected && 'z-10 !bg-sky-100/80 ring-2 ring-sky-400 ring-offset-1 ring-offset-background dark:!bg-sky-950/70'
                       )}
+                      aria-label={`row ${rowIndex + 1} col ${colIndex + 1}`}
                       onClick={() => placeOrErase(rowIndex, colIndex)}
                     >
                       {displayTile ? (
@@ -222,8 +322,8 @@ export default function Sandbox() {
                   <Input
                     id="sandbox-letter"
                     value={paintLetter}
-                    maxLength={1}
                     onChange={(event) => setPaintLetter(sanitizeLetterInput(event.target.value))}
+                    onFocus={(event) => event.currentTarget.select()}
                   />
                 </div>
                 <div className="flex h-10 items-center gap-2">
