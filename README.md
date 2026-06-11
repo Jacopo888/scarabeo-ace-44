@@ -89,7 +89,7 @@ cp .env.example .env
 ```
 
 Use `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Local `.env*`
-files are ignored by Git; keep deploy values in Heroku config vars or local
+files are ignored by Git; keep deploy values in Vercel/Heroku config vars or local
 untracked env files.
 
 ## Quackle Service – Runtime Setup (Zero‑Tolerance)
@@ -125,6 +125,7 @@ All'avvio (lifespan FastAPI) il servizio:
   - `board` in uno dei due formati supportati:
     1) Formato A (ufficiale): mappa "r,c" (1‑based) → `{letter,isBlank}`
     2) Formato B (legacy): array di 15 stringhe ('.' = vuoto)
+  - Nota aggiornata: il contratto ufficiale attuale del bridge forte usa coordinate 0-based.
   - Errori di input → 400 con messaggio esplicito (mai 200 con `pass`).
   - Lessico non pronto → 500 `lexicon_not_ready`.
 
@@ -152,12 +153,17 @@ curl -s -X POST http://localhost:8080/best-move \
 ### Configurazione FE (Vite)
 - `.env.development`: `VITE_QUACKLE_SERVICE_URL=http://localhost:8080`
 - `.env.production`: `VITE_QUACKLE_SERVICE_URL=https://service-quackle-6773ae98281f.herokuapp.com`
+- Vercel: `VITE_QUACKLE_SERVICE_URL=/api/quackle` e `QUACKLE_PROXY_TARGET=https://service-quackle-6773ae98281f.herokuapp.com`
 
 Test rapidi lato FE:
 - `QUACKLE_BASE=http://localhost:8080 npm run quackle:health`
 - `QUACKLE_BASE=https://service-quackle-6773ae98281f.herokuapp.com npm run quackle:test`
 
 ## How can I deploy this project?
+
+Frontend consigliato: Vercel piano gratuito. Produzione attuale: `https://tilesword.vercel.app`. Il repo include `vercel.json` e una function proxy `api/quackle/[...path].js`, quindi il frontend puo chiamare Quackle via `/api/quackle` dallo stesso dominio.
+
+Il servizio Quackle forte resta un servizio container Python+C++: Vercel non esegue Docker image direttamente. Per migrare davvero anche il motore serve un host container come Heroku, Fly.io, Render, Railway o Cloud Run. Dettagli: [docs/VERCEL_MIGRATION.md](docs/VERCEL_MIGRATION.md).
 
 Puoi distribuire i servizi dove preferisci (Railway, Render, VPS, Docker Swarm/K8s). In questo repo trovi:
 

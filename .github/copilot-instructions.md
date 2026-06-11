@@ -1,18 +1,18 @@
 # scarabeo-ace-44 · Istruzioni per agenti AI
 
-Ultimo aggiornamento: 2026-06-10
+Ultimo aggiornamento: 2026-06-11
 
 ## Architettura in breve
 - `src/` Frontend Vite + React + TypeScript. Test Vitest vicino al codice (`*.test.ts(x)`).
-- `service-quackle-min/` FastAPI che fa da bridge a Quackle (binario C++). Endpoint chiave: `GET /health`, `POST /best-move`. `service-quackle/` e legacy/deprecato.
+- `service-quackle/` FastAPI che fa da bridge forte a Quackle (binario C++ `engine_wrapper`). Endpoint chiave: `GET /health`, `POST /best-move`. `service-quackle-min/` resta fallback storico, non sorgente canonico del deploy.
 - `rating-api/` Express + Drizzle (TypeScript) con Postgres/Redis; test in `src/__tests__/`.
 - `data/` volume locale per lessici e appdata (`/data/lexica`, `/data/appdata`).
 
 ## Flussi di lavoro essenziali
 - Frontend: `npm i`, `npm run dev`, `npm test`, `npm run build` (lint: `npm run lint`).
-- Quackle service: per produzione usare `service-quackle-min/`; in locale si puo ancora usare il servizio legacy `docker compose up -d quackle-service` finche il compose non viene migrato. Smoke rapido: `QUACKLE_BASE=http://localhost:8080 npm run quackle:health` o `npm run smoke:ci`.
+- Quackle service: per produzione usare `service-quackle/`. In locale: `docker compose up -d quackle-service` oppure build diretta del Dockerfile in `service-quackle/`. Smoke rapido: `QUACKLE_BASE=http://localhost:8080 npm run quackle:health` o `npm run smoke:ci`.
 - Rating API: `npm --prefix rating-api run dev|build|start`; migrazioni: `npm --prefix rating-api run db:generate` e `db:migrate`.
-- Test: FE con Vitest; servizio Quackle minimale con `python -m pytest service-quackle-min/tests -q`.
+- Test: FE con Vitest; servizio Quackle forte con `python -m pytest service-quackle/tests -q`.
 
 ## Integrazione Quackle (zero‑tolerance)
 - Nessun fallback a mosse finte o mini-lessici: input invalido → 400, lessico non pronto → 500 `lexicon_not_ready` (mai 200 con `pass`).
@@ -20,7 +20,7 @@ Ultimo aggiornamento: 2026-06-10
 - Frontend: configurare `VITE_QUACKLE_SERVICE_URL` (es. `http://localhost:8080`).
 - `/best-move` accetta board come mappa 0-based `"r,c"` → `{letter,isBlank}`.
 - Coordinate in uscita: le `row/col` dei tiles sono 0‑based e coincidono con la griglia visuale del frontend (stella al centro riga=7,col=7). Nessun aggiustamento necessario lato client.
-- Il sorgente Quackle canonico per `service-quackle-min` e `Jacopo888/quacklejacopo` al commit `d280e6760f06b52dd8b8baf18c9bf152492c230d`; non usare branch mobili per deploy.
+- Il sorgente Quackle canonico per `service-quackle` e `Jacopo888/quacklejacopo`; il Dockerfile del bridge forte compila il motore e il wrapper `/srv/bridge/engine_wrapper`.
 
 ## Pattern e convenzioni del repo
 - TypeScript: indentazione 2 spazi. Componenti React in PascalCase (es. `BoardTile.tsx`); util/hook in camelCase (es. `useGame.ts`).
@@ -44,7 +44,7 @@ Ultimo aggiornamento: 2026-06-10
 - Punteggio mosse: per qualsiasi validazione in FE o ricalcolo mosse Quackle, utilizzare `calculateScore({ tiles, existingBoard })`.
 
 ## Dove guardare per esempi
-- Integrazione servizio: `service-quackle-min/README.md` (payload, normalizzazione, errori, env, commit Quackle canonico).
+- Integrazione servizio: `service-quackle/README.md` e `docs/WORKSPACE_FIX_PLAN.md` (payload, normalizzazione, errori, env, deploy).
 - Multiplayer FE: `src/services/multiplayer/README.md` (contratti e helper endgame).
 - Comandi e convenzioni riassunti: `AGENTS.md`.
 

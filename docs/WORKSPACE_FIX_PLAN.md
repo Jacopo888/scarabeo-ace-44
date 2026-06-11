@@ -344,3 +344,29 @@ Verifiche eseguite:
 - Health live `https://service-quackle-6773ae98281f.herokuapp.com/health`: `engine=quackle-bridge`, `bridge_path=/srv/bridge/engine_wrapper`, `engine_ready=true`, `strategy_ready=true`.
 - Endpoint live `/best-move`: hard + `bag_pool=[]` usa endgame, `top_n` restituisce lista `moves`, hard + bag piccolo usa simulatore.
 - Smoke HTTP del sito `https://tilesword-0d2009186065.herokuapp.com/`: status 200.
+
+## MIGRATION-2026-06-11 - Vercel frontend e proxy Quackle
+
+Stato: completato per frontend/proxy; service Quackle forte resta su host container
+
+Problema: il frontend puo migrare bene su Vercel piano gratuito, ma il service Quackle forte e un container Python+C++ con binario nativo, lessici e strategy data. Vercel non esegue Docker image direttamente, quindi una migrazione completa del motore su Vercel non e equivalente al deploy Heroku container.
+
+Fix previsto:
+- Deployare il frontend Vite su Vercel.
+- Usare `VITE_QUACKLE_SERVICE_URL=/api/quackle`.
+- Aggiungere una function Vercel proxy `api/quackle/[...path].js` verso il service forte attuale.
+- Tenere `service-quackle` su Heroku finche non scegliamo un host container compatibile o non progettiamo un porting serverless dedicato.
+
+Esito:
+- Aggiunti `vercel.json` e `api/quackle/[...path].js`.
+- Aggiunto `docs/VERCEL_MIGRATION.md`.
+- Aggiunto `docs/BESTBOT_OPTIONAL_ENGINE.md` per il piano BestBot opzionale.
+- Progetto Vercel linkato e deployato su `https://tilesword.vercel.app`.
+- Env Vercel production configurate con `VITE_QUACKLE_SERVICE_URL=/api/quackle` e proxy verso `service-quackle`.
+
+Verifiche eseguite:
+- `npm run build:prod`
+- `vercel --prod --yes`
+- Smoke `https://tilesword.vercel.app/`: HTTP 200.
+- Smoke `https://tilesword.vercel.app/api/quackle/health`: `engine=quackle-bridge`, `engine_ready=true`, `bridge_path=/srv/bridge/engine_wrapper`, `strategy_ready=true`.
+- Smoke `https://tilesword.vercel.app/api/quackle/best-move`: rack `AEIRSTZ`, `word=ERSATZ`, `score=50`, `moves=3`, `engine_fallback=false`.
