@@ -8,6 +8,7 @@ Target service:
 - Expected public URL: `https://tilesword-quackle.onrender.com`
 - Plan: free
 - Region: frankfurt
+- Health check: `/health`
 
 ## Why Render
 
