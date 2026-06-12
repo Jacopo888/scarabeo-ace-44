@@ -395,7 +395,7 @@ Nota storica: le sezioni precedenti di questo file possono citare path rimossi, 
 
 ## MIGRATION-2026-06-12 - Render per `service-quackle`
 
-Stato: preparato in repo; deploy operativo da terminale richiede `RENDER_API_KEY` nel processo shell.
+Stato: completato e live.
 
 Obiettivo: abbandonare Heroku per il motore Quackle forte e usare Render piano free come host container.
 
@@ -406,8 +406,15 @@ Preparazione applicata:
 - Aggiornati README e documentazione deploy.
 - Installato Render CLI locale in `C:\work\tools\render\cli_v2.20.0.exe`.
 
-Passi rimanenti:
-- Impostare `$env:RENDER_API_KEY` nel terminale.
-- Validare Blueprint, creare servizio Render, attendere deploy.
-- Impostare `QUACKLE_PROXY_TARGET=https://tilesword-quackle.onrender.com` su Vercel e redeployare.
-- Smoke finale `/health` e `/best-move` via Render e via Vercel proxy.
+Esito:
+- Blueprint Render validato.
+- Creato servizio Render `tilesword-quackle` (`srv-d8ltrc4m0tmc73are1bg`) su piano free.
+- Primo deploy Render `dep-d8ltrd4m0tmc73are22g` completato `live`.
+- Smoke diretto Render `/health`: `engine_ready=true`, `strategy_ready=true`, `board_schema=coord_map_0based`.
+- Smoke diretto Render `/best-move`: rack `AEIRSTZ`, `word=ERSATZ`, `score=50`, `moves=3`, `engine_fallback=false`.
+- Vercel env production `QUACKLE_PROXY_TARGET` aggiornata a `https://tilesword-quackle.onrender.com`.
+- Vercel production redeployata e alias `https://tilesword.vercel.app` aggiornato.
+- Smoke Vercel proxy `/api/quackle/health` e `/api/quackle/best-move` passano via Render, con header `Rndr-Id` / `X-Render-Origin-Server`.
+- Rimossi i remoti Git Heroku locali.
+
+Nota: non ho distrutto fisicamente le app Heroku perche `heroku apps:destroy` e irreversibile e richiede conferma esplicita.

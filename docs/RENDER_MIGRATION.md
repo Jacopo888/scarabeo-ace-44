@@ -1,6 +1,6 @@
 # Render Migration
 
-Status: prepared in repo; deploy requires `RENDER_API_KEY` in the terminal.
+Status: completed and live.
 
 Target service:
 
@@ -41,6 +41,18 @@ The Blueprint sets:
 Render passes Docker service env vars as build args too, so `MAKE_JOBS=2` limits the native build parallelism.
 
 ## Deploy Checklist
+
+Completed:
+
+- Render service created: `srv-d8ltrc4m0tmc73are1bg`
+- Render deploy: `dep-d8ltrd4m0tmc73are22g`
+- Render health: `engine=quackle-bridge`, `engine_ready=true`, `strategy_ready=true`
+- Render best move: rack `AEIRSTZ`, `word=ERSATZ`, `score=50`, `moves=3`, `engine_fallback=false`
+- Vercel production env `QUACKLE_PROXY_TARGET` now points to `https://tilesword-quackle.onrender.com`
+- Vercel redeployed and aliased to `https://tilesword.vercel.app`
+- Vercel proxy health and best-move smoke pass through Render (`Rndr-Id` / `X-Render-Origin-Server` headers present)
+
+Reference commands:
 
 1. Set the API key only in the current terminal:
 
@@ -87,8 +99,7 @@ Render passes Docker service env vars as build args too, so `MAKE_JOBS=2` limits
 4. Point Vercel proxy to Render:
 
    ```powershell
-   vercel env rm QUACKLE_PROXY_TARGET production --yes
-   "https://tilesword-quackle.onrender.com" | vercel env add QUACKLE_PROXY_TARGET production
+   vercel env add QUACKLE_PROXY_TARGET production --value "https://tilesword-quackle.onrender.com" --yes --force
    vercel --prod --yes
    ```
 
@@ -101,8 +112,11 @@ Render passes Docker service env vars as build args too, so `MAKE_JOBS=2` limits
 
 ## Heroku Decommission
 
-After Render health and best-move smoke pass through Vercel:
+Completed:
 
-- remove Heroku remotes from local Git;
-- unset old Heroku references from Vercel env;
-- stop/remove the Heroku `service-quackle` app only after one successful production smoke on Render.
+- local Git Heroku remotes removed.
+- Vercel proxy no longer targets Heroku.
+
+Not done automatically:
+
+- physical Heroku app deletion. Destroying Heroku apps is irreversible and should be confirmed explicitly before running `heroku apps:destroy`.
