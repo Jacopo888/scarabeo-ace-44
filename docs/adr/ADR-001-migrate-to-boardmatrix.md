@@ -306,7 +306,8 @@ board[7][7] = { row: 7, col: 7, letter: 'A', points: 1 }
 
 ## References
 
-- [REFACTOR_SCORING_FIX.md](../../REFACTOR_SCORING_FIX.md) - Fix scoring precedente
+- [SCORING_RULES.md](../SCORING_RULES.md) - Regole scoring correnti
+- [SCORE_ANALYSIS.md](../SCORE_ANALYSIS.md) - Analisi scoring
 - [CORE_MIGRATION.md](../CORE_MIGRATION.md) - Piano originale matrice
 - [core/board.ts](../../src/core/board.ts) - Implementazione Matrix
 - [types/game.ts](../../src/types/game.ts) - GameState definition

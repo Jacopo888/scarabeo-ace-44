@@ -370,3 +370,25 @@ Verifiche eseguite:
 - Smoke `https://tilesword.vercel.app/`: HTTP 200.
 - Smoke `https://tilesword.vercel.app/api/quackle/health`: `engine=quackle-bridge`, `engine_ready=true`, `bridge_path=/srv/bridge/engine_wrapper`, `strategy_ready=true`.
 - Smoke `https://tilesword.vercel.app/api/quackle/best-move`: rack `AEIRSTZ`, `word=ERSATZ`, `score=50`, `moves=3`, `engine_fallback=false`.
+
+## CLEANUP-2026-06-12 - Decommission legacy and generated workspace artifacts
+
+Stato: completato
+
+Scopo: rimuovere dal workspace attivo componenti deprecati, duplicati o generati che non sono piu parte del runtime Tilesword.
+
+Rimosso:
+- `service-quackle-min/`, ormai sostituito dal bridge forte in `service-quackle/`.
+- Deploy frontend container legacy (`heroku.yml`, `Dockerfile-frontend*`, `default.conf.template`, workflow Heroku frontend).
+- Config e smoke legacy di piattaforme non piu attive.
+- Binari generati e archivi nativi (`service-quackle/bridge/engine_wrapper*`, `service-quackle/bridge/*.a`).
+- Strategy/appdata generate e versionate per errore (`service-quackle/appdata/**`).
+- Copie storiche Quackle in `docs/data/**`, non usate dal runtime attuale.
+- File temporanei/storici di commit e refactor nella root.
+
+Aggiornato:
+- `README.md`, `service-quackle/README.md`, `DOCS_INDEX.md` e `.github/copilot-instructions.md` ora descrivono solo il flusso attivo Vercel + `service-quackle`.
+- `.gitignore` e `service-quackle/.gitignore` impediscono di ricommittare dati generati, binari nativi e workspace temporanei.
+- `/debug/quackle` ora dichiara `board_schema=coord_map_0based`.
+
+Nota storica: le sezioni precedenti di questo file possono citare path rimossi, perche documentano lo stato dei fix nel momento in cui sono stati eseguiti. Per nuovo sviluppo usare solo `service-quackle/` e la documentazione aggiornata.

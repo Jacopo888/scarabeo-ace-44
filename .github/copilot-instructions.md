@@ -1,51 +1,59 @@
-# scarabeo-ace-44 · Istruzioni per agenti AI
+# scarabeo-ace-44 - AI Agent Instructions
 
-Ultimo aggiornamento: 2026-06-11
+Last updated: 2026-06-12
 
-## Architettura in breve
-- `src/` Frontend Vite + React + TypeScript. Test Vitest vicino al codice (`*.test.ts(x)`).
-- `service-quackle/` FastAPI che fa da bridge forte a Quackle (binario C++ `engine_wrapper`). Endpoint chiave: `GET /health`, `POST /best-move`. `service-quackle-min/` resta fallback storico, non sorgente canonico del deploy.
-- `rating-api/` Express + Drizzle (TypeScript) con Postgres/Redis; test in `src/__tests__/`.
-- `data/` volume locale per lessici e appdata (`/data/lexica`, `/data/appdata`).
+## Architecture
 
-## Flussi di lavoro essenziali
-- Frontend: `npm i`, `npm run dev`, `npm test`, `npm run build` (lint: `npm run lint`).
-- Quackle service: per produzione usare `service-quackle/`. In locale: `docker compose up -d quackle-service` oppure build diretta del Dockerfile in `service-quackle/`. Smoke rapido: `QUACKLE_BASE=http://localhost:8080 npm run quackle:health` o `npm run smoke:ci`.
-- Rating API: `npm --prefix rating-api run dev|build|start`; migrazioni: `npm --prefix rating-api run db:generate` e `db:migrate`.
-- Test: FE con Vitest; servizio Quackle forte con `python -m pytest service-quackle/tests -q`.
+- `src/` is the Vite + React + TypeScript frontend. Vitest tests live near the code as `*.test.ts(x)`.
+- `service-quackle/` is the active FastAPI service for the strong Quackle C++ bridge. Key endpoints: `GET /health`, `POST /best-move`.
+- `rating-api/` is an Express + Drizzle TypeScript service with tests in `src/__tests__/`.
+- `data/` is a local runtime volume for lexica and appdata; generated data is not committed.
+- `api/quackle/[...path].js` is the Vercel proxy to the Quackle service.
 
-## Integrazione Quackle (zero‑tolerance)
-- Nessun fallback a mosse finte o mini-lessici: input invalido → 400, lessico non pronto → 500 `lexicon_not_ready` (mai 200 con `pass`).
-- Env principali: `QUACKLE_LEXDIR=/data/lexica`, `QUACKLE_APPDATA_DIR=/data/appdata`, `QUACKLE_LEXICON=enable1.15` (+ opzionali `GADDAG_URL`, `DAWG_URL`).
-- Frontend: configurare `VITE_QUACKLE_SERVICE_URL` (es. `http://localhost:8080`).
-- `/best-move` accetta board come mappa 0-based `"r,c"` → `{letter,isBlank}`.
-- Coordinate in uscita: le `row/col` dei tiles sono 0‑based e coincidono con la griglia visuale del frontend (stella al centro riga=7,col=7). Nessun aggiustamento necessario lato client.
-- Il sorgente Quackle canonico per `service-quackle` e `Jacopo888/quacklejacopo`; il Dockerfile del bridge forte compila il motore e il wrapper `/srv/bridge/engine_wrapper`.
+## Essential Workflows
 
-## Pattern e convenzioni del repo
-- TypeScript: indentazione 2 spazi. Componenti React in PascalCase (es. `BoardTile.tsx`); util/hook in camelCase (es. `useGame.ts`).
-- Test vicino ai file (FE) e in `service-quackle/tests` (Python). Aggiungi test per nuova logica e mantieni il verde.
-- Ruleset prodotto: Tilesword usa regole word-tile inglesi, distribuzione inglese e ENABLE/`enable1.15`; non assumere Scarabeo italiano senza migrazione dedicata.
-- Scoring Scrabble-compatible: usa sempre `calculateScore()` da `src/utils/scoring.ts`. I moltiplicatori e le caselle speciali provengono solo da `src/config/boardConstants.ts` (niente duplicazioni). Evita qualsiasi calcolo alternativo.
-- Commit: stile convenzionale (`feat|fix|chore|docs(scope): msg`). Aggiorna `.env.example` se aggiungi variabili.
-- Sicurezza: non committare segreti. Env frontend richieste: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_QUACKLE_SERVICE_URL`; per rating-api `DATABASE_URL`, `REDIS_URL`.
+- Frontend: `npm i`, `npm run dev`, `npm test`, `npm run lint`, `npm run typecheck`, `npm run build:prod`.
+- Quackle service: `docker compose up -d --build quackle-service`; smoke with `QUACKLE_BASE=http://localhost:8080 npm run smoke:ci`.
+- Python tests: `python -m pytest service-quackle/tests -q`.
+- Rating API: `npm --prefix rating-api run dev|build|start`; migrations with `db:generate` and `db:migrate`.
 
-## Vincoli della Constitution (da rispettare)
-- Correctness First: la validazione mosse Quackle è fonte di verità. Rispetto determinismo/idempotenza; niente scorciatoie.
-- Test‑First (non negoziabile): ogni modifica deve introdurre/aggiornare test; ciclo Red→Green→Refactor. Non indebolire test esistenti.
-- Micro‑steps: PR piccole (≤ 5 file, ≤ 300 LOC netti), reversibili. Splitte cambi grandi in più PR.
-- Contratti & Golden: non cambiare schemi/coordinate/errori senza ADR; aggiorna fixture/golden solo con motivazione.
-- Refactoring ≠ feature: cambi comportamentali richiedono spec/ADR; il refactor non deve alterare API o semantica.
+## Quackle Contract
 
-## Esempi rapidi utili
-- Verifica health Quackle: `GET /health` deve mostrare `engine_ready:true` e dimensioni GADDAG/DAWG > 0.
-- Chiamata base `/best-move` con board vuota (legacy grid 15x15 di punti) e rack `AEIRSTZ` → deve produrre una mossa non `pass`.
-- Debug strategia: `GET /debug/strategy` e `GET /debug/strategy-probe` (se esposti) per verificare file in `/data/appdata/strategy`.
-- Punteggio mosse: per qualsiasi validazione in FE o ricalcolo mosse Quackle, utilizzare `calculateScore({ tiles, existingBoard })`.
+- No fake moves, mini-lexicon fallback, or silent pass fallback.
+- Invalid input returns 400.
+- Missing lexicon returns explicit readiness/error responses.
+- Board coordinates are 0-based end to end. Center is `row=7`, `col=7`.
+- `top_n` is limited to 1..10.
+- Hard mode may use simulation with a small bag; empty bag can use the endgame solver.
+- Use `service-quackle/` as the canonical backend. The historical minimal service has been removed.
 
-## Dove guardare per esempi
-- Integrazione servizio: `service-quackle/README.md` e `docs/WORKSPACE_FIX_PLAN.md` (payload, normalizzazione, errori, env, deploy).
-- Multiplayer FE: `src/services/multiplayer/README.md` (contratti e helper endgame).
-- Comandi e convenzioni riassunti: `AGENTS.md`.
+## Product Ruleset
 
-Nota per agenti: preferisci patch mirate senza rinominare file. Non introdurre fallback di comodo nel percorso Quackle: i test e gli smoke si aspettano errori espliciti o mosse reali. Mantieni ESLint/Vitest/Pytest verdi prima di concludere.
+Tilesword currently uses English Scrabble-compatible rules:
+
+- English tile distribution and values in `src/types/game.ts`
+- ENABLE / `enable1.15` dictionary and Quackle lexicon
+- Standard 15x15 premium-square layout
+
+Do not assume Italian Scarabeo rules without a dedicated migration.
+
+## Coding Patterns
+
+- TypeScript: 2-space indentation.
+- React components use PascalCase filenames.
+- Hooks and utility modules use camelCase.
+- Use `calculateScore()` from `src/utils/scoring.ts` for frontend scoring.
+- Premium squares come from `src/config/boardConstants.ts`; avoid duplicated board constants.
+- Keep tests close to changed behavior.
+
+## Deployment Notes
+
+- Frontend production is Vercel: `https://tilesword.vercel.app`.
+- Vercel calls Quackle via `/api/quackle`.
+- The strong Quackle service is still a container workload and currently runs on Heroku.
+
+## Hygiene
+
+- Do not commit secrets, `.env*`, build output, lexica, generated strategy data, native binaries, or copied Quackle data.
+- Update `.env.example` when adding config.
+- Prefer focused patches and keep lint/typecheck/tests green.

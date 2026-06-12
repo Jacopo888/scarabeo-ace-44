@@ -16,7 +16,7 @@ router = APIRouter()
 
 @router.get("/debug/ping")
 def debug_ping():
-    return {"ok": True, "msg": "pong", "version": "v104-debug"}
+    return {"ok": True, "msg": "pong", "version": "strong-bridge"}
 
 @router.get("/debug/strategy")
 def debug_strategy():
@@ -201,7 +201,7 @@ def debug_quackle():
         "lexicon": lex,
         "lexdir": lexdir,
         "bridge_ruleset": "en",
-        "board_schema": "coord_map_1based",
+        "board_schema": "coord_map_0based",
         "payload_sanitize": True,
         "dawg": {"path": dawg, "size": size_or_none(dawg)},
         "gaddag": {"path": gaddag, "size": size_or_none(gaddag)},

@@ -1,400 +1,150 @@
-# Scarabeo-Ace-44
+# Tilesword
 
-## Product ruleset
+Tilesword is a Vite + React word-tile game with a Quackle-backed bot.
 
-The live product is **Tilesword**. The current gameplay is English
-word-tile/Scrabble-compatible:
+Production:
 
-- tile bag and points use the English distribution in `src/types/game.ts`
+- Frontend and Quackle proxy: `https://tilesword.vercel.app`
+- Strong Quackle service: `https://service-quackle-6773ae98281f.herokuapp.com`
+
+The current ruleset is English Scrabble-compatible:
+
+- tile bag and points come from `src/types/game.ts`
 - frontend dictionary and Quackle use ENABLE / `enable1.15`
 - board size is 15x15 with the standard premium-square layout
 
-This is not yet an Italian Scarabeo ruleset. Migrating to Italian Scarabeo would
-require a coordinated change to tile distribution, scores, frontend dictionary,
-Quackle lexicon files, strategy data, tests, and product copy.
+This is not an Italian Scarabeo ruleset yet. Migrating to Italian Scarabeo requires coordinated changes to tile distribution, scoring, dictionary, Quackle lexica, strategy data, tests, and product copy.
 
-## How can I edit this code?
+## Local Development
 
-There are several ways of editing this application locally.
-
-**Use your preferred IDE (local development)**
-
-Clone the repository e lavora in locale. Assicurati di avere Node.js e npm installati (consigliato: gestirli con [nvm](https://github.com/nvm-sh/nvm#installing-and-updating)).
-
-Questo progetto usa npm come package manager.
-
-Passi rapidi:
+Install dependencies:
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
 npm i
+```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+Start the frontend:
+
+```sh
 npm run dev
 ```
 
-### Running tests
-
-Unit tests are executed with [Vitest](https://vitest.dev/):
+Run frontend checks:
 
 ```sh
+npm run lint
+npm run typecheck
 npm test
+npm run build:prod
 ```
 
-**Edit directly in GitHub**
+## Environment
 
-- Apri il file da modificare
-- Clicca l'icona matita (Edit) in alto a destra
-- Esegui le modifiche e fai commit nella branch desiderata
+Frontend env values are read through Vite:
 
-**Usare GitHub Codespaces (opzionale)**
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_QUACKLE_SERVICE_URL`
+- `VITE_RATING_API_URL` optional
 
-- Vai alla pagina principale del repository
-- Clicca su "Code" → tab "Codespaces"
-- Crea un nuovo Codespace e sviluppa direttamente nel browser
+Use `.env.example` as the local template. Local `.env*` files are ignored by Git.
 
-## What technologies are used for this project?
+For Vercel production, `VITE_QUACKLE_SERVICE_URL=/api/quackle` and `QUACKLE_PROXY_TARGET=https://service-quackle-6773ae98281f.herokuapp.com`.
 
-This project is built with:
+## Quackle Service
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+The active backend is `service-quackle/`. It is a FastAPI service that compiles and runs the strong C++ Quackle bridge (`/srv/bridge/engine_wrapper`) inside a container.
 
-## Environment variables
+Main endpoints:
 
-The Supabase client relies on two Vite environment variables:
+- `GET /health`
+- `GET /health/cors`
+- `POST /best-move`
+- `POST /bag/summary`
+- `POST /debug/bridge-payload`
 
-- `VITE_SUPABASE_URL` - URL of your Supabase instance
-- `VITE_SUPABASE_PUBLISHABLE_KEY` - the project's public anon key
+Runtime env:
 
-Both variables must be available via Vite's `import.meta.env` system (for
-example by placing them in a `.env` file). The application will throw an error
-at startup if either one is missing.
+- `QUACKLE_LEXICON=enable1.15`
+- `LEXICON_NAME=enable1.15`
+- `QUACKLE_LEXDIR=/data/lexica`
+- `QUACKLE_APPDATA_DIR=/data/appdata`
+- `DAWG_URL=https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexica/enable1.15.dawg`
+- `GADDAG_URL=https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexica/enable1.15.gaddag`
+- `QUACKLE_TIMEOUT_MS=8000`
 
-An `.env.example` file is included in the repository. Copy it to `.env` and
-add your Supabase frontend config:
+The repository does not version Quackle lexica, generated strategy data, native binaries, or copied Quackle source data. They are downloaded, built, or copied at runtime/build time.
+
+Run locally with Docker:
 
 ```sh
-cp .env.example .env
-# then edit .env and provide values for VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY
+docker compose up -d --build quackle-service
 ```
 
-Use `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`. Local `.env*`
-files are ignored by Git; keep deploy values in Vercel/Heroku config vars or local
-untracked env files.
-
-## Quackle Service – Runtime Setup (Zero‑Tolerance)
-
-Il microservizio `service-quackle` usa Quackle reale con GADDAG completo. Non ci sono fallback a dizionari ridotti o "pass" silenziosi. Se il lessico non è pronto si risponde con errore esplicito (HTTP 500/502).
-
-### Porte e URL
-- La porta è configurabile via `PORT` (default 8080). L'app espone gli endpoint su `http://<host>:8080` in locale o su Heroku (produzione).
-- Frontend (Vite) usa `VITE_QUACKLE_SERVICE_URL` come base per le chiamate; impostalo al tuo URL pubblico o locale, ad es. `http://localhost:8080`.
-
-### Variabili ambiente (servizio Quackle)
- `QUACKLE_LEXICON=enable1.15` (nome del lessico; i file corretti sono `enable1.15.gaddag` e `enable1.15.dawg`)
- `QUACKLE_LEXDIR=/data/lexica` (cartella su volume per i file lessico)
- Opzionali per download a runtime (se assenti, si usano i file già presenti nel volume):
-  - `GADDAG_URL=https://.../enable1.15.gaddag`
-  - `DAWG_URL=https://.../enable1.15.dawg`
- Verifica che `enable1.15.gaddag` e `enable1.15.dawg` esistano e abbiano dimensione > 0. In caso contrario, `engine_ready:false` e `/best-move` risponde 500 `lexicon_not_ready`.
-  - `GADDAG_URL=https://.../enable1.15.gaddag`
-  - `DAWG_URL=https://.../enable1.15.dawg`
-
-All'avvio (lifespan FastAPI) il servizio:
-1) Crea le directory `QUACKLE_LEXDIR` e `QUACKLE_APPDATA_DIR` in modo idempotente.
-2) Scarica i file da `GADDAG_URL`/`DAWG_URL` se impostati, salvandoli in `QUACKLE_LEXDIR`.
-3) Verifica che `enable1.15.gaddag` e `enable1.15.dawg` esistano e abbiano dimensione > 0. In caso contrario, `engine_ready:false` e `/best-move` risponde 500 `lexicon_not_ready`.
-
-### Endpoint principali
-- `GET /health` restituisce:
-  - `engine_ready` (true solo se binario eseguibile + GADDAG/DAWG con size > 0)
-  - `gaddag_exists`, `dawg_exists`, `gaddag_size`, `dawg_size`
-  - `lexdir`, `lexicon`, `timeout_ms`, `word_count` (se `enable1.txt` presente)
-- `POST /best-move` richiede:
-  - `rack` stringa di 7 caratteri (A‑Z, `?` per blank)
-  - `board` in uno dei due formati supportati:
-    1) Formato A (ufficiale): mappa "r,c" (1‑based) → `{letter,isBlank}`
-    2) Formato B (legacy): array di 15 stringhe ('.' = vuoto)
-  - Nota aggiornata: il contratto ufficiale attuale del bridge forte usa coordinate 0-based.
-  - Errori di input → 400 con messaggio esplicito (mai 200 con `pass`).
-  - Lessico non pronto → 500 `lexicon_not_ready`.
-
-### Esempi rapidi (curl)
-```bash
-# Health
-curl -s http://localhost:8080/health | jq
-
-# Empty board + AEIRSTZ (legacy grid)
-curl -s -X POST http://localhost:8080/best-move \
-  -H 'content-type: application/json' \
-  --data-binary '{"rack":"AEIRSTZ","board":["...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","...............","..............."]}' | jq
-
-# Centro occupato + HELLO?? (grid con A al centro)
-curl -s -X POST http://localhost:8080/best-move \
-  -H 'content-type: application/json' \
-  --data-binary '{"rack":"HELLO??","board":{"rows":15,"cols":15,"center_x":7,"center_y":7,"grid":["...............","...............","...............","...............","...............","...............","...............",".......A.......","...............","...............","...............","...............","...............","...............","..............."]}}' | jq
-```
-
-### Comportamento errori (Zero‑tolerance)
-- Nessun fallback a "mini‑lexicon" o mosse simulate.
-- In caso di errori del bridge/eseguibile: HTTP 502 con `engine_fallback:true`, `rc`, `stderr` e estratto `ldd` del binario.
-- In caso di input non valido: HTTP 400 (mai trasformare in `pass`).
-
-### Configurazione FE (Vite)
-- `.env.development`: `VITE_QUACKLE_SERVICE_URL=http://localhost:8080`
-- `.env.production`: `VITE_QUACKLE_SERVICE_URL=https://service-quackle-6773ae98281f.herokuapp.com`
-- Vercel: `VITE_QUACKLE_SERVICE_URL=/api/quackle` e `QUACKLE_PROXY_TARGET=https://service-quackle-6773ae98281f.herokuapp.com`
-
-Test rapidi lato FE:
-- `QUACKLE_BASE=http://localhost:8080 npm run quackle:health`
-- `QUACKLE_BASE=https://service-quackle-6773ae98281f.herokuapp.com npm run quackle:test`
-
-## How can I deploy this project?
-
-Frontend consigliato: Vercel piano gratuito. Produzione attuale: `https://tilesword.vercel.app`. Il repo include `vercel.json` e una function proxy `api/quackle/[...path].js`, quindi il frontend puo chiamare Quackle via `/api/quackle` dallo stesso dominio.
-
-Il servizio Quackle forte resta un servizio container Python+C++: Vercel non esegue Docker image direttamente. Per migrare davvero anche il motore serve un host container come Heroku, Fly.io, Render, Railway o Cloud Run. Dettagli: [docs/VERCEL_MIGRATION.md](docs/VERCEL_MIGRATION.md).
-
-Puoi distribuire i servizi dove preferisci (Railway, Render, VPS, Docker Swarm/K8s). In questo repo trovi:
-
-- Dockerfile e docker-compose per avviare localmente il microservizio Quackle
-- Workflow GitHub Actions per smoke test del servizio
-- Variabili d’ambiente documentate nelle sezioni dedicate
-
-## Blank tiles
-
-When you drag a blank tile onto the board a dialog will appear allowing you to choose which letter it represents. The chosen letter is displayed on the tile but the tile still scores `0` points and remains a blank tile. Picking the tile back up lets you choose again on the next placement.
-
-## Multiplayer end game
-
-The multiplayer mode finishes once the tile bag is empty and a player has no tiles left. When this occurs the remaining tile values in each rack are subtracted from that player's score. See [docs/game_rules.md](docs/game_rules.md) for full details.
-
-## Rating service
-
-A small Express API is provided in `./rating-api`. It exposes a `/ping` endpoint for health checks.
-
-A `docker-compose.yml` is available to start the API together with Postgres and Redis:
+Smoke test:
 
 ```sh
-docker-compose up --build
+QUACKLE_BASE=http://localhost:8080 npm run quackle:health
+QUACKLE_BASE=http://localhost:8080 npm run smoke:ci
 ```
 
-The API will be accessible at `http://localhost:4000/ping` and proxied via `/api` from the frontend.
+Python tests:
 
-### Environment and migrations
-
-`rating-api` requires the following environment variables:
-
+```sh
+python -m pytest service-quackle/tests -q
 ```
+
+## Deployment
+
+Frontend deployment is Vercel free tier. The repo includes:
+
+- `vercel.json`
+- `api/quackle/[...path].js`
+
+The Vercel function proxies `/api/quackle/*` to the strong Quackle service. Details are in `docs/VERCEL_MIGRATION.md`.
+
+The Quackle service still needs a container host because it builds native C++ code and ships runtime strategy files. The current container host is Heroku.
+
+## Rating API
+
+`rating-api/` is a small Express API with Postgres/Redis support.
+
+Local stack:
+
+```sh
+docker compose up --build postgres redis rating-api
+```
+
+Rating API tests:
+
+```sh
+npm --prefix rating-api test
+```
+
+Database env:
+
+```sh
 DATABASE_URL=postgres://rating:example@localhost:5432/rating
 REDIS_URL=redis://localhost:6379
 PORT=4000
 ```
 
-**Production deployment:** Set `VITE_RATING_API_URL` to your production API URL. If not set, the frontend will use local fallback puzzle generation.
-## Storico (Railway)
-Questa sezione riguardava il deploy su Railway ed è mantenuta a scopo storico. L'istanza di produzione attuale gira su Heroku: `https://service-quackle-6773ae98281f.herokuapp.com`.
-
-## Quackle-Service: Strategia e Test integrazione
-
-Al build e ad ogni avvio del container, i file strategia richiesti vengono sincronizzati in `/data/appdata/strategy` da `/usr/share/quackle/data/strategy`:
-- default_english: `syn2`, `vcplace`, `superleaves`, `worths`
-- default: `bogowin`
-
-Endpoint diagnostici e health:
-- `GET /debug/strategy` → per ciascun file: exists, path, size, sha256, mode
-- `GET /health` → include `strategy_ready` e `strategy_files`; ritorna 503 se manca un file (a meno che `ALLOW_EMPTY_STRATEGY=1`)
-
-Test di integrazione (dopo `docker compose up -d quackle-service`):
-
-```bash
-curl -s http://localhost:8080/debug/strategy | jq
-curl -s -w "\nHTTP=%{http_code}\n" http://localhost:8080/health | jq
-
-# Caso A: board vuota + AEIRSTZ
-curl -sS -X POST http://localhost:8080/best-move \
-  -H 'content-type: application/json' \
-  --data-binary @- <<'JSON' | jq
-{"rack":"AEIRSTZ","board":{"rows":15,"cols":15,"grid":
-["...............","...............","...............","...............","...............",
- "...............","...............","...............","...............","...............",
- "...............","...............","...............","...............","..............."]}}
-JSON
-
-# Caso B: centro A + HELLO??
-curl -sS -X POST http://localhost:8080/best-move \
-  -H 'content-type: application/json' \
-  --data-binary @- <<'JSON' | jq
-{"rack":"HELLO??","board":{"rows":15,"cols":15,"grid":
-["...............","...............","...............","...............","...............",
- "...............","...............",".......A.......","...............","...............",
- "...............","...............","...............","...............","..............."]}}
-JSON
-```
-
-Nota: se rimuovi un file da `/data/appdata/strategy`, al riavvio l'entrypoint lo ricrea dai file di sistema.
-
-### Bridge self-test (CLI)
-
-Esecuzioni dirette del binario (nessun segfault, exit codes coerenti):
-
-```bash
-# A) Board vuota + rack AEIRSTZ (cattura RC con pipefail)
-set -o pipefail
-REQ='{"op":"compute","rack":"AEIRSTZ","ruleset":"en","board":{}}'
-printf '%s' "$REQ" | /srv/bridge/engine_wrapper | tee /tmp/out.json
-echo "RC=${PIPESTATUS[1]}"
-
-# B) Centro con A e rack HELLO??
-set -o pipefail
-REQ='{"op":"compute","rack":"HELLO??","ruleset":"en","board":{"8,8":{"letter":"A","isBlank":false}}}'
-printf '%s' "$REQ" | /srv/bridge/engine_wrapper | tee /tmp/out2.json
-echo "RC=${PIPESTATUS[1]}"
-
-# Se manca un file strategia oppure size==0 → exit code 72 con stderr contenente
-# "Strategy candidate missing: <abs_path>"
-```
-
-### Smoke test CI (consigliato)
-
-Per uno smoke affidabile in CI usa la stessa forma di payload inviata alla modalità "vs quackle" (mappa di coordinate 1-based) e rack robusti che tendono a produrre una mossa all'opening:
-
-- Board vuota: `{}`
-- Centro occupato: `{"8,8":{"letter":"A","isBlank":false}}`
-- Rack suggeriti: `FALREI?`, `HELLO??`
-
-Script già inclusi:
-
-- `npm run smoke:ci` → Node script (`scripts/test-smoke-ci.mjs`)
-- `npm run smoke:ci:curl` → Bash con curl (`scripts/smoketest-ci.sh`)
-
-Entrambi verificano:
-
-- HTTP 200
-- `engine_fallback == false`
-- `move_type != "pass"`
-- `tiles` non vuote
-
-Esempio esecuzione locale (dopo aver avviato `docker compose up -d quackle-service`):
-
-```bash
-QUACKLE_BASE=http://localhost:8080 npm run smoke:ci
-QUACKLE_BASE=http://localhost:8080 npm run smoke:ci:curl
-```
-
-In GitHub Actions è disponibile il workflow `.github/workflows/ci-smoke.yml` che costruisce e avvia `quackle-service`, prepara i dizionari in `./data/lexica`, attende `/health` e lancia gli smoke.
-
-### Fork Quackle (v1.0.4) e usare la nostra versione
-
-Per eliminare crash interni della libreria (FixedLengthString/Generator), questo progetto supporta una fork remota di Quackle. Il Dockerfile accetta gli argomenti di build:
-
-- `QUACKLE_REPO_URL` (default: `https://github.com/quackle/quackle.git`)
-- `QUACKLE_REPO_BRANCH` (default: `v1.0.4`)
-
-Passi consigliati:
-
-1) Crea il fork sul tuo account Git e push delle patch correttive (consigliato: branch `scarabeo-v104`)
-2) Esporta le variabili e ricostruisci:
-
-```bash
-export QUACKLE_REPO_URL=https://github.com/<tuo-account>/quackle.git
-export QUACKLE_REPO_BRANCH=scarabeo-v104
-docker compose build quackle-service
-docker compose up -d quackle-service
-```
-
-Note tecniche:
-- Durante il build, applichiamo anche patch di robustezza alla libreria: normalizzazione del conteggio lettere e indicizzazione sicura in `String::counts`. Inoltre, la funzione `Generator::setupCounts` usa una variante che non dipende da iteratori di FixedLengthString per il rack (assume rack a 7 tiles). Queste patch sono applicate inline per garantire build riproducibili; il fork remoto può includerle nativamente.
-
-
-### Diagnostica strategia (probe)
-
-Nuovo endpoint e op nel bridge per verificare senza inizializzare Quackle:
-
-- `GET /debug/strategy-probe` → chiama il bridge con `op:"probe_strategy"` e restituisce per ciascun file:
-  - `exists`, `size`, `head16`, `path`, e i path "risolti" via `DataManager::findDataFile`.
-
-Variabili utili per debug runtime del bridge:
-
-- `QUACKLE_INIT_MODE=none|default|english|both`
-  - `none`: salta completamente `StrategyParameters::initialize(...)` e i check pre-generazione.
-  - `default|english|both`: controlla quale sotto-set inizializzare e logga pre/post di ciascun passo.
-- `QUACKLE_DISABLE_STRATEGY=1` → equivalente a `QUACKLE_INIT_MODE=none` (salta init e check strategia).
-- `QUACKLE_USE_HIGHLEVEL=1` → abilita il percorso alternativo "high-level" (kibitz su `GamePosition`) anche a board vuota.
-
-Nota: se il binario del bridge non è ricompilato con l'ultima patch, gli switch sopra potrebbero non avere effetto. Nell'immagine Docker standard vengono applicati durante il build.
-
-API “happy path” su board vuota (HTTP 200 atteso):
-```bash
-curl -sS -X POST http://localhost:8080/best-move \
-  -H 'content-type: application/json' \
-  --data-binary @- <<'JSON'
-{"rack":"AEIRSTZ","ruleset":"en","board":{"rows":15,"cols":15,"grid":[
-"...............","...............","...............","...............","...............",
-"...............","...............","...............","...............","...............",
-"...............","...............","...............","...............","..............."]}}
-JSON
-```
-
-- Monta un volume su `/data`.
-- Imposta le variabili del servizio:
-  - `QUACKLE_LEXICON=enable1`
-  - `QUACKLE_LEXDIR=/data/lexica`
-  - `QUACKLE_APPDATA_DIR=/data/appdata`
-  - (opzionali) `GADDAG_URL`, `DAWG_URL` per auto‑download al primo avvio.
-- Verifica `GET /health`: deve mostrare `engine_ready:true` e dimensioni > 0 per GADDAG/DAWG.
-
-Comandi utili:
-- Logs: consulta i log della piattaforma di deploy (Heroku o altra) e filtra per `startup|Lexicon|GADDAG|DAWG|engine_fallback`
-- Diagnostica: `GET /debug/lexicon`, `GET /debug/quackle`, `GET /health/cors`
-
-
-Drizzle is used for database migrations:
+Migrations:
 
 ```sh
-# generate a new migration after editing src/schema.ts
 npm --prefix rating-api run db:generate
-
-# apply all pending migrations
 npm --prefix rating-api run db:migrate
 ```
 
-### Cron
+## Documentation
 
-Generate tomorrow's daily puzzle:
+Useful entry points:
 
-```sh
-npm --prefix rating-api run makeDaily
-```
+- `DOCS_INDEX.md`
+- `docs/WORKSPACE_FIX_PLAN.md`
+- `docs/VERCEL_MIGRATION.md`
+- `docs/BESTBOT_OPTIONAL_ENGINE.md`
+- `service-quackle/README.md`
+- `docs/game_rules.md`
 
-Schedule this with cron or GitHub Actions to run every day.
-
-### Daily Challenge
-
-The rating API exposes a daily Scrabble challenge.
-
-Ensure the database is configured via `DATABASE_URL` and run migrations:
-
-```
-npm --prefix rating-api run db:migrate
-```
-
-Example usage:
-
-```
-curl http://localhost:4000/daily-challenge/today
-curl -X POST http://localhost:4000/daily-challenge/submit \
-  -H "Content-Type: application/json" \
-  -d '{"yyyymmdd":20250101,"userId":"test","score":123}'
-curl http://localhost:4000/daily-challenge/leaderboard?yyyymmdd=20250101&limit=10
-```
+Old deployment artifacts, generated Quackle data, compiled bridge outputs, and the historical minimal service have been removed from the active workspace.

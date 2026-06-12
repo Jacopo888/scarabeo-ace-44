@@ -80,7 +80,6 @@ Per spostare anche `service-quackle` fuori da Heroku servono piattaforme contain
 
 - Fly.io
 - Render
-- Railway
 - Google Cloud Run
 - AWS App Runner/ECS
 

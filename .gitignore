@@ -31,8 +31,8 @@ dist-ssr
 
 # Python venv and caches
 service-quackle/.venv/
+service-quackle/.venv-ci/
 service-quackle/**/__pycache__/
-service-quackle-min/**/__pycache__/
 **/__pycache__/
 *.py[cod]
 .env.compose
@@ -42,6 +42,7 @@ service-quackle-min/**/__pycache__/
 *.tmp
 *.temp
 tmp/
+temp/
 .cache/
 .pytest_cache/
 .mypy_cache/
@@ -63,8 +64,14 @@ engine/app/*.dylib
 
 # Data and strategy (derived)
 data/appdata/strategy/
+docs/data/
+service-quackle/appdata/
 temp_lexica/
 lexica/
+
+# Native bridge outputs (derived)
+service-quackle/bridge/engine_wrapper*
+service-quackle/bridge/*.a
 
 # Temporary logs and test files (organized)
 temp-logs/
