@@ -1,6 +1,6 @@
 # Migrazione Vercel
 
-Stato: completato per frontend e proxy; service Quackle forte ancora su host container
+Stato: completato per frontend e proxy; service Quackle forte su host container
 
 ## Obiettivo
 
@@ -19,13 +19,13 @@ Il frontend Vite puo girare su Vercel senza container.
 - compila Quackle e il bridge nativo;
 - avvia FastAPI con `uvicorn`;
 - usa file lessico e strategy a runtime;
-- viene deployato come container Heroku.
+- viene deployato come container su Render.
 
 Vercel non esegue Docker image direttamente. Per questo la migrazione immediata e:
 
 - frontend su Vercel;
 - proxy Vercel `/api/quackle/*` verso il `service-quackle` forte esistente;
-- `service-quackle` resta su Heroku finche non scegliamo un host container compatibile, oppure finche non progettiamo un porting serverless dedicato.
+- `service-quackle` viene migrato su Render come web service Docker.
 
 Questa soluzione sposta l'esperienza utente su Vercel e rimuove i problemi CORS, ma non finge che il motore C++ sia gia serverless.
 
@@ -39,7 +39,7 @@ Questa soluzione sposta l'esperienza utente su Vercel e rimuove i problemi CORS,
 Produzione configurata:
 
 - `VITE_QUACKLE_SERVICE_URL=/api/quackle`
-- `QUACKLE_PROXY_TARGET=https://service-quackle-6773ae98281f.herokuapp.com`
+- `QUACKLE_PROXY_TARGET=https://tilesword-quackle.onrender.com`
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 - `VITE_SUPABASE_PROJECT_ID` opzionale
@@ -69,18 +69,13 @@ Verifiche completate:
 
 Service forte:
 
-- `GET https://service-quackle-6773ae98281f.herokuapp.com/health`
+- `GET https://tilesword-quackle.onrender.com/health`
 - verificare `engine=quackle-bridge`
 - verificare `bridge_path=/srv/bridge/engine_wrapper`
 - verificare `engine_ready=true`
 
-## Opzioni future per migrare davvero il service
+## Host container
 
-Per spostare anche `service-quackle` fuori da Heroku servono piattaforme container:
-
-- Fly.io
-- Render
-- Google Cloud Run
-- AWS App Runner/ECS
+Render e il target scelto per sostituire Heroku. La configurazione vive in `render.yaml`; dettagli operativi in `docs/RENDER_MIGRATION.md`.
 
 Un porting Vercel serverless del motore e teorico, ma non e il percorso consigliato per il bridge forte: richiederebbe binari precompilati compatibili, bundle size sotto limite, bootstrap lessici adatto a function runtime e timeout compatibili con simulazioni/endgame.

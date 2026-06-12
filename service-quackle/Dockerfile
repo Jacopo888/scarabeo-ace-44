@@ -3,6 +3,7 @@ FROM python:3.13-slim
 ARG BUILD_FORCE="v104-debug-4"
 ARG QUACKLE_REPO_URL="https://github.com/Jacopo888/quacklejacopo.git"
 ARG QUACKLE_REPO_BRANCH="master"
+ARG MAKE_JOBS=2
 ENV BUILD_FORCE=${BUILD_FORCE}
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -23,7 +24,7 @@ RUN mkdir -p /usr/share/quackle/lexica
 RUN git clone --depth=1 --branch ${QUACKLE_REPO_BRANCH} ${QUACKLE_REPO_URL} /tmp/quackle && \
     cd /tmp/quackle && mkdir -p build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
-    make -j"$(nproc)" && \
+    make -j"${MAKE_JOBS}" && \
     # Prima compila quackleio separatamente
     cd /tmp/quackle && \
     echo "Compilando quackleio..." && \
@@ -108,7 +109,7 @@ RUN pip install --no-cache-dir -r /srv/requirements.txt
 COPY quackle_service /srv/quackle_service
 
 # Variabili di default (modificabili in deploy)
-ENV CORS_ORIGINS="https://tilesword.vercel.app,https://service-quackle-6773ae98281f.herokuapp.com,http://localhost:5173,http://127.0.0.1:5173"
+ENV CORS_ORIGINS="https://tilesword.vercel.app,https://tilesword-quackle.onrender.com,http://localhost:5173,http://127.0.0.1:5173"
 ENV QUACKLE_LEXICON="enable1.15"
 ENV QUACKLE_LEXDIR="/data/lexica"
 ENV QUACKLE_APPDATA_DIR="/data/appdata"

@@ -1,4 +1,4 @@
-const DEFAULT_QUACKLE_TARGET = 'https://service-quackle-6773ae98281f.herokuapp.com';
+const DEFAULT_QUACKLE_TARGET = 'https://tilesword-quackle.onrender.com';
 
 function getTargetBase() {
   return (process.env.QUACKLE_PROXY_TARGET || DEFAULT_QUACKLE_TARGET).replace(/\/+$/, '');

@@ -4,7 +4,7 @@
  * Script per testare e debuggare il bridge Quackle
  */
 
-const QUACKLE_URL = 'https://service-quackle-6773ae98281f.herokuapp.com';
+const QUACKLE_URL = process.env.QUACKLE_BASE || 'https://tilesword-quackle.onrender.com';
 
 async function testBridgeDebug() {
   console.log(`\n🔍 Testing Quackle Bridge Debug`);

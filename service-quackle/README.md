@@ -4,7 +4,7 @@ Active FastAPI microservice for the strong Quackle bridge used by Tilesword.
 
 Production service:
 
-- `https://service-quackle-6773ae98281f.herokuapp.com`
+- `https://tilesword-quackle.onrender.com`
 
 The frontend normally reaches it through the Vercel proxy:
 

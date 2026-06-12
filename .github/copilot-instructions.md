@@ -50,7 +50,7 @@ Do not assume Italian Scarabeo rules without a dedicated migration.
 
 - Frontend production is Vercel: `https://tilesword.vercel.app`.
 - Vercel calls Quackle via `/api/quackle`.
-- The strong Quackle service is still a container workload and currently runs on Heroku.
+- The strong Quackle service is a container workload and targets Render via `render.yaml`.
 
 ## Hygiene
 

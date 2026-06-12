@@ -5,7 +5,7 @@ Tilesword is a Vite + React word-tile game with a Quackle-backed bot.
 Production:
 
 - Frontend and Quackle proxy: `https://tilesword.vercel.app`
-- Strong Quackle service: `https://service-quackle-6773ae98281f.herokuapp.com`
+- Strong Quackle service target: `https://tilesword-quackle.onrender.com`
 
 The current ruleset is English Scrabble-compatible:
 
@@ -49,7 +49,7 @@ Frontend env values are read through Vite:
 
 Use `.env.example` as the local template. Local `.env*` files are ignored by Git.
 
-For Vercel production, `VITE_QUACKLE_SERVICE_URL=/api/quackle` and `QUACKLE_PROXY_TARGET=https://service-quackle-6773ae98281f.herokuapp.com`.
+For Vercel production, `VITE_QUACKLE_SERVICE_URL=/api/quackle` and `QUACKLE_PROXY_TARGET=https://tilesword-quackle.onrender.com`.
 
 ## Quackle Service
 
@@ -101,9 +101,9 @@ Frontend deployment is Vercel free tier. The repo includes:
 - `vercel.json`
 - `api/quackle/[...path].js`
 
-The Vercel function proxies `/api/quackle/*` to the strong Quackle service. Details are in `docs/VERCEL_MIGRATION.md`.
+The Vercel function proxies `/api/quackle/*` to the strong Quackle service. Details are in `docs/VERCEL_MIGRATION.md` and `docs/RENDER_MIGRATION.md`.
 
-The Quackle service still needs a container host because it builds native C++ code and ships runtime strategy files. The current container host is Heroku.
+The Quackle service still needs a container host because it builds native C++ code and ships runtime strategy files. The target container host is Render.
 
 ## Rating API
 

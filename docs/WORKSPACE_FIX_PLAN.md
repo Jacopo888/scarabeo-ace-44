@@ -392,3 +392,22 @@ Aggiornato:
 - `/debug/quackle` ora dichiara `board_schema=coord_map_0based`.
 
 Nota storica: le sezioni precedenti di questo file possono citare path rimossi, perche documentano lo stato dei fix nel momento in cui sono stati eseguiti. Per nuovo sviluppo usare solo `service-quackle/` e la documentazione aggiornata.
+
+## MIGRATION-2026-06-12 - Render per `service-quackle`
+
+Stato: preparato in repo; deploy operativo da terminale richiede `RENDER_API_KEY` nel processo shell.
+
+Obiettivo: abbandonare Heroku per il motore Quackle forte e usare Render piano free come host container.
+
+Preparazione applicata:
+- Aggiunto `render.yaml` con servizio Docker `tilesword-quackle`, branch `main`, `rootDir=service-quackle`, region `frankfurt`, piano `free`, health `/health`.
+- Aggiornato `service-quackle/Dockerfile` con `MAKE_JOBS=2` per ridurre il rischio di OOM durante build C++ su ambiente gratuito.
+- Aggiornato default proxy Vercel verso `https://tilesword-quackle.onrender.com`.
+- Aggiornati README e documentazione deploy.
+- Installato Render CLI locale in `C:\work\tools\render\cli_v2.20.0.exe`.
+
+Passi rimanenti:
+- Impostare `$env:RENDER_API_KEY` nel terminale.
+- Validare Blueprint, creare servizio Render, attendere deploy.
+- Impostare `QUACKLE_PROXY_TARGET=https://tilesword-quackle.onrender.com` su Vercel e redeployare.
+- Smoke finale `/health` e `/best-move` via Render e via Vercel proxy.

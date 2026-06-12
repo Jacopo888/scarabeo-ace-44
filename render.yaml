@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: tilesword-quackle
+    runtime: docker
+    repo: https://github.com/Jacopo888/scarabeo-ace-44.git
+    branch: main
+    rootDir: service-quackle
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: frankfurt
+    autoDeployTrigger: commit
+    healthCheckPath: /health
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: ENV
+        value: prod
+      - key: DEBUG_ROUTES
+        value: "false"
+      - key: CORS_ORIGINS
+        value: https://tilesword.vercel.app,https://tilesword-quackle.onrender.com,http://localhost:5173,http://127.0.0.1:5173
+      - key: QUACKLE_LEXICON
+        value: enable1.15
+      - key: LEXICON_NAME
+        value: enable1.15
+      - key: QUACKLE_LEXDIR
+        value: /data/lexica
+      - key: QUACKLE_APPDATA_DIR
+        value: /data/appdata
+      - key: QUACKLE_TIMEOUT_MS
+        value: "8000"
+      - key: QUACKLE_REPO_URL
+        value: https://github.com/Jacopo888/quacklejacopo.git
+      - key: QUACKLE_REPO_BRANCH
+        value: master
+      - key: MAKE_JOBS
+        value: "2"
+      - key: DAWG_URL
+        value: https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexica/enable1.15.dawg
+      - key: GADDAG_URL
+        value: https://raw.githubusercontent.com/Jacopo888/quackle/master/data/lexica/enable1.15.gaddag
