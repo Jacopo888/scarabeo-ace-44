@@ -51,9 +51,9 @@ Completed:
 - Render frontend service created: `srv-d8lubuu7r5hc739nt8lg`
 - Render frontend deploy: `dep-d8lubv67r5hc739nt9gg`
 - Render Quackle service created: `srv-d8ltrc4m0tmc73are1bg`
-- Render Quackle deploy: `dep-d8lucg1kh4rs7394po40`
+- Render Quackle deploy: `dep-d8lunbvlk1mc73bls9gg`
 - Render frontend root: HTTP 200, title `Tilesword`
-- Render frontend browser smoke: root rendered, main navigation visible, no blank page
+- Render frontend browser smoke: root rendered, main navigation visible, no blank page, no console errors, no 4xx responses
 - Render proxy health: `https://tilesword.onrender.com/api/quackle/health`
 - Render proxy best move: rack `AEIRSTZ`, `word=ERSATZ`, `score=50`, `moves=3`, `engine_fallback=false`
 - Render health: `engine=quackle-bridge`, `engine_ready=true`, `strategy_ready=true`

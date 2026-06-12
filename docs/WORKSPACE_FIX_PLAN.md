@@ -447,8 +447,8 @@ Verifiche eseguite:
 - `render blueprints validate render.yaml`
 - `npm run build:prod`
 - Render frontend deploy `dep-d8lubv67r5hc739nt9gg`: `live`
-- Render Quackle deploy `dep-d8lucg1kh4rs7394po40`: `live`
+- Render Quackle deploy `dep-d8lunbvlk1mc73bls9gg`: `live`
 - Smoke root `https://tilesword.onrender.com/`: HTTP 200, title `Tilesword`
 - Smoke proxy health `https://tilesword.onrender.com/api/quackle/health`: `engine_ready=true`, `strategy_ready=true`
 - Smoke proxy best move: rack `AEIRSTZ`, `word=ERSATZ`, `score=50`, `moves=3`, `engine_fallback=false`
-- Playwright browser smoke: DOM renderizzato, navigazione visibile, nessuna pagina bianca.
+- Playwright browser smoke: DOM renderizzato, navigazione visibile, nessuna pagina bianca, nessun errore console e nessuna risposta 4xx.
