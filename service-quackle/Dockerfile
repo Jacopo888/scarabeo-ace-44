@@ -109,7 +109,7 @@ RUN pip install --no-cache-dir -r /srv/requirements.txt
 COPY quackle_service /srv/quackle_service
 
 # Variabili di default (modificabili in deploy)
-ENV CORS_ORIGINS="https://tilesword.vercel.app,https://tilesword-quackle.onrender.com,http://localhost:5173,http://127.0.0.1:5173"
+ENV CORS_ORIGINS="https://tilesword.onrender.com,https://tilesword.vercel.app,https://tilesword-quackle.onrender.com,http://localhost:5173,http://127.0.0.1:5173"
 ENV QUACKLE_LEXICON="enable1.15"
 ENV QUACKLE_LEXDIR="/data/lexica"
 ENV QUACKLE_APPDATA_DIR="/data/appdata"

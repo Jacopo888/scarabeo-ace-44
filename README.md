@@ -4,7 +4,7 @@ Tilesword is a Vite + React word-tile game with a Quackle-backed bot.
 
 Production:
 
-- Frontend and Quackle proxy: `https://tilesword.vercel.app`
+- Frontend and Quackle proxy: `https://tilesword.onrender.com`
 - Strong Quackle service target: `https://tilesword-quackle.onrender.com`
 
 The current ruleset is English Scrabble-compatible:
@@ -49,7 +49,7 @@ Frontend env values are read through Vite:
 
 Use `.env.example` as the local template. Local `.env*` files are ignored by Git.
 
-For Vercel production, `VITE_QUACKLE_SERVICE_URL=/api/quackle` and `QUACKLE_PROXY_TARGET=https://tilesword-quackle.onrender.com`.
+For Render production, `VITE_QUACKLE_SERVICE_URL=/api/quackle`. The static site rewrites `/api/quackle/*` to `https://tilesword-quackle.onrender.com/*`.
 
 ## Quackle Service
 
@@ -96,14 +96,14 @@ python -m pytest service-quackle/tests -q
 
 ## Deployment
 
-Frontend deployment is Vercel free tier. The repo includes:
+Frontend deployment is a Render Static Site on the free plan. The Quackle service is a Render Docker Web Service because it builds native C++ code and ships runtime strategy files.
 
-- `vercel.json`
-- `api/quackle/[...path].js`
+`render.yaml` is the deployment source of truth:
 
-The Vercel function proxies `/api/quackle/*` to the strong Quackle service. Details are in `docs/VERCEL_MIGRATION.md` and `docs/RENDER_MIGRATION.md`.
+- `tilesword`: Vite static frontend, publishes `dist`, rewrites `/api/quackle/*` to the backend.
+- `tilesword-quackle`: FastAPI + strong Quackle bridge container.
 
-The Quackle service still needs a container host because it builds native C++ code and ships runtime strategy files. The target container host is Render.
+Details are in `docs/RENDER_MIGRATION.md`.
 
 ## Rating API
 
@@ -142,7 +142,8 @@ Useful entry points:
 
 - `DOCS_INDEX.md`
 - `docs/WORKSPACE_FIX_PLAN.md`
-- `docs/VERCEL_MIGRATION.md`
+- `docs/RENDER_MIGRATION.md`
+- `docs/VERCEL_MIGRATION.md` historical migration note
 - `docs/BESTBOT_OPTIONAL_ENGINE.md`
 - `service-quackle/README.md`
 - `docs/game_rules.md`
