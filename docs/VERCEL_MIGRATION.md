@@ -1,10 +1,12 @@
 # Migrazione Vercel
 
-Stato: completato per frontend e proxy; service Quackle forte su host container
+Stato: superata dalla migrazione completa a Render.
+
+Nota: questo documento resta solo come storico. Il deployment attivo e ora descritto in `docs/RENDER_MIGRATION.md`; i file runtime Vercel (`vercel.json` e `api/quackle/[...path].js`) sono stati rimossi.
 
 ## Obiettivo
 
-Migrare il frontend Tilesword su Vercel piano gratuito e usare Vercel come punto di ingresso del sito.
+Migrare il frontend Tilesword su Vercel piano gratuito e usare Vercel come punto di ingresso del sito. Questa fase e stata poi sostituita dalla migrazione finale a Render.
 
 URL production:
 

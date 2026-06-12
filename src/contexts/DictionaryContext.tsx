@@ -41,25 +41,21 @@ export const DictionaryProvider: React.FC<DictionaryProviderProps> = ({ children
       setIsLoading(true);
       setError(null);
 
-      // 1) Try service-provided word list; 2) fall back to bundled ENABLE or the larger one.
+      // Prefer the bundled text list. The service may only ship binary DAWG/GADDAG files.
       let text = ''
       try {
-        const svc = await fetch(quackleApi('/lexicon/words'), { cache: 'no-store' as RequestCache })
-        if (svc.ok) text = await svc.text()
+        const resp = await fetch('/enable.txt', { cache: 'no-store' as RequestCache })
+        if (resp.ok) text = await resp.text()
       } catch {}
       let words = parseWords(text)
-      qlog('[Dictionary] service words:', words.length)
+      qlog('[Dictionary] local ENABLE words:', words.length)
 
-      // If service result is suspiciously tiny, prefer the local ENABLE file.
+      // If the static asset is unavailable, try the service-provided word list.
       if (words.length < 100) {
-        const resp = await fetch('/enable.txt', { cache: 'no-store' as RequestCache })
-        if (!resp.ok) throw new Error(`Failed to load dictionary: ${resp.status}`)
-        const localText = await resp.text()
-        const localWords = parseWords(localText)
-        if (localWords.length > words.length) {
-          qlog('[Dictionary] falling back to local ENABLE.txt:', localWords.length)
-          words = localWords
-        }
+        const svc = await fetch(quackleApi('/lexicon/words'), { cache: 'no-store' as RequestCache })
+        if (!svc.ok) throw new Error(`Failed to load dictionary: ${svc.status}`)
+        words = parseWords(await svc.text())
+        qlog('[Dictionary] service fallback words:', words.length)
       }
 
       setWordsSet(new Set(words))

@@ -6,9 +6,9 @@ Production service:
 
 - `https://tilesword-quackle.onrender.com`
 
-The frontend normally reaches it through the Vercel proxy:
+The frontend normally reaches it through the Render Static Site rewrite:
 
-- `https://tilesword.vercel.app/api/quackle/*`
+- `https://tilesword.onrender.com/api/quackle/*`
 
 ## Runtime Overview
 

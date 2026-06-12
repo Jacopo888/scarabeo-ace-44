@@ -42,7 +42,7 @@ services:
       - key: DEBUG_ROUTES
         value: "false"
       - key: CORS_ORIGINS
-        value: https://tilesword.onrender.com,https://tilesword.vercel.app,https://tilesword-quackle.onrender.com,http://localhost:5173,http://127.0.0.1:5173
+        value: https://tilesword.onrender.com,https://tilesword-quackle.onrender.com,http://localhost:5173,http://127.0.0.1:5173
       - key: QUACKLE_LEXICON
         value: enable1.15
       - key: LEXICON_NAME

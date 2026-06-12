@@ -418,3 +418,37 @@ Esito:
 - Rimossi i remoti Git Heroku locali.
 
 Nota: non ho distrutto fisicamente le app Heroku perche `heroku apps:destroy` e irreversibile e richiede conferma esplicita.
+
+## MIGRATION-2026-06-12 - Render full stack
+
+Stato: completato e live.
+
+Obiettivo: usare Render come riferimento unico per frontend e motore Quackle, abbandonando il runtime attivo Vercel/Heroku.
+
+Fix applicato:
+- Aggiunto Static Site Render `tilesword` in `render.yaml`.
+- Configurato frontend Render con build `npm ci && npm run build:prod`, publish path `dist` e env `VITE_QUACKLE_SERVICE_URL=/api/quackle`.
+- Configurate rewrite Render:
+  - `/api/quackle/*` -> `https://tilesword-quackle.onrender.com/*`
+  - `/*` -> `/index.html`
+- Creato servizio Render `tilesword` (`srv-d8lubuu7r5hc739nt8lg`) su piano free.
+- Aggiornato `tilesword-quackle` per accettare l'origin `https://tilesword.onrender.com`.
+- Rimosse dal runtime attivo le parti Vercel: `vercel.json` e `api/quackle/[...path].js`.
+- Aggiornata la documentazione attiva per indicare Render come unico riferimento production.
+- Il caricamento dizionario ora preferisce `/enable.txt`, evitando il 404 iniziale su `/api/quackle/lexicon/words` quando il backend espone solo lessici binari.
+
+Esito:
+- Frontend production: `https://tilesword.onrender.com`
+- Quackle production: `https://tilesword-quackle.onrender.com`
+- Proxy production: `https://tilesword.onrender.com/api/quackle/*`
+- Vercel non e piu necessario per il runtime production.
+
+Verifiche eseguite:
+- `render blueprints validate render.yaml`
+- `npm run build:prod`
+- Render frontend deploy `dep-d8lubv67r5hc739nt9gg`: `live`
+- Render Quackle deploy `dep-d8lucg1kh4rs7394po40`: `live`
+- Smoke root `https://tilesword.onrender.com/`: HTTP 200, title `Tilesword`
+- Smoke proxy health `https://tilesword.onrender.com/api/quackle/health`: `engine_ready=true`, `strategy_ready=true`
+- Smoke proxy best move: rack `AEIRSTZ`, `word=ERSATZ`, `score=50`, `moves=3`, `engine_fallback=false`
+- Playwright browser smoke: DOM renderizzato, navigazione visibile, nessuna pagina bianca.

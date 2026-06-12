@@ -4,8 +4,8 @@ Current entry points:
 
 - `README.md` - project overview, local development, deploy model
 - `docs/WORKSPACE_FIX_PLAN.md` - historical fix plan and completed remediation log
-- `docs/VERCEL_MIGRATION.md` - Vercel frontend/proxy migration
-- `docs/RENDER_MIGRATION.md` - Render container migration for `service-quackle`
+- `docs/RENDER_MIGRATION.md` - active Render frontend and Quackle deployment
+- `docs/VERCEL_MIGRATION.md` - superseded historical Vercel migration note
 - `docs/BESTBOT_OPTIONAL_ENGINE.md` - optional BestBot engine plan
 - `service-quackle/README.md` - active Quackle service contract
 - `docs/game_rules.md` - gameplay rules
